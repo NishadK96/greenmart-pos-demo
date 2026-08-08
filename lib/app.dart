@@ -7,42 +7,76 @@ import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/sales/receipt_screen.dart';
 
+Page<void> _instantPage(GoRouterState state, Widget child) =>
+    NoTransitionPage<void>(key: state.pageKey, child: child);
+
 final _router = GoRouter(
   initialLocation: '/login',
   routes: [
-    GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(
+      path: '/login',
+      pageBuilder: (_, state) => _instantPage(state, const LoginScreen()),
+    ),
     ShellRoute(
       builder: (_, __, child) => AppShell(child: child),
       routes: [
         GoRoute(
           path: '/dashboard',
-          builder: (_, __) => const DashboardScreen(),
+          pageBuilder: (_, state) =>
+              _instantPage(state, const DashboardScreen()),
         ),
-        GoRoute(path: '/pos', builder: (_, __) => const PosScreen()),
-        GoRoute(path: '/products', builder: (_, __) => const ProductsScreen()),
+        GoRoute(
+          path: '/pos',
+          pageBuilder: (_, state) => _instantPage(state, const PosScreen()),
+        ),
+        GoRoute(
+          path: '/products',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const ProductsScreen()),
+        ),
         GoRoute(
           path: '/categories',
-          builder: (_, __) => const CategoriesScreen(),
+          pageBuilder: (_, state) =>
+              _instantPage(state, const CategoriesScreen()),
         ),
         GoRoute(
           path: '/purchases',
-          builder: (_, __) => const PurchasesScreen(),
+          pageBuilder: (_, state) =>
+              _instantPage(state, const PurchasesScreen()),
         ),
         GoRoute(
           path: '/inventory',
-          builder: (_, __) => const InventoryScreen(),
+          pageBuilder: (_, state) =>
+              _instantPage(state, const InventoryScreen()),
         ),
         GoRoute(
           path: '/customers',
-          builder: (_, __) => const CustomersScreen(),
+          pageBuilder: (_, state) =>
+              _instantPage(state, const CustomersScreen()),
         ),
-        GoRoute(path: '/sales', builder: (_, __) => const SalesScreen()),
-        GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
-        GoRoute(path: '/sync', builder: (_, __) => const SyncScreen()),
-        GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+        GoRoute(
+          path: '/sales',
+          pageBuilder: (_, state) => _instantPage(state, const SalesScreen()),
+        ),
+        GoRoute(
+          path: '/reports',
+          pageBuilder: (_, state) => _instantPage(state, const ReportsScreen()),
+        ),
+        GoRoute(
+          path: '/sync',
+          pageBuilder: (_, state) => _instantPage(state, const SyncScreen()),
+        ),
+        GoRoute(
+          path: '/settings',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const SettingsScreen()),
+        ),
       ],
     ),
-    GoRoute(path: '/receipt', builder: (_, __) => const ReceiptScreen()),
+    GoRoute(
+      path: '/receipt',
+      pageBuilder: (_, state) => _instantPage(state, const ReceiptScreen()),
+    ),
   ],
 );
 

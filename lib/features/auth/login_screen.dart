@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool remember = true, obscure = true;
   final email = TextEditingController(text: 'demo@retailflow.app'),
       password = TextEditingController(text: 'password');
@@ -41,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const Spacer(),
                           Text(
-                            'Sell smarter.\nStay in control.',
+                            context.tr('Sell smarter.\nStay in control.'),
                             style: Theme.of(context).textTheme.displaySmall
                                 ?.copyWith(
                                   color: Colors.white,
@@ -49,22 +51,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'Fast checkout, accurate stock, and an offline-first workflow for modern retail.',
-                            style: TextStyle(
+                          Text(
+                            context.tr(
+                              'Fast checkout, accurate stock, and an offline-first workflow for modern retail.',
+                            ),
+                            style: const TextStyle(
                               color: Color(0xFFD5E8E3),
                               fontSize: 17,
                               height: 1.5,
                             ),
                           ),
                           const Spacer(),
-                          const Row(
+                          Row(
                             children: [
                               Icon(Icons.offline_bolt, color: Colors.white70),
                               SizedBox(width: 8),
                               Text(
-                                'Ready even when the internet is not',
-                                style: TextStyle(color: Colors.white70),
+                                context.tr(
+                                  'Ready even when the internet is not',
+                                ),
+                                style: const TextStyle(color: Colors.white70),
                               ),
                             ],
                           ),
@@ -80,31 +86,53 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'RETAILFLOW',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                          ),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'RETAILFLOW',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                            ),
+                            SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(value: 'en', label: Text('EN')),
+                                ButtonSegment(
+                                  value: 'ar',
+                                  label: Text('العربية'),
+                                ),
+                              ],
+                              selected: {
+                                Localizations.localeOf(context).languageCode,
+                              },
+                              onSelectionChanged: (value) => ref
+                                  .read(localeProvider.notifier)
+                                  .setLanguage(value.first),
+                              showSelectedIcon: false,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 28),
                         Text(
-                          'Welcome back',
+                          context.tr('Welcome back'),
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Sign in to open your store.',
-                          style: TextStyle(color: AppColors.muted),
+                        Text(
+                          context.tr('Sign in to open your store.'),
+                          style: const TextStyle(color: AppColors.muted),
                         ),
                         const SizedBox(height: 28),
                         TextField(
                           controller: email,
-                          decoration: const InputDecoration(
-                            labelText: 'Email or username',
-                            prefixIcon: Icon(Icons.person_outline),
+                          decoration: InputDecoration(
+                            labelText: context.tr('Email or username'),
+                            prefixIcon: const Icon(Icons.person_outline),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -112,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: password,
                           obscureText: obscure,
                           decoration: InputDecoration(
-                            labelText: 'Password',
+                            labelText: context.tr('Password'),
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               onPressed: () =>
@@ -132,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onChanged: (v) =>
                                   setState(() => remember = v ?? false),
                             ),
-                            const Text('Remember me'),
+                            Text(context.tr('Remember me')),
                             const Spacer(),
                             TextButton(
                               onPressed: () =>
@@ -143,14 +171,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                   ),
-                              child: const Text('Forgot password?'),
+                              child: Text(context.tr('Forgot password?')),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
                         FilledButton(
                           onPressed: () => context.go('/dashboard'),
-                          child: const Text('Sign in'),
+                          child: Text(context.tr('Sign in')),
                         ),
                       ],
                     ),

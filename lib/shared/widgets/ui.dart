@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 
 class PageTitle extends StatelessWidget {
@@ -14,13 +15,16 @@ class PageTitle extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              title,
+              context.tr(title),
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (subtitle != null)
-              Text(subtitle!, style: const TextStyle(color: AppColors.muted)),
+              Text(
+                context.tr(subtitle!),
+                style: const TextStyle(color: AppColors.muted),
+              ),
           ],
         ),
       ),
@@ -90,7 +94,10 @@ class MetricCard extends StatelessWidget {
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
-              Text(label, style: const TextStyle(color: AppColors.muted)),
+              Text(
+                context.tr(label),
+                style: const TextStyle(color: AppColors.muted),
+              ),
             ],
           ),
         ),
@@ -111,7 +118,7 @@ class StatusBadge extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      text,
+      context.tr(text),
       style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
     ),
   );
@@ -129,7 +136,10 @@ class EmptyState extends StatelessWidget {
         children: [
           const Icon(Icons.inbox_outlined, size: 42, color: AppColors.muted),
           const SizedBox(height: 12),
-          Text(text, style: const TextStyle(color: AppColors.muted)),
+          Text(
+            context.tr(text),
+            style: const TextStyle(color: AppColors.muted),
+          ),
         ],
       ),
     ),

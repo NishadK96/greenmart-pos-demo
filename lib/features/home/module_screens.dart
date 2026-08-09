@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/localization/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
@@ -48,13 +49,13 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const StatusBadge(
-                          'STORE OPEN',
+                        StatusBadge(
+                          context.tr('Store open'),
                           color: AppColors.accent,
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          'Good morning, Nishad',
+                          context.tr('Good morning, Nishad'),
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
                                 color: Colors.white,
@@ -62,9 +63,14 @@ class DashboardScreen extends ConsumerWidget {
                               ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Your store is on track. Here’s today at a glance.',
-                          style: TextStyle(color: Colors.white70, fontSize: 15),
+                        Text(
+                          context.tr(
+                            'Your store is on track. Here’s today at a glance.',
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 15,
+                          ),
                         ),
                       ],
                     ),
@@ -153,8 +159,8 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           LayoutBuilder(
             builder: (_, c) {
-              final recent = _recentSales(s);
-              final stock = _lowStock(low);
+              final recent = _recentSales(context, s);
+              final stock = _lowStock(context, low);
               return c.maxWidth > 780
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,9 +180,12 @@ class DashboardScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '7-day sales summary',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                Text(
+                  context.tr('7-day sales summary'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -229,7 +238,7 @@ class DashboardScreen extends ConsumerWidget {
             Icon(icon, color: strong ? AppColors.navy : Colors.white),
             const SizedBox(height: 6),
             Text(
-              label,
+              context.tr(label),
               style: TextStyle(
                 color: strong ? AppColors.navy : Colors.white,
                 fontWeight: FontWeight.w700,
@@ -242,13 +251,13 @@ class DashboardScreen extends ConsumerWidget {
     ),
   );
 
-  Widget _recentSales(AppState s) => Surface(
+  Widget _recentSales(BuildContext context, AppState s) => Surface(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Recent sales',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        Text(
+          context.tr('Recent sales'),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
         const SizedBox(height: 8),
         for (final sale in s.sales.take(5))
@@ -265,20 +274,20 @@ class DashboardScreen extends ConsumerWidget {
       ],
     ),
   );
-  Widget _lowStock(List<Product> low) => Surface(
+  Widget _lowStock(BuildContext context, List<Product> low) => Surface(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Low stock',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        Text(
+          context.tr('Low stock'),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
         const SizedBox(height: 8),
         for (final p in low.take(5))
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(p.name),
-            subtitle: Text('Minimum ${p.minimumStock}'),
+            title: Text(context.tr(p.name)),
+            subtitle: Text('${context.tr('Minimum')} ${p.minimumStock}'),
             trailing: StatusBadge('${p.stock} left', color: AppColors.danger),
           ),
       ],
@@ -298,7 +307,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(appStoreProvider);
     final rows = s.products
-        .where((p) => p.name.toLowerCase().contains(query.toLowerCase()))
+        .where(
+          (p) =>
+              p.name.toLowerCase().contains(query.toLowerCase()) ||
+              context.tr(p.name).contains(query),
+        )
         .toList();
     return PagePad(
       child: Column(
@@ -309,15 +322,15 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             action: FilledButton.icon(
               onPressed: () => _add(context),
               icon: const Icon(Icons.add),
-              label: const Text('Add product'),
+              label: Text(context.tr('Add product')),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             onChanged: (v) => setState(() => query = v),
-            decoration: const InputDecoration(
-              hintText: 'Search products',
-              prefixIcon: Icon(Icons.search),
+            decoration: InputDecoration(
+              hintText: context.tr('Search products'),
+              prefixIcon: const Icon(Icons.search),
             ),
           ),
           const SizedBox(height: 14),
@@ -340,7 +353,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       ),
                     ),
                     title: Text(
-                      p.name,
+                      context.tr(p.name),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text('${p.sku} • ${p.barcode}'),
@@ -380,7 +393,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add product'),
+        title: Text(context.tr('Add product')),
         content: SizedBox(
           width: 430,
           child: Column(
@@ -388,19 +401,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             children: [
               TextField(
                 controller: name,
-                decoration: const InputDecoration(labelText: 'Product name'),
+                decoration: InputDecoration(
+                  labelText: context.tr('Product name'),
+                ),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: price,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Selling price'),
+                decoration: InputDecoration(
+                  labelText: context.tr('Selling price'),
+                ),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: stock,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Opening stock'),
+                decoration: InputDecoration(
+                  labelText: context.tr('Opening stock'),
+                ),
               ),
             ],
           ),
@@ -408,7 +427,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -432,7 +451,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   );
               Navigator.pop(dialogContext);
             },
-            child: const Text('Save product'),
+            child: Text(context.tr('Save product')),
           ),
         ],
       ),
@@ -479,7 +498,7 @@ class CategoriesScreen extends ConsumerWidget {
                         Text(cat.icon, style: const TextStyle(fontSize: 26)),
                         const Spacer(),
                         Text(
-                          cat.name,
+                          context.tr(cat.name),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
                         Text(
@@ -513,7 +532,7 @@ class PurchasesScreen extends ConsumerWidget {
             action: FilledButton.icon(
               onPressed: () => _add(context, ref, s),
               icon: const Icon(Icons.add),
-              label: const Text('Add purchase'),
+              label: Text(context.tr('Add purchase')),
             ),
           ),
           const SizedBox(height: 18),
@@ -556,7 +575,7 @@ class PurchasesScreen extends ConsumerWidget {
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (context, set) => AlertDialog(
-          title: const Text('Receive purchase'),
+          title: Text(context.tr('Receive purchase')),
           content: SizedBox(
             width: 430,
             child: Column(
@@ -566,24 +585,31 @@ class PurchasesScreen extends ConsumerWidget {
                   initialValue: selected,
                   items: [
                     for (final p in s.products)
-                      DropdownMenuItem(value: p, child: Text(p.name)),
+                      DropdownMenuItem(
+                        value: p,
+                        child: Text(context.tr(p.name)),
+                      ),
                   ],
                   onChanged: (v) {
                     if (v != null) set(() => selected = v);
                   },
-                  decoration: const InputDecoration(labelText: 'Product'),
+                  decoration: InputDecoration(labelText: context.tr('Product')),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: qty,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('Quantity'),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: rate,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Purchase rate'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('Purchase rate'),
+                  ),
                 ),
               ],
             ),
@@ -591,7 +617,7 @@ class PurchasesScreen extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Save draft'),
+              child: Text(context.tr('Save draft')),
             ),
             FilledButton(
               onPressed: () {
@@ -604,7 +630,7 @@ class PurchasesScreen extends ConsumerWidget {
                     );
                 Navigator.pop(context);
               },
-              child: const Text('Save purchase'),
+              child: Text(context.tr('Save purchase')),
             ),
           ],
         ),
@@ -675,12 +701,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'All', label: Text('All')),
-                ButtonSegment(value: 'Low stock', label: Text('Low stock')),
+              segments: [
+                ButtonSegment(value: 'All', label: Text(context.tr('All'))),
+                ButtonSegment(
+                  value: 'Low stock',
+                  label: Text(context.tr('Low stock')),
+                ),
                 ButtonSegment(
                   value: 'Out of stock',
-                  label: Text('Out of stock'),
+                  label: Text(context.tr('Out of stock')),
                 ),
               ],
               selected: {filter},
@@ -697,7 +726,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   final p = rows[i];
                   return ListTile(
                     title: Text(
-                      p.name,
+                      context.tr(p.name),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(
@@ -739,7 +768,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (context, set) => AlertDialog(
-          title: Text('Adjust ${p.name}'),
+          title: Text('${context.tr('Adjust')} ${context.tr(p.name)}'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -749,13 +778,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                     .toList(),
                 onChanged: (v) => set(() => reason = v!),
-                decoration: const InputDecoration(labelText: 'Type'),
+                decoration: InputDecoration(labelText: context.tr('Type')),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: q,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantity'),
+                decoration: InputDecoration(labelText: context.tr('Quantity')),
               ),
             ],
           ),
@@ -772,7 +801,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     );
                 Navigator.pop(context);
               },
-              child: const Text('Apply adjustment'),
+              child: Text(context.tr('Apply adjustment')),
             ),
           ],
         ),
@@ -835,15 +864,15 @@ class SalesScreen extends ConsumerWidget {
             subtitle: 'Local and synchronized transactions.',
           ),
           const SizedBox(height: 14),
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
             child: Wrap(
               spacing: 8,
               children: [
-                Chip(label: Text('Today')),
-                Chip(label: Text('Yesterday')),
-                Chip(label: Text('This week')),
-                Chip(label: Text('This month')),
+                Chip(label: Text(context.tr('Today'))),
+                Chip(label: Text(context.tr('Yesterday'))),
+                Chip(label: Text(context.tr('This week'))),
+                Chip(label: Text(context.tr('This month'))),
               ],
             ),
           ),
@@ -913,7 +942,9 @@ class SalesScreen extends ConsumerWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('${line.quantity} × ${line.product.name}'),
+                      child: Text(
+                        '${line.quantity} × ${context.tr(line.product.name)}',
+                      ),
                     ),
                     Text(money(line.total)),
                   ],
@@ -922,9 +953,9 @@ class SalesScreen extends ConsumerWidget {
             const Divider(),
             Row(
               children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                Text(
+                  context.tr('Total'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const Spacer(),
                 Text(
@@ -942,7 +973,7 @@ class SalesScreen extends ConsumerWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Close'),
+          child: Text(context.tr('Close')),
         ),
         FilledButton.icon(
           onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -953,7 +984,7 @@ class SalesScreen extends ConsumerWidget {
             ),
           ),
           icon: const Icon(Icons.print_outlined),
-          label: const Text('Print'),
+          label: Text(context.tr('Print')),
         ),
       ],
     ),
@@ -971,7 +1002,7 @@ class ReportsScreen extends ConsumerWidget {
     for (final sale in s.sales) {
       for (final item in sale.items) {
         units.update(
-          item.product.name,
+          context.tr(item.product.name),
           (v) => v + item.quantity,
           ifAbsent: () => item.quantity,
         );
@@ -1024,9 +1055,12 @@ class ReportsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Sales trend',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                Text(
+                  context.tr('Sales trend'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 SizedBox(
@@ -1071,9 +1105,12 @@ class ReportsScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Top selling products',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                Text(
+                  context.tr('Top selling products'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
                 for (final e in top.take(5))
                   ListTile(
@@ -1139,10 +1176,10 @@ class SyncScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Sync queue',
-                        style: TextStyle(
+                        context.tr('Sync queue'),
+                        style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1157,13 +1194,13 @@ class SyncScreen extends ConsumerWidget {
                         ),
                       ),
                       icon: const Icon(Icons.sync),
-                      label: const Text('Sync now'),
+                      label: Text(context.tr('Sync now')),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 if (s.syncQueue.isEmpty)
-                  const EmptyState('All local records are synchronized')
+                  EmptyState(context.tr('All local records are synchronized'))
                 else
                   for (final item in s.syncQueue)
                     ListTile(
@@ -1222,10 +1259,10 @@ class SettingsScreen extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(child: Icon(section.$3)),
                 title: Text(
-                  section.$1,
+                  context.tr(section.$1),
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-                subtitle: Text(section.$2),
+                subtitle: Text(context.tr(section.$2)),
                 trailing: const Icon(Icons.chevron_right),
               ),
             ),

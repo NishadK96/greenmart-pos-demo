@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
 
@@ -18,14 +20,14 @@ const destinations = [
   ('/settings', 'Settings', Icons.settings_outlined),
 ];
 
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   bool expanded = true;
   late final Timer timer;
   DateTime now = DateTime.now();
@@ -61,12 +63,21 @@ class _AppShellState extends State<AppShell> {
       ];
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            'RetailFlow',
-            style: TextStyle(fontWeight: FontWeight.w900),
+          title: Text(
+            context.tr('RetailFlow'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
           ),
           actions: [
-            const StatusBadge('Online'),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.language),
+              onSelected: (code) =>
+                  ref.read(localeProvider.notifier).setLanguage(code),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'en', child: Text('🇬🇧  English')),
+                PopupMenuItem(value: 'ar', child: Text('🇸🇦  العربية')),
+              ],
+            ),
+            StatusBadge(context.tr('Online')),
             IconButton(
               onPressed: () => context.go('/pos'),
               icon: const Icon(Icons.add_shopping_cart),
@@ -81,7 +92,7 @@ class _AppShellState extends State<AppShell> {
           onDestinationSelected: (i) => context.go(mobile[i].$1),
           destinations: [
             for (final d in mobile)
-              NavigationDestination(icon: Icon(d.$3), label: d.$2),
+              NavigationDestination(icon: Icon(d.$3), label: context.tr(d.$2)),
           ],
         ),
       );
@@ -113,21 +124,21 @@ class _AppShellState extends State<AppShell> {
                         ),
                         if (expanded) ...[
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'GreenMart',
-                                  style: TextStyle(
+                                  context.tr('GreenMart'),
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 1,
                                   ),
                                 ),
                                 Text(
-                                  'Point of Sale',
-                                  style: TextStyle(
+                                  context.tr('Point of Sale'),
+                                  style: const TextStyle(
                                     color: Colors.white54,
                                     fontSize: 11,
                                   ),
@@ -217,7 +228,7 @@ class _AppShellState extends State<AppShell> {
                                           ),
                                         if (expanded)
                                           Text(
-                                            destinations[i].$2,
+                                            context.tr(destinations[i].$2),
                                             style: TextStyle(
                                               color: i == index(path)
                                                   ? Colors.white
@@ -260,11 +271,11 @@ class _AppShellState extends State<AppShell> {
                           ),
                           if (expanded) ...[
                             const SizedBox(width: 10),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Nishad',
                                     style: TextStyle(
                                       color: Colors.white,
@@ -272,8 +283,8 @@ class _AppShellState extends State<AppShell> {
                                     ),
                                   ),
                                   Text(
-                                    'Administrator',
-                                    style: TextStyle(
+                                    context.tr('Administrator'),
+                                    style: const TextStyle(
                                       color: Colors.white54,
                                       fontSize: 11,
                                     ),
@@ -305,7 +316,7 @@ class _AppShellState extends State<AppShell> {
                   child: Row(
                     children: [
                       Text(
-                        'GreenMart',
+                        context.tr('GreenMart'),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -319,9 +330,9 @@ class _AppShellState extends State<AppShell> {
                           color: AppColors.canvas,
                           borderRadius: BorderRadius.circular(7),
                         ),
-                        child: const Text(
-                          'MAIN STORE',
-                          style: TextStyle(
+                        child: Text(
+                          context.tr('Main Store').toUpperCase(),
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: AppColors.muted,
@@ -329,9 +340,29 @@ class _AppShellState extends State<AppShell> {
                         ),
                       ),
                       const Spacer(),
-                      const StatusBadge('● Online'),
+                      PopupMenuButton<String>(
+                        tooltip: context.tr('Language'),
+                        onSelected: (code) =>
+                            ref.read(localeProvider.notifier).setLanguage(code),
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'en',
+                            child: Text('🇬🇧  ${context.tr('English')}'),
+                          ),
+                          PopupMenuItem(
+                            value: 'ar',
+                            child: Text('🇸🇦  ${context.tr('Arabic')}'),
+                          ),
+                        ],
+                        child: Chip(
+                          avatar: const Icon(Icons.language, size: 17),
+                          label: Text(context.isArabic ? 'العربية' : 'English'),
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      const StatusBadge('Synced'),
+                      StatusBadge('● ${context.tr('Online')}'),
+                      const SizedBox(width: 8),
+                      StatusBadge(context.tr('Synced')),
                       const SizedBox(width: 18),
                       Text(
                         '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
@@ -340,7 +371,7 @@ class _AppShellState extends State<AppShell> {
                       FilledButton.icon(
                         onPressed: () => context.go('/pos'),
                         icon: const Icon(Icons.add),
-                        label: const Text('New sale'),
+                        label: Text(context.tr('New sale')),
                       ),
                       const SizedBox(width: 12),
                       IconButton(

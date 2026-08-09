@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/widgets/ui.dart';
@@ -16,7 +17,7 @@ class ReceiptScreen extends ConsumerWidget {
         body: Center(
           child: FilledButton(
             onPressed: () => context.go('/pos'),
-            child: const Text('Start a sale'),
+            child: Text(context.tr('Start a sale')),
           ),
         ),
       );
@@ -40,7 +41,7 @@ class ReceiptScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Sale complete',
+                    context.tr('Sale complete'),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -54,16 +55,16 @@ class ReceiptScreen extends ConsumerWidget {
                   Surface(
                     child: Column(
                       children: [
-                        const Text(
-                          'GREENMART',
-                          style: TextStyle(
+                        Text(
+                          context.tr('GreenMart').toUpperCase(),
+                          style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2,
                           ),
                         ),
-                        const Text(
-                          'Thank you for shopping with us',
-                          style: TextStyle(color: AppColors.muted),
+                        Text(
+                          context.tr('Thank you for shopping with us'),
+                          style: const TextStyle(color: AppColors.muted),
                         ),
                         const Divider(height: 28),
                         Row(
@@ -81,7 +82,7 @@ class ReceiptScreen extends ConsumerWidget {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${line.quantity} × ${line.product.name}',
+                                    '${line.quantity} × ${context.tr(line.product.name)}',
                                   ),
                                 ),
                                 Text(money(line.total)),
@@ -90,11 +91,12 @@ class ReceiptScreen extends ConsumerWidget {
                           ),
                         const Divider(height: 28),
                         _row(
+                          context,
                           'Subtotal',
                           sale.items.fold(0, (v, e) => v + e.subtotal),
                         ),
-                        _row('Tax', sale.tax),
-                        _row('Discount', -sale.discount),
+                        _row(context, 'Tax', sale.tax),
+                        _row(context, 'Discount', -sale.discount),
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -135,7 +137,7 @@ class ReceiptScreen extends ConsumerWidget {
                                 ),
                               ),
                           icon: const Icon(Icons.print_outlined),
-                          label: const Text('Print'),
+                          label: Text(context.tr('Print')),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -150,7 +152,7 @@ class ReceiptScreen extends ConsumerWidget {
                                 ),
                               ),
                           icon: const Icon(Icons.share_outlined),
-                          label: const Text('Share'),
+                          label: Text(context.tr('Share')),
                         ),
                       ),
                     ],
@@ -158,14 +160,14 @@ class ReceiptScreen extends ConsumerWidget {
                   const SizedBox(height: 10),
                   FilledButton(
                     onPressed: () => context.go('/pos'),
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: double.infinity,
-                      child: Center(child: Text('Start new sale')),
+                      child: Center(child: Text(context.tr('Start new sale'))),
                     ),
                   ),
                   TextButton(
                     onPressed: () => context.go('/sales'),
-                    child: const Text('View sales history'),
+                    child: Text(context.tr('View sales history')),
                   ),
                 ],
               ),
@@ -176,11 +178,11 @@ class ReceiptScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(String label, int value) => Padding(
+  Widget _row(BuildContext context, String label, int value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       children: [
-        Text(label, style: const TextStyle(color: AppColors.muted)),
+        Text(context.tr(label), style: const TextStyle(color: AppColors.muted)),
         const Spacer(),
         Text(money(value)),
       ],

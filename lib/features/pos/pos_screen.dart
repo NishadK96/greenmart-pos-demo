@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
@@ -24,6 +25,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               p.active &&
               (category == 'all' || p.categoryId == category) &&
               (p.name.toLowerCase().contains(query.toLowerCase()) ||
+                  context.tr(p.name).contains(query) ||
                   p.barcode.contains(query)),
         )
         .toList();
@@ -80,7 +82,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text('View cart'),
+                    Text(context.tr('View cart')),
                     const Spacer(),
                     Text(
                       money(state.cartTotal),
@@ -121,14 +123,14 @@ class _Discovery extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Point of Sale',
+                    context.tr('Point of Sale'),
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const Text(
-                    'Scan barcode or search product to add',
-                    style: TextStyle(color: AppColors.muted),
+                  Text(
+                    context.tr('Scan barcode or search product to add'),
+                    style: const TextStyle(color: AppColors.muted),
                   ),
                 ],
               ),
@@ -159,9 +161,9 @@ class _Discovery extends ConsumerWidget {
             Expanded(
               child: TextField(
                 onChanged: onSearch,
-                decoration: const InputDecoration(
-                  hintText: 'Search by name, SKU or barcode...',
-                  prefixIcon: Icon(Icons.search),
+                decoration: InputDecoration(
+                  hintText: context.tr('Search by name, SKU or barcode...'),
+                  prefixIcon: const Icon(Icons.search),
                 ),
               ),
             ),
@@ -188,7 +190,7 @@ class _Discovery extends ConsumerWidget {
             itemBuilder: (_, i) {
               final c = state.categories[i];
               return ChoiceChip(
-                label: Text('${c.icon}  ${c.name}'),
+                label: Text('${c.icon}  ${context.tr(c.name)}'),
                 selected: selected == c.id,
                 onSelected: (_) => onCategory(c.id),
               );
@@ -256,7 +258,7 @@ class _Discovery extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      p.name,
+                                      context.tr(p.name),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -278,7 +280,7 @@ class _Discovery extends ConsumerWidget {
                                         const Spacer(),
                                         Text(
                                           p.stock == 0
-                                              ? 'Out'
+                                              ? context.tr('Out')
                                               : '${p.stock} ${p.unit}',
                                           style: TextStyle(
                                             fontSize: 12,
@@ -292,9 +294,9 @@ class _Discovery extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              Positioned(
+                              PositionedDirectional(
                                 top: 9,
-                                right: 9,
+                                end: 9,
                                 child: Container(
                                   width: 34,
                                   height: 34,
@@ -337,19 +339,19 @@ class _Discovery extends ConsumerWidget {
               FilledButton.tonalIcon(
                 onPressed: () {},
                 icon: const Icon(Icons.grid_view_rounded, size: 18),
-                label: const Text('Grid'),
+                label: Text(context.tr('Grid')),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.view_list_rounded, size: 19),
-                label: const Text('List'),
+                label: Text(context.tr('List')),
               ),
               const Spacer(),
               OutlinedButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.swap_vert, size: 18),
-                label: const Text('Top selling'),
+                label: Text(context.tr('Top selling')),
               ),
             ],
           ),
@@ -389,7 +391,7 @@ class _Cart extends ConsumerWidget {
             Row(
               children: [
                 Text(
-                  'Current order',
+                  context.tr('Current Order'),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -399,7 +401,7 @@ class _Cart extends ConsumerWidget {
                   TextButton(
                     onPressed: () =>
                         ref.read(appStoreProvider.notifier).clearCart(),
-                    child: const Text('Clear'),
+                    child: Text(context.tr('Clear')),
                   ),
               ],
             ),
@@ -407,7 +409,7 @@ class _Cart extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${s.itemCount} items • ${s.customer?.name ?? 'Walk-in Customer'}',
+                    '${s.itemCount} ${context.tr(s.itemCount == 1 ? 'item' : 'items')} • ${s.customer?.name ?? context.tr('Walk-in Customer')}',
                     style: const TextStyle(color: AppColors.muted),
                   ),
                 ),
@@ -444,13 +446,13 @@ class _Cart extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    line.product.name,
+                                    context.tr(line.product.name),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   Text(
-                                    '${money(line.product.sellingPrice)} each',
+                                    '${money(line.product.sellingPrice)} ${context.tr('each')}',
                                     style: const TextStyle(
                                       color: AppColors.muted,
                                       fontSize: 12,
@@ -493,9 +495,9 @@ class _Cart extends ConsumerWidget {
                     ),
             ),
             const Divider(height: 24),
-            _sum('Subtotal', s.cartSubtotal),
-            _sum('Tax (5%)', s.cartTax),
-            _sum('Discount', -s.cartDiscount),
+            _sum(context, 'Subtotal', s.cartSubtotal),
+            _sum(context, 'Tax (5%)', s.cartTax),
+            _sum(context, 'Discount', -s.cartDiscount),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
@@ -506,7 +508,7 @@ class _Cart extends ConsumerWidget {
               child: Row(
                 children: [
                   Text(
-                    'Grand Total',
+                    context.tr('Grand Total'),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -529,7 +531,7 @@ class _Cart extends ConsumerWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => _customer(context, ref, s),
                     icon: const Icon(Icons.person_add_alt),
-                    label: const Text('Customer'),
+                    label: Text(context.tr('Customer')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -540,7 +542,7 @@ class _Cart extends ConsumerWidget {
                         ? null
                         : () => _payment(context, ref, s),
                     icon: const Icon(Icons.payments_outlined),
-                    label: const Text('Payment'),
+                    label: Text(context.tr('Payment')),
                   ),
                 ),
               ],
@@ -551,11 +553,11 @@ class _Cart extends ConsumerWidget {
     );
   }
 
-  Widget _sum(String label, int amount) => Padding(
+  Widget _sum(BuildContext context, String label, int amount) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       children: [
-        Text(label, style: const TextStyle(color: AppColors.muted)),
+        Text(context.tr(label), style: const TextStyle(color: AppColors.muted)),
         const Spacer(),
         Text(money(amount)),
       ],
@@ -564,7 +566,7 @@ class _Cart extends ConsumerWidget {
   void _customer(BuildContext context, WidgetRef ref, AppState s) => showDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Select customer'),
+      title: Text(context.tr('Select customer')),
       content: SizedBox(
         width: 360,
         child: ListView(
@@ -594,7 +596,7 @@ class _Cart extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Collect ${money(s.cartTotal)}',
+                '${context.tr('Collect')} ${money(s.cartTotal)}',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -618,8 +620,10 @@ class _Cart extends ConsumerWidget {
                     ),
                     label: Text(
                       m == PaymentMethod.digital
-                          ? 'UPI / Digital'
-                          : m.name[0].toUpperCase() + m.name.substring(1),
+                          ? context.tr('UPI / Digital')
+                          : context.tr(
+                              m.name[0].toUpperCase() + m.name.substring(1),
+                            ),
                     ),
                   ),
                 ),

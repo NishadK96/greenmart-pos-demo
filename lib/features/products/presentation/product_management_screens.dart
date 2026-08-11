@@ -403,7 +403,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               runSpacing: 10,
               children: [
                 OutlinedButton(
-                  onPressed: _saving ? null : () => context.pop(),
+                  onPressed: _saving ? null : () => context.go('/products'),
                   child: const Text('Cancel'),
                 ),
                 if (!editing && !widget.quick)
@@ -656,7 +656,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           const SnackBar(content: Text('Product saved. Add the next product.')),
         );
       } else {
-        context.pop();
+        context.go('/products');
       }
     } on ApiException catch (e) {
       if (mounted)
@@ -864,7 +864,7 @@ class _BulkProductUpdateScreenState
             locationId: locationId,
             sellingPrice: amount,
           );
-      if (mounted) context.pop();
+      if (mounted) context.go('/products');
     } on ApiException catch (e) {
       if (mounted)
         ScaffoldMessenger.of(
@@ -951,7 +951,7 @@ class _ProductImportScreenState extends ConsumerState<ProductImportScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${products.length} products imported.')),
         );
-        context.pop();
+        context.go('/products');
       }
     } on ApiException catch (e) {
       if (mounted)
@@ -981,7 +981,7 @@ class _Page extends StatelessWidget {
         Row(
           children: [
             IconButton(
-              onPressed: () => context.pop(),
+              onPressed: () => context.go('/products'),
               icon: const Icon(Icons.arrow_back),
             ),
             const SizedBox(width: 8),

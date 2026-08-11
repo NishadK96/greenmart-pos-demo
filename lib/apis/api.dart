@@ -247,7 +247,12 @@ class Api {
     'name': draft.name.trim(),
     if (includeType) 'type': 'single',
     'unit_id': draft.unitId,
-    'sku': draft.sku.trim(),
+    // EazyERP's server-side SKU generator currently reads web-session state,
+    // which is unavailable on stateless Connector API requests. Preserve the
+    // documented blank-SKU UX by generating a collision-resistant SKU here.
+    'sku': draft.sku.trim().isEmpty
+        ? 'GM-${DateTime.now().microsecondsSinceEpoch}'
+        : draft.sku.trim(),
     'enable_stock': draft.manageStock ? '1' : '0',
     'enable_sr_no': draft.enableSerialNumber ? '1' : '0',
     'not_for_selling': draft.notForSelling ? '1' : '0',

@@ -200,6 +200,29 @@ void main() {
     expect(seen[1].path, '/connector/api/products/save_quick_product');
   });
 
+  test(
+    'blank product SKU is generated before the stateless API call',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.body, contains('name="sku"'));
+          expect(request.body, contains('GM-'));
+          return http.Response(_productResponse, 201);
+        }),
+      );
+
+      await api.createProduct(
+        accessToken: 'token-123',
+        draft: const ProductDraft(
+          name: 'Auto SKU Product',
+          unitId: '1',
+          purchasePrice: 1000,
+          sellingPrice: 1250,
+        ),
+      );
+    },
+  );
+
   test('product edit sends a multipart PATCH override', () async {
     final api = Api(
       client: MockClient((request) async {

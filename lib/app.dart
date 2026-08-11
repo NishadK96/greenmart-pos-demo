@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
-import 'features/home/app_shell.dart';
+import 'features/auth/auth_gate.dart';
 import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/sales/receipt_screen.dart';
@@ -21,7 +21,7 @@ final _router = GoRouter(
       pageBuilder: (_, state) => _instantPage(state, const LoginScreen()),
     ),
     ShellRoute(
-      builder: (_, __, child) => AppShell(child: child),
+      builder: (_, __, child) => AuthGate(child: child),
       routes: [
         GoRoute(
           path: '/dashboard',

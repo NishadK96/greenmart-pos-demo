@@ -248,4 +248,12 @@ const Map<String, String> _ar = {
   'Out': 'نفد',
   'UPI / Digital': 'دفع إلكتروني',
   'Collect': 'تحصيل',
+  'Enter your username and password.': 'أدخل اسم المستخدم وكلمة المرور.',
+  'The username or password is incorrect.':
+      'اسم المستخدم أو كلمة المرور غير صحيحة.',
+  'Login is not configured. Add the OAuth client secret to the build.':
+      'تسجيل الدخول غير مُعد. أضف سر عميل OAuth إلى عملية البناء.',
+  'Unable to reach the server. Check your connection.':
+      'تعذر الوصول إلى الخادم. تحقق من اتصالك.',
+  'Login failed. Please try again.': 'فشل تسجيل الدخول. حاول مرة أخرى.',
 };

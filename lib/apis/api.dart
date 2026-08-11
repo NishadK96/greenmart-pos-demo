@@ -97,6 +97,196 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<LookupOption>> units(String accessToken) =>
+      _lookupOptions(ApiEndPoints.unitsUrl, accessToken, 'units');
+
+  Future<List<LookupOption>> taxes(String accessToken) =>
+      _lookupOptions(ApiEndPoints.taxesUrl, accessToken, 'taxes');
+
+  Future<List<LookupOption>> _lookupOptions(
+    String url,
+    String accessToken,
+    String resource,
+  ) async {
+    final data = await _getDataList(Uri.parse(url), accessToken, resource);
+    return data
+        .map(
+          (item) => LookupOption(
+            id: item['id'].toString(),
+            name:
+                item['actual_name']?.toString() ??
+                item['name']?.toString() ??
+                item['short_name']?.toString() ??
+                '',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<Product> createProduct({
+    required String accessToken,
+    required ProductDraft draft,
+    bool quick = false,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        quick ? ApiEndPoints.quickProductUrl : ApiEndPoints.productWritesUrl,
+      ),
+    );
+    request.headers.addAll(_authorizedHeaders(accessToken));
+    request.fields.addAll(_productFields(draft, includeType: !quick));
+    if (quick && draft.openingStock > 0 && draft.locationIds.isNotEmpty) {
+      final location = draft.locationIds.first;
+      request.fields['opening_stock[$location][quantity]'] =
+          '${draft.openingStock}';
+      request.fields['opening_stock[$location][purchase_price]'] =
+          '${draft.purchasePrice / 100}';
+    }
+    _attachImage(request, draft);
+    return _productFromWriteResponse(
+      await _sendMultipart(request),
+      'create product',
+    );
+  }
+
+  Future<Product> updateProduct({
+    required String accessToken,
+    required Product product,
+    required ProductDraft draft,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiEndPoints.productWritesUrl}/${product.id}'),
+    );
+    request.headers.addAll(_authorizedHeaders(accessToken));
+    request.fields['_method'] = 'PATCH';
+    request.fields.addAll(_productFields(draft));
+    _attachImage(request, draft);
+    return _productFromWriteResponse(
+      await _sendMultipart(request),
+      'update product',
+    );
+  }
+
+  Future<List<Product>> bulkUpdateProducts({
+    required String accessToken,
+    required List<Product> products,
+    String? categoryId,
+    String? locationId,
+    int? sellingPrice,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.bulkProductsUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'products': [
+              for (final product in products)
+                {
+                  'id': int.parse(product.id),
+                  if (categoryId != null) 'category_id': int.parse(categoryId),
+                  if (locationId != null)
+                    'product_locations': [int.parse(locationId)],
+                  if (sellingPrice != null)
+                    'variations': {
+                      product.variationId: {
+                        'default_sell_price': sellingPrice / 100,
+                        'sell_price_inc_tax': sellingPrice / 100,
+                      },
+                    },
+                },
+            ],
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    final payload = _requireObject(response, 'bulk product update');
+    final data = payload['data'];
+    if (data is! List)
+      throw const ApiException('Invalid bulk product response.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(_productFromJson)
+        .toList();
+  }
+
+  Future<List<Product>> importProducts({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(ApiEndPoints.importProductsUrl),
+    );
+    request.headers.addAll(_authorizedHeaders(accessToken));
+    request.files.add(
+      http.MultipartFile.fromBytes('products_file', bytes, filename: fileName),
+    );
+    final payload = await _sendMultipart(request);
+    final data = payload['data'];
+    if (data is! List)
+      throw const ApiException('Invalid product import response.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(_productFromJson)
+        .toList();
+  }
+
+  Map<String, String> _productFields(
+    ProductDraft draft, {
+    bool includeType = false,
+  }) => {
+    'name': draft.name.trim(),
+    if (includeType) 'type': 'single',
+    'unit_id': draft.unitId,
+    'sku': draft.sku.trim(),
+    'enable_stock': draft.manageStock ? '1' : '0',
+    'alert_quantity': '${draft.minimumStock}',
+    'single_dpp': '${draft.purchasePrice / 100}',
+    'single_dpp_inc_tax': '${draft.purchasePrice / 100}',
+    'single_dsp': '${draft.sellingPrice / 100}',
+    'single_dsp_inc_tax': '${draft.sellingPrice / 100}',
+    if (draft.categoryId.isNotEmpty) 'category_id': draft.categoryId,
+    if (draft.taxId.isNotEmpty) 'tax': draft.taxId,
+    for (var i = 0; i < draft.locationIds.length; i++)
+      'product_locations[$i]': draft.locationIds[i],
+  };
+
+  void _attachImage(http.MultipartRequest request, ProductDraft draft) {
+    if (draft.imageBytes != null && draft.imageName != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'image',
+          draft.imageBytes!,
+          filename: draft.imageName,
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendMultipart(
+    http.MultipartRequest request,
+  ) async {
+    final streamed = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    return _requireObject(response, 'product');
+  }
+
+  Product _productFromWriteResponse(
+    Map<String, dynamic> payload,
+    String resource,
+  ) {
+    final data = payload['data'];
+    if (data is! Map) throw ApiException('Invalid $resource response.');
+    return _productFromJson(Map<String, dynamic>.from(data));
+  }
+
   Future<List<Category>> categories(String accessToken) async {
     final uri = Uri.parse(
       ApiEndPoints.categoriesUrl,
@@ -408,6 +598,11 @@ class Api {
       unit: (json['unit'] is Map<String, dynamic>)
           ? (json['unit']['short_name']?.toString() ?? 'pc')
           : 'pc',
+      unitId:
+          _map(json['unit'])['id']?.toString() ??
+          json['unit_id']?.toString() ??
+          '',
+      taxId: productTax['id']?.toString() ?? json['tax']?.toString() ?? '',
       active: json['is_inactive'] != 1,
       imageUrl: json['image_url']?.toString() ?? '',
     );

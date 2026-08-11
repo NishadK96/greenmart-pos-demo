@@ -8,6 +8,8 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/auth_gate.dart';
 import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
+import 'features/products/presentation/product_management_screens.dart';
+import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
@@ -36,6 +38,33 @@ final _router = GoRouter(
           path: '/products',
           pageBuilder: (_, state) =>
               _instantPage(state, const ProductsScreen()),
+        ),
+        GoRoute(
+          path: '/products/create',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const ProductFormScreen()),
+        ),
+        GoRoute(
+          path: '/products/quick',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const ProductFormScreen(quick: true)),
+        ),
+        GoRoute(
+          path: '/products/edit',
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            ProductFormScreen(product: state.extra! as Product),
+          ),
+        ),
+        GoRoute(
+          path: '/products/bulk',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const BulkProductUpdateScreen()),
+        ),
+        GoRoute(
+          path: '/products/import',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const ProductImportScreen()),
         ),
         GoRoute(
           path: '/categories',

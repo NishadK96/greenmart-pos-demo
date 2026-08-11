@@ -121,6 +121,25 @@ const Map<String, String> _ar = {
   'Opening stock': 'المخزون الافتتاحي',
   'Cancel': 'إلغاء',
   'Save product': 'حفظ المنتج',
+  'Import': 'استيراد',
+  'Bulk update': 'تحديث جماعي',
+  'Quick add': 'إضافة سريعة',
+  'New product': 'منتج جديد',
+  'Quick add product': 'إضافة منتج سريعة',
+  'Edit product': 'تعديل المنتج',
+  'Create product': 'إنشاء منتج',
+  'Create a sellable product with optional opening stock.':
+      'أنشئ منتجاً قابلاً للبيع مع مخزون افتتاحي اختياري.',
+  'Product details are saved directly to EazyERP.':
+      'تُحفظ تفاصيل المنتج مباشرة في إيزي ERP.',
+  'Manage inventory': 'إدارة المخزون',
+  'Save changes': 'حفظ التغييرات',
+  'Bulk update products': 'تحديث المنتجات جماعياً',
+  'Apply category, location, or selling price to selected products.':
+      'طبّق الفئة أو الموقع أو سعر البيع على المنتجات المحددة.',
+  'Import products': 'استيراد المنتجات',
+  'Upload the EazyERP product spreadsheet template.':
+      'ارفع قالب جدول منتجات إيزي ERP.',
   'Add purchase': 'إضافة مشتريات',
   'Receive purchase': 'استلام مشتريات',
   'Product': 'المنتج',

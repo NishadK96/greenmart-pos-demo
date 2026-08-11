@@ -12,6 +12,8 @@ class BackendSnapshot {
     required this.business,
     required this.user,
     required this.profitLoss,
+    required this.units,
+    required this.taxes,
   });
 
   final List<Product> products;
@@ -24,6 +26,7 @@ class BackendSnapshot {
   final BusinessProfile business;
   final UserProfile user;
   final ProfitLoss profitLoss;
+  final List<LookupOption> units, taxes;
 }
 
 class CreatedSale {
@@ -58,5 +61,28 @@ abstract interface class BackendRepository {
     required List<CartLine> lines,
     required String paymentMethod,
     required int total,
+  });
+
+  Future<Product> createProduct({
+    required String accessToken,
+    required ProductDraft draft,
+    bool quick,
+  });
+  Future<Product> updateProduct({
+    required String accessToken,
+    required Product product,
+    required ProductDraft draft,
+  });
+  Future<List<Product>> bulkUpdateProducts({
+    required String accessToken,
+    required List<Product> products,
+    String? categoryId,
+    String? locationId,
+    int? sellingPrice,
+  });
+  Future<List<Product>> importProducts({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
   });
 }

@@ -30,6 +30,8 @@ class BackendController extends AsyncNotifier<void> {
         business: snapshot.business,
         user: snapshot.user,
         profitLoss: snapshot.profitLoss,
+        units: snapshot.units,
+        taxes: snapshot.taxes,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
@@ -107,6 +109,64 @@ class BackendController extends AsyncNotifier<void> {
         );
     ref.invalidateSelf();
     return sale;
+  }
+
+  Future<Product> createProduct(
+    ProductDraft draft, {
+    bool quick = false,
+  }) async {
+    final product = await ref
+        .read(backendRepositoryProvider)
+        .createProduct(accessToken: await _token(), draft: draft, quick: quick);
+    ref.read(appStoreProvider.notifier).upsertProduct(product);
+    ref.invalidateSelf();
+    return product;
+  }
+
+  Future<Product> updateProduct(Product product, ProductDraft draft) async {
+    final updated = await ref
+        .read(backendRepositoryProvider)
+        .updateProduct(
+          accessToken: await _token(),
+          product: product,
+          draft: draft,
+        );
+    ref.read(appStoreProvider.notifier).upsertProduct(updated);
+    ref.invalidateSelf();
+    return updated;
+  }
+
+  Future<List<Product>> bulkUpdateProducts({
+    required List<Product> products,
+    String? categoryId,
+    String? locationId,
+    int? sellingPrice,
+  }) async {
+    final updated = await ref
+        .read(backendRepositoryProvider)
+        .bulkUpdateProducts(
+          accessToken: await _token(),
+          products: products,
+          categoryId: categoryId,
+          locationId: locationId,
+          sellingPrice: sellingPrice,
+        );
+    ref.read(appStoreProvider.notifier).upsertProducts(updated);
+    ref.invalidateSelf();
+    return updated;
+  }
+
+  Future<List<Product>> importProducts(List<int> bytes, String fileName) async {
+    final imported = await ref
+        .read(backendRepositoryProvider)
+        .importProducts(
+          accessToken: await _token(),
+          bytes: bytes,
+          fileName: fileName,
+        );
+    ref.read(appStoreProvider.notifier).upsertProducts(imported);
+    ref.invalidateSelf();
+    return imported;
   }
 
   Future<String> _token() async {

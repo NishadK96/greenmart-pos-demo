@@ -28,28 +28,81 @@ class Product {
     this.unit = 'pc',
     this.active = true,
     this.imageUrl = '',
+    this.unitId = '',
+    this.taxId = '',
   });
-  final String id, name, sku, barcode, categoryId, unit, variationId;
+  final String id,
+      name,
+      sku,
+      barcode,
+      categoryId,
+      unit,
+      variationId,
+      unitId,
+      taxId;
   final String imageUrl;
   final int purchasePrice, sellingPrice, stock, minimumStock;
   final double taxPercent;
   final bool active;
-  Product copyWith({int? stock}) => Product(
+  Product copyWith({
+    String? name,
+    String? sku,
+    String? categoryId,
+    String? unit,
+    String? unitId,
+    String? taxId,
+    int? purchasePrice,
+    int? sellingPrice,
+    int? stock,
+    int? minimumStock,
+    String? imageUrl,
+  }) => Product(
     id: id,
-    name: name,
-    sku: sku,
-    barcode: barcode,
-    categoryId: categoryId,
-    purchasePrice: purchasePrice,
-    sellingPrice: sellingPrice,
+    name: name ?? this.name,
+    sku: sku ?? this.sku,
+    barcode: sku ?? barcode,
+    categoryId: categoryId ?? this.categoryId,
+    purchasePrice: purchasePrice ?? this.purchasePrice,
+    sellingPrice: sellingPrice ?? this.sellingPrice,
     stock: stock ?? this.stock,
-    minimumStock: minimumStock,
+    minimumStock: minimumStock ?? this.minimumStock,
     variationId: variationId,
     taxPercent: taxPercent,
-    unit: unit,
+    unit: unit ?? this.unit,
+    unitId: unitId ?? this.unitId,
+    taxId: taxId ?? this.taxId,
     active: active,
-    imageUrl: imageUrl,
+    imageUrl: imageUrl ?? this.imageUrl,
   );
+}
+
+class LookupOption {
+  const LookupOption({required this.id, required this.name});
+  final String id, name;
+}
+
+class ProductDraft {
+  const ProductDraft({
+    required this.name,
+    required this.unitId,
+    required this.purchasePrice,
+    required this.sellingPrice,
+    this.sku = '',
+    this.categoryId = '',
+    this.taxId = '',
+    this.minimumStock = 0,
+    this.manageStock = true,
+    this.locationIds = const [],
+    this.openingStock = 0,
+    this.imageBytes,
+    this.imageName,
+  });
+  final String name, unitId, sku, categoryId, taxId;
+  final int purchasePrice, sellingPrice, minimumStock, openingStock;
+  final bool manageStock;
+  final List<String> locationIds;
+  final List<int>? imageBytes;
+  final String? imageName;
 }
 
 class Customer {

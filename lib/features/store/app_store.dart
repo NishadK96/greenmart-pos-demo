@@ -15,6 +15,8 @@ class AppState {
     required this.locations,
     required this.paymentOptions,
     required this.stockItems,
+    required this.units,
+    required this.taxes,
     this.business,
     this.user,
     this.profitLoss,
@@ -32,6 +34,7 @@ class AppState {
   final List<BusinessLocation> locations;
   final List<PaymentOption> paymentOptions;
   final List<StockItem> stockItems;
+  final List<LookupOption> units, taxes;
   final BusinessProfile? business;
   final UserProfile? user;
   final ProfitLoss? profitLoss;
@@ -54,6 +57,8 @@ class AppState {
     List<BusinessLocation>? locations,
     List<PaymentOption>? paymentOptions,
     List<StockItem>? stockItems,
+    List<LookupOption>? units,
+    List<LookupOption>? taxes,
     BusinessProfile? business,
     UserProfile? user,
     ProfitLoss? profitLoss,
@@ -72,6 +77,8 @@ class AppState {
     locations: locations ?? this.locations,
     paymentOptions: paymentOptions ?? this.paymentOptions,
     stockItems: stockItems ?? this.stockItems,
+    units: units ?? this.units,
+    taxes: taxes ?? this.taxes,
     business: business ?? this.business,
     user: user ?? this.user,
     profitLoss: profitLoss ?? this.profitLoss,
@@ -122,6 +129,23 @@ class AppStore extends Notifier<AppState> {
   );
   void replaceProducts(List<Product> products) =>
       state = state.copyWith(products: products);
+  void upsertProduct(Product product) {
+    final exists = state.products.any((item) => item.id == product.id);
+    state = state.copyWith(
+      products: exists
+          ? state.products
+                .map((item) => item.id == product.id ? product : item)
+                .toList(growable: false)
+          : [product, ...state.products],
+    );
+  }
+
+  void upsertProducts(List<Product> products) {
+    final byId = {for (final item in state.products) item.id: item};
+    for (final item in products) byId[item.id] = item;
+    state = state.copyWith(products: byId.values.toList(growable: false));
+  }
+
   void replaceCatalog(List<Product> products, List<Category> categories) =>
       state = state.copyWith(products: products, categories: categories);
 
@@ -136,6 +160,8 @@ class AppStore extends Notifier<AppState> {
     required BusinessProfile business,
     required UserProfile user,
     required ProfitLoss profitLoss,
+    required List<LookupOption> units,
+    required List<LookupOption> taxes,
   }) => state = state.copyWith(
     products: products,
     categories: categories,
@@ -147,6 +173,8 @@ class AppStore extends Notifier<AppState> {
     business: business,
     user: user,
     profitLoss: profitLoss,
+    units: units,
+    taxes: taxes,
   );
 
   Sale checkout(String method, {String? serverId, String? invoiceNo}) {
@@ -199,5 +227,7 @@ AppState _seed() {
     locations: const [],
     paymentOptions: const [],
     stockItems: const [],
+    units: const [],
+    taxes: const [],
   );
 }

@@ -24,6 +24,8 @@ class EazyErpBackendRepository implements BackendRepository {
       _api.loggedInUser(accessToken),
       _api.profitLoss(accessToken),
       _api.stockReport(accessToken),
+      _api.units(accessToken),
+      _api.taxes(accessToken),
     ]);
     final customers = results[1] as List<Customer>;
     return BackendSnapshot(
@@ -37,8 +39,55 @@ class EazyErpBackendRepository implements BackendRepository {
       user: results[5] as UserProfile,
       profitLoss: results[6] as ProfitLoss,
       stockItems: results[7] as List<StockItem>,
+      units: results[8] as List<LookupOption>,
+      taxes: results[9] as List<LookupOption>,
     );
   }
+
+  @override
+  Future<Product> createProduct({
+    required String accessToken,
+    required ProductDraft draft,
+    bool quick = false,
+  }) =>
+      _api.createProduct(accessToken: accessToken, draft: draft, quick: quick);
+
+  @override
+  Future<Product> updateProduct({
+    required String accessToken,
+    required Product product,
+    required ProductDraft draft,
+  }) => _api.updateProduct(
+    accessToken: accessToken,
+    product: product,
+    draft: draft,
+  );
+
+  @override
+  Future<List<Product>> bulkUpdateProducts({
+    required String accessToken,
+    required List<Product> products,
+    String? categoryId,
+    String? locationId,
+    int? sellingPrice,
+  }) => _api.bulkUpdateProducts(
+    accessToken: accessToken,
+    products: products,
+    categoryId: categoryId,
+    locationId: locationId,
+    sellingPrice: sellingPrice,
+  );
+
+  @override
+  Future<List<Product>> importProducts({
+    required String accessToken,
+    required List<int> bytes,
+    required String fileName,
+  }) => _api.importProducts(
+    accessToken: accessToken,
+    bytes: bytes,
+    fileName: fileName,
+  );
 
   @override
   Future<Customer> createCustomer({

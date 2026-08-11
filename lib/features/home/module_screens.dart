@@ -316,9 +316,38 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     return PagePad(
       child: Column(
         children: [
-          const PageTitle(
-            'Products',
-            subtitle: 'Manage pricing, stock and barcodes.',
+          Row(
+            children: [
+              const Expanded(
+                child: PageTitle(
+                  'Products',
+                  subtitle: 'Manage pricing, stock and barcodes.',
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/products/import'),
+                icon: const Icon(Icons.upload_file_outlined),
+                label: Text(context.tr('Import')),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/products/bulk'),
+                icon: const Icon(Icons.edit_note_outlined),
+                label: Text(context.tr('Bulk update')),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/products/quick'),
+                icon: const Icon(Icons.bolt_outlined),
+                label: Text(context.tr('Quick add')),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: () => context.go('/products/create'),
+                icon: const Icon(Icons.add),
+                label: Text(context.tr('New product')),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           TextField(
@@ -337,6 +366,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 itemBuilder: (_, i) {
                   final p = rows[i];
                   return ListTile(
+                    onTap: () => context.go('/products/edit', extra: p),
                     contentPadding: EdgeInsets.zero,
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(10),

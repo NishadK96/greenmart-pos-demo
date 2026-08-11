@@ -22,13 +22,19 @@ routes and controllers are the contract when generated documentation differs.
 | GET | `/connector/api/taxonomy?type=product` | Categories/subcategories | Integrated | POS, Categories |
 | GET | `/connector/api/product-stock-report` | Paginated stock report | Integrated, all pages fetched | Inventory |
 | GET | `/connector/api/variation/{ids?}` | Variation lookup | Product list supplies required variations | — |
-| GET | `/connector/api/unit` | Units | Not required by current read-only product UI | — |
+| GET | `/connector/api/unit` | Units | Integrated | Product create/edit/quick add |
 | GET | `/connector/api/brand` | Brands | Not required by current filters | — |
-| GET | `/connector/api/tax` | Taxes | Product payload supplies assigned tax | — |
+| GET | `/connector/api/tax` | Taxes | Integrated | Product create/edit |
 | GET | `/connector/api/selling-price-group` | Price groups | Not required until location/price-group selection is added | POS |
 
-Connector exposes no product/category create, update, or delete routes. Flutter
-therefore keeps these screens read-only.
+| POST | `/connector/api/products` | Create a product (including image) | Integrated | Products → New product |
+| PUT/PATCH | `/connector/api/products/{id}` | Partially update a product (including image) | Integrated | Product row → Edit |
+| POST | `/connector/api/products/save_quick_product` | Quick product plus opening stock | Integrated | Products → Quick add |
+| POST | `/connector/api/products/bulk-update` | Bulk classification/location/variation prices | Integrated | Products → Bulk update |
+| POST | `/connector/api/import-products/store` | Spreadsheet import | Integrated | Products → Import |
+
+Product deletion and category writes are still not exposed by Connector, so
+those destructive/write actions remain absent from Flutter.
 
 ## Contacts
 

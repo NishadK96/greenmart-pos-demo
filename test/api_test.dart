@@ -163,4 +163,121 @@ void main() {
       ),
     );
   });
+
+  test('standard and quick product creation use their API contracts', () async {
+    final seen = <Uri>[];
+    final api = Api(
+      client: MockClient((request) async {
+        seen.add(request.url);
+        expect(request.method, 'POST');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        expect(request.body, contains('name="name"'));
+        expect(request.body, contains('Test Product'));
+        return http.Response(
+          _productResponse,
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    const draft = ProductDraft(
+      name: 'Test Product',
+      unitId: '1',
+      purchasePrice: 1000,
+      sellingPrice: 1250,
+      locationIds: ['2'],
+      openingStock: 4,
+    );
+
+    await api.createProduct(accessToken: 'token-123', draft: draft);
+    await api.createProduct(
+      accessToken: 'token-123',
+      draft: draft,
+      quick: true,
+    );
+
+    expect(seen[0].path, '/connector/api/products');
+    expect(seen[1].path, '/connector/api/products/save_quick_product');
+  });
+
+  test('product edit sends a multipart PATCH override', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/products/8');
+        expect(request.body, contains('name="_method"'));
+        expect(request.body, contains('PATCH'));
+        return http.Response(_productResponse, 200);
+      }),
+    );
+
+    await api.updateProduct(
+      accessToken: 'token-123',
+      product: _product,
+      draft: const ProductDraft(
+        name: 'Test Product',
+        unitId: '1',
+        purchasePrice: 1000,
+        sellingPrice: 1250,
+      ),
+    );
+  });
+
+  test('bulk update sends selected product and variation IDs', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/products/bulk-update');
+        expect(request.body, contains('"id":8'));
+        expect(request.body, contains('"11"'));
+        expect(request.body, contains('"category_id":3'));
+        return http.Response('{"data":[$_productJson]}', 200);
+      }),
+    );
+
+    final products = await api.bulkUpdateProducts(
+      accessToken: 'token-123',
+      products: const [_product],
+      categoryId: '3',
+      sellingPrice: 1500,
+    );
+    expect(products, hasLength(1));
+  });
+
+  test('product import uploads products_file and maps imported rows', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/import-products/store');
+        expect(request.body, contains('name="products_file"'));
+        expect(request.body, contains('filename="products.csv"'));
+        return http.Response(
+          '{"data":[$_productJson],"meta":{"imported":1}}',
+          201,
+        );
+      }),
+    );
+
+    final products = await api.importProducts(
+      accessToken: 'token-123',
+      bytes: 'product_name\nTest'.codeUnits,
+      fileName: 'products.csv',
+    );
+    expect(products.single.id, '8');
+  });
 }
+
+const _product = Product(
+  id: '8',
+  variationId: '11',
+  name: 'Test Product',
+  sku: 'TEST-8',
+  barcode: 'TEST-8',
+  categoryId: '3',
+  purchasePrice: 1000,
+  sellingPrice: 1250,
+  stock: 4,
+  minimumStock: 1,
+  unitId: '1',
+);
+
+const _productJson =
+    '''{"id":8,"name":"Test Product","sku":"TEST-8","unit":{"id":1,"short_name":"pc"},"category":{"id":3},"product_variations":[{"variations":[{"id":11,"dpp_inc_tax":"10","sell_price_inc_tax":"12.5","variation_location_details":[]}]}]}''';
+const _productResponse = '{"data":$_productJson}';

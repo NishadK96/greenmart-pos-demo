@@ -91,9 +91,8 @@ class AppStore extends Notifier<AppState> {
       state = state.copyWith(customer: value);
   void addProduct(Product product) =>
       state = state.copyWith(products: [...state.products, product]);
-  void replaceProducts(List<Product> products) {
-    if (products.isNotEmpty) state = state.copyWith(products: products);
-  }
+  void replaceProducts(List<Product> products) =>
+      state = state.copyWith(products: products);
 
   void adjustStock(String productId, int delta, String reason) {
     final products = state.products
@@ -192,171 +191,12 @@ AppState _seed() {
     Category(id: 'household', name: 'Household', icon: '🧹'),
     Category(id: 'personal', name: 'Personal Care', icon: '🧴'),
   ];
-  const names = [
-    'Basmati Rice 5kg',
-    'Whole Wheat Flour',
-    'Toor Dal 1kg',
-    'Organic Sugar',
-    'Sunflower Oil 1L',
-    'Tata Salt',
-    'Fresh Milk 1L',
-    'Orange Juice',
-    'Mineral Water',
-    'Cola 750ml',
-    'Green Tea',
-    'Instant Coffee',
-    'Masala Chips',
-    'Salted Peanuts',
-    'Cream Biscuits',
-    'Dark Chocolate',
-    'Roasted Makhana',
-    'Granola Bar',
-    'Dishwash Liquid',
-    'Laundry Detergent',
-    'Floor Cleaner',
-    'Kitchen Towels',
-    'Garbage Bags',
-    'Aluminium Foil',
-    'Herbal Shampoo',
-    'Bath Soap',
-    'Toothpaste',
-    'Hand Wash',
-    'Face Cream',
-    'Baby Wipes',
-  ];
-  const categoryIds = [
-    'grocery',
-    'grocery',
-    'grocery',
-    'grocery',
-    'grocery',
-    'grocery',
-    'beverages',
-    'beverages',
-    'beverages',
-    'beverages',
-    'beverages',
-    'beverages',
-    'snacks',
-    'snacks',
-    'snacks',
-    'snacks',
-    'snacks',
-    'snacks',
-    'household',
-    'household',
-    'household',
-    'household',
-    'household',
-    'household',
-    'personal',
-    'personal',
-    'personal',
-    'personal',
-    'personal',
-    'personal',
-  ];
-  final products = List.generate(names.length, (i) {
-    const itemImages = [
-      'assets/products/items/basmati_rice.jpg',
-      'assets/products/items/wheat_flour.jpg',
-      'assets/products/items/toor_dal.jpg',
-      'assets/products/items/sugar.jpg',
-      'assets/products/items/sunflower_oil.jpg',
-      'assets/products/items/salt.jpg',
-      'assets/products/items/milk.jpg',
-      'assets/products/items/orange_juice.jpg',
-      'assets/products/items/mineral_water.jpg',
-      'assets/products/items/cola.jpg',
-      'assets/products/items/green_tea.jpg',
-      'assets/products/items/coffee.jpg',
-      'assets/products/items/chips.jpg',
-      'assets/products/items/peanuts.jpg',
-      'assets/products/items/biscuits.jpg',
-      'assets/products/items/chocolate.jpg',
-      'assets/products/items/makhana.jpg',
-      'assets/products/items/granola_bar.jpg',
-      'assets/products/items/dishwash.jpg',
-      'assets/products/items/detergent.jpg',
-      'assets/products/items/floor_cleaner.jpg',
-      'assets/products/items/kitchen_towels.jpg',
-      'assets/products/items/garbage_bags.jpg',
-      'assets/products/items/aluminium_foil.jpg',
-      'assets/products/items/shampoo.jpg',
-      'assets/products/items/bath_soap.jpg',
-      'assets/products/items/toothpaste.jpg',
-      'assets/products/items/hand_wash.jpg',
-      'assets/products/items/face_cream.jpg',
-      'assets/products/items/baby_wipes.jpg',
-    ];
-    return Product(
-      id: 'p$i',
-      name: names[i],
-      sku: 'SKU-${1000 + i}',
-      barcode: '890100000${i.toString().padLeft(2, '0')}',
-      categoryId: categoryIds[i],
-      purchasePrice: 3500 + i * 175,
-      sellingPrice: 4900 + i * 225,
-      stock: i % 9 == 0 ? 2 : 12 + (i * 7) % 45,
-      minimumStock: 6,
-      imageAsset: itemImages[i],
-    );
-  });
-  const customers = [
-    Customer(id: 'walkin', name: 'Walk-in Customer'),
-    Customer(id: 'c1', name: 'Aarav Sharma', phone: '9876543210'),
-    Customer(id: 'c2', name: 'Diya Patel', phone: '9811112233'),
-    Customer(id: 'c3', name: 'Kabir Khan', phone: '9822223344'),
-    Customer(id: 'c4', name: 'Meera Nair', phone: '9833334455'),
-    Customer(id: 'c5', name: 'Rohan Gupta', phone: '9844445566'),
-    Customer(id: 'c6', name: 'Sara Ali', phone: '9855556677'),
-    Customer(id: 'c7', name: 'Vikram Singh', phone: '9866667788'),
-  ];
-  final now = DateTime.now();
-  final sales = List.generate(10, (i) {
-    final item = CartLine(
-      product: products[(i * 2) % products.length],
-      quantity: 1 + i % 3,
-    );
-    return Sale(
-      localId: 'seed-sale-$i',
-      serverId: 'srv-$i',
-      invoiceNo: 'RF-${10000 - i}',
-      createdAt: now.subtract(Duration(hours: i * 5 + 1)),
-      updatedAt: now,
-      customer: customers[i % customers.length],
-      items: [item],
-      paymentMethod: PaymentMethod.values[i % 3],
-      total: item.total,
-      tax: item.tax,
-      discount: 0,
-      syncStatus: SyncStatus.synced,
-    );
-  });
-  final purchases = List.generate(
-    5,
-    (i) => Purchase(
-      localId: 'seed-p-$i',
-      invoiceNo: 'PUR-${990 - i}',
-      supplier: const Supplier(id: 's1', name: 'Metro Wholesale'),
-      createdAt: now.subtract(Duration(days: i + 1)),
-      items: [
-        PurchaseItem(
-          productId: products[i].id,
-          quantity: 10,
-          rate: products[i].purchasePrice,
-        ),
-      ],
-      total: products[i].purchasePrice * 10,
-      syncStatus: SyncStatus.synced,
-    ),
-  );
   return AppState(
-    products: products,
+    products: const [],
     categories: cats,
-    customers: customers,
-    sales: sales,
-    purchases: purchases,
+    customers: const [Customer(id: 'walkin', name: 'Walk-in Customer')],
+    sales: const [],
+    purchases: const [],
     inventoryTransactions: const [],
     syncQueue: const [],
   );

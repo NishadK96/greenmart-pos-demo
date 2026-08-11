@@ -26,6 +26,7 @@ class EazyErpBackendRepository implements BackendRepository {
       _api.stockReport(accessToken),
       _api.units(accessToken),
       _api.taxes(accessToken),
+      _api.brands(accessToken),
     ]);
     final customers = results[1] as List<Customer>;
     return BackendSnapshot(
@@ -41,6 +42,7 @@ class EazyErpBackendRepository implements BackendRepository {
       stockItems: results[7] as List<StockItem>,
       units: results[8] as List<LookupOption>,
       taxes: results[9] as List<LookupOption>,
+      brands: results[10] as List<LookupOption>,
     );
   }
 

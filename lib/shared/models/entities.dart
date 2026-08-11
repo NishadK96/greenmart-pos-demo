@@ -6,10 +6,12 @@ class Category {
     required this.name,
     required this.icon,
     this.active = true,
+    this.subCategories = const [],
   });
   final String id, name;
   final String icon;
   final bool active;
+  final List<Category> subCategories;
 }
 
 class Product {
@@ -77,8 +79,9 @@ class Product {
 }
 
 class LookupOption {
-  const LookupOption({required this.id, required this.name});
+  const LookupOption({required this.id, required this.name, this.value});
   final String id, name;
+  final double? value;
 }
 
 class ProductDraft {
@@ -96,13 +99,38 @@ class ProductDraft {
     this.openingStock = 0,
     this.imageBytes,
     this.imageName,
+    this.brandId = '',
+    this.subCategoryId = '',
+    this.barcodeType = 'C128',
+    this.taxType = 'exclusive',
+    this.purchasePriceIncTax,
+    this.sellingPriceIncTax,
+    this.profitPercent = 25,
+    this.description = '',
+    this.weight = '',
+    this.preparationMinutes,
+    this.enableSerialNumber = false,
+    this.notForSelling = false,
+    this.brochureBytes,
+    this.brochureName,
   });
   final String name, unitId, sku, categoryId, taxId;
+  final String brandId,
+      subCategoryId,
+      barcodeType,
+      taxType,
+      description,
+      weight;
   final int purchasePrice, sellingPrice, minimumStock, openingStock;
   final bool manageStock;
   final List<String> locationIds;
   final List<int>? imageBytes;
   final String? imageName;
+  final int? purchasePriceIncTax, sellingPriceIncTax, preparationMinutes;
+  final double profitPercent;
+  final bool enableSerialNumber, notForSelling;
+  final List<int>? brochureBytes;
+  final String? brochureName;
 }
 
 class Customer {

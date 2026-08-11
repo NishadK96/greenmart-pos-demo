@@ -32,6 +32,7 @@ class BackendController extends AsyncNotifier<void> {
         profitLoss: snapshot.profitLoss,
         units: snapshot.units,
         taxes: snapshot.taxes,
+        brands: snapshot.brands,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {

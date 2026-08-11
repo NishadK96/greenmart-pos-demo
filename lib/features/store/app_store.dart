@@ -17,6 +17,7 @@ class AppState {
     required this.stockItems,
     required this.units,
     required this.taxes,
+    required this.brands,
     this.business,
     this.user,
     this.profitLoss,
@@ -35,6 +36,7 @@ class AppState {
   final List<PaymentOption> paymentOptions;
   final List<StockItem> stockItems;
   final List<LookupOption> units, taxes;
+  final List<LookupOption> brands;
   final BusinessProfile? business;
   final UserProfile? user;
   final ProfitLoss? profitLoss;
@@ -59,6 +61,7 @@ class AppState {
     List<StockItem>? stockItems,
     List<LookupOption>? units,
     List<LookupOption>? taxes,
+    List<LookupOption>? brands,
     BusinessProfile? business,
     UserProfile? user,
     ProfitLoss? profitLoss,
@@ -79,6 +82,7 @@ class AppState {
     stockItems: stockItems ?? this.stockItems,
     units: units ?? this.units,
     taxes: taxes ?? this.taxes,
+    brands: brands ?? this.brands,
     business: business ?? this.business,
     user: user ?? this.user,
     profitLoss: profitLoss ?? this.profitLoss,
@@ -162,6 +166,7 @@ class AppStore extends Notifier<AppState> {
     required ProfitLoss profitLoss,
     required List<LookupOption> units,
     required List<LookupOption> taxes,
+    required List<LookupOption> brands,
   }) => state = state.copyWith(
     products: products,
     categories: categories,
@@ -175,6 +180,7 @@ class AppStore extends Notifier<AppState> {
     profitLoss: profitLoss,
     units: units,
     taxes: taxes,
+    brands: brands,
   );
 
   Sale checkout(String method, {String? serverId, String? invoiceNo}) {
@@ -229,5 +235,6 @@ AppState _seed() {
     stockItems: const [],
     units: const [],
     taxes: const [],
+    brands: const [],
   );
 }

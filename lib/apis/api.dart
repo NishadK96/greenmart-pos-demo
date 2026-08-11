@@ -103,6 +103,9 @@ class Api {
   Future<List<LookupOption>> taxes(String accessToken) =>
       _lookupOptions(ApiEndPoints.taxesUrl, accessToken, 'taxes');
 
+  Future<List<LookupOption>> brands(String accessToken) =>
+      _lookupOptions(ApiEndPoints.brandsUrl, accessToken, 'brands');
+
   Future<List<LookupOption>> _lookupOptions(
     String url,
     String accessToken,
@@ -118,6 +121,7 @@ class Api {
                 item['name']?.toString() ??
                 item['short_name']?.toString() ??
                 '',
+            value: _number(item['amount']),
           ),
         )
         .toList(growable: false);
@@ -245,13 +249,26 @@ class Api {
     'unit_id': draft.unitId,
     'sku': draft.sku.trim(),
     'enable_stock': draft.manageStock ? '1' : '0',
+    'enable_sr_no': draft.enableSerialNumber ? '1' : '0',
+    'not_for_selling': draft.notForSelling ? '1' : '0',
+    'barcode_type': draft.barcodeType,
+    'tax_type': draft.taxType,
     'alert_quantity': '${draft.minimumStock}',
     'single_dpp': '${draft.purchasePrice / 100}',
-    'single_dpp_inc_tax': '${draft.purchasePrice / 100}',
+    'single_dpp_inc_tax':
+        '${(draft.purchasePriceIncTax ?? draft.purchasePrice) / 100}',
+    'profit_percent': '${draft.profitPercent}',
     'single_dsp': '${draft.sellingPrice / 100}',
-    'single_dsp_inc_tax': '${draft.sellingPrice / 100}',
+    'single_dsp_inc_tax':
+        '${(draft.sellingPriceIncTax ?? draft.sellingPrice) / 100}',
     if (draft.categoryId.isNotEmpty) 'category_id': draft.categoryId,
+    if (draft.subCategoryId.isNotEmpty) 'sub_category_id': draft.subCategoryId,
+    if (draft.brandId.isNotEmpty) 'brand_id': draft.brandId,
     if (draft.taxId.isNotEmpty) 'tax': draft.taxId,
+    if (draft.description.isNotEmpty) 'product_description': draft.description,
+    if (draft.weight.isNotEmpty) 'weight': draft.weight,
+    if (draft.preparationMinutes != null)
+      'preparation_time_in_minutes': '${draft.preparationMinutes}',
     for (var i = 0; i < draft.locationIds.length; i++)
       'product_locations[$i]': draft.locationIds[i],
   };
@@ -263,6 +280,15 @@ class Api {
           'image',
           draft.imageBytes!,
           filename: draft.imageName,
+        ),
+      );
+    }
+    if (draft.brochureBytes != null && draft.brochureName != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'product_brochure',
+          draft.brochureBytes!,
+          filename: draft.brochureName,
         ),
       );
     }
@@ -299,15 +325,18 @@ class Api {
     }
     final data = _decode(response.body)['data'];
     if (data is! List) throw const ApiException('Invalid category response.');
+    Category mapCategory(Map<String, dynamic> item) => Category(
+      id: item['id'].toString(),
+      name: item['name']?.toString() ?? '',
+      icon: '',
+      subCategories: (item['sub_categories'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(mapCategory)
+          .toList(growable: false),
+    );
     return data
         .whereType<Map<String, dynamic>>()
-        .map(
-          (item) => Category(
-            id: item['id'].toString(),
-            name: item['name']?.toString() ?? '',
-            icon: '',
-          ),
-        )
+        .map(mapCategory)
         .toList(growable: false);
   }
 

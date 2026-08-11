@@ -12,6 +12,7 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/import-products/store';
   static const unitsUrl = '${Config.baseUrl}/connector/api/unit';
   static const taxesUrl = '${Config.baseUrl}/connector/api/tax';
+  static const brandsUrl = '${Config.baseUrl}/connector/api/brand';
   static const categoriesUrl = '${Config.baseUrl}/connector/api/taxonomy';
   static const customersUrl = '${Config.baseUrl}/connector/api/contactapi';
   static const salesUrl = '${Config.baseUrl}/connector/api/sell';

@@ -14,6 +14,7 @@ class BackendSnapshot {
     required this.profitLoss,
     required this.units,
     required this.taxes,
+    required this.brands,
   });
 
   final List<Product> products;
@@ -27,6 +28,7 @@ class BackendSnapshot {
   final UserProfile user;
   final ProfitLoss profitLoss;
   final List<LookupOption> units, taxes;
+  final List<LookupOption> brands;
 }
 
 class CreatedSale {

@@ -91,6 +91,10 @@ class AppStore extends Notifier<AppState> {
       state = state.copyWith(customer: value);
   void addProduct(Product product) =>
       state = state.copyWith(products: [...state.products, product]);
+  void replaceProducts(List<Product> products) {
+    if (products.isNotEmpty) state = state.copyWith(products: products);
+  }
+
   void adjustStock(String productId, int delta, String reason) {
     final products = state.products
         .map(

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
 import '../config.dart';
+import '../shared/models/entities.dart';
 
 enum LoginFailure { invalidCredentials, configuration, network, server }
 
@@ -70,6 +71,121 @@ class Api {
     }
   }
 
+  Future<List<Product>> products(String accessToken) async {
+    final uri = Uri.parse(
+      ApiEndPoints.productsUrl,
+    ).replace(queryParameters: const {'per_page': '-1'});
+    final response = await _client
+        .get(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw ApiException('Unable to load products (${response.statusCode}).');
+    }
+    final payload = _decode(response.body);
+    final data = payload['data'];
+    if (data is! List) throw const ApiException('Invalid product response.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(_productFromJson)
+        .toList(growable: false);
+  }
+
+  Product _productFromJson(Map<String, dynamic> json) {
+    final variationGroups = json['product_variations'];
+    final variationGroup = variationGroups is List && variationGroups.isNotEmpty
+        ? variationGroups.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final variations = variationGroup['variations'];
+    final variation = variations is List && variations.isNotEmpty
+        ? variations.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final locationDetails = variation['variation_location_details'];
+    final stock = locationDetails is List
+        ? locationDetails.whereType<Map<String, dynamic>>().fold<double>(
+            0,
+            (sum, item) => sum + _number(item['qty_available']),
+          )
+        : 0;
+    final category = json['category'];
+    final categoryName = category is Map<String, dynamic>
+        ? category['name']?.toString() ?? ''
+        : '';
+    final sku = json['sku']?.toString() ?? '';
+    return Product(
+      id: json['id'].toString(),
+      name: json['name']?.toString() ?? '',
+      sku: sku,
+      barcode: sku,
+      categoryId: _categoryId(categoryName),
+      purchasePrice: (_number(variation['dpp_inc_tax']) * 100).round(),
+      sellingPrice: (_number(variation['sell_price_inc_tax']) * 100).round(),
+      stock: stock.floor(),
+      minimumStock: _number(json['alert_quantity']).floor(),
+      unit: (json['unit'] is Map<String, dynamic>)
+          ? (json['unit']['short_name']?.toString() ?? 'pc')
+          : 'pc',
+      active: json['is_inactive'] != 1,
+      imageAsset: _imageForSku(sku),
+    );
+  }
+
+  double _number(dynamic value) =>
+      value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
+  String _categoryId(String name) => switch (name.toLowerCase()) {
+    'personal care' => 'personal',
+    'beverages' => 'beverages',
+    'snacks' => 'snacks',
+    'household' => 'household',
+    _ => 'grocery',
+  };
+
+  String _imageForSku(String sku) {
+    const images = [
+      'basmati_rice',
+      'wheat_flour',
+      'toor_dal',
+      'sugar',
+      'sunflower_oil',
+      'salt',
+      'milk',
+      'orange_juice',
+      'mineral_water',
+      'cola',
+      'green_tea',
+      'coffee',
+      'chips',
+      'peanuts',
+      'biscuits',
+      'chocolate',
+      'makhana',
+      'granola_bar',
+      'dishwash',
+      'detergent',
+      'floor_cleaner',
+      'kitchen_towels',
+      'garbage_bags',
+      'aluminium_foil',
+      'shampoo',
+      'bath_soap',
+      'toothpaste',
+      'hand_wash',
+      'face_cream',
+      'baby_wipes',
+    ];
+    final index = int.tryParse(sku.replaceFirst('SKU-', ''));
+    final offset = index == null ? -1 : index - 1000;
+    return offset >= 0 && offset < images.length
+        ? 'assets/products/items/${images[offset]}.jpg'
+        : 'assets/products/grocery.jpg';
+  }
+
   Map<String, dynamic> _decode(String body) {
     try {
       final value = jsonDecode(body);
@@ -82,4 +198,11 @@ class Api {
   String? _message(Map<String, dynamic> json) =>
       (json['message'] ?? json['error_description'] ?? json['error'])
           ?.toString();
+}
+
+class ApiException implements Exception {
+  const ApiException(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

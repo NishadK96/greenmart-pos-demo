@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../home/app_shell.dart';
 import 'auth_controller.dart';
+import '../store/catalog_sync.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key, required this.child});
@@ -11,6 +12,7 @@ class AuthGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
+    ref.watch(catalogSyncProvider);
     return auth.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),

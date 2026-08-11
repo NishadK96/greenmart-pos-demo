@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:retailflow_pos/apis/api.dart';
+import 'package:retailflow_pos/shared/models/entities.dart';
 
 void main() {
   test('login sends the OAuth password form and returns its token', () async {
@@ -101,5 +102,65 @@ void main() {
     expect(categories, hasLength(1));
     expect(categories.single.id, '7');
     expect(categories.single.name, 'Grocery');
+  });
+
+  test('stock report follows backend pagination', () async {
+    var requests = 0;
+    final api = Api(
+      client: MockClient((request) async {
+        requests++;
+        final page = request.url.queryParameters['page'];
+        return http.Response(
+          '{"data":[{"product_id":$page,"variation_id":$page,"product":"Item $page","sku":"SKU-$page","unit":"pc","stock":"2","alert_quantity":"1","unit_price":"5","location_name":"Main"}],"meta":{"last_page":2}}',
+          200,
+        );
+      }),
+    );
+
+    final stock = await api.stockReport('token-123');
+
+    expect(requests, 2);
+    expect(stock.map((item) => item.name), ['Item 1', 'Item 2']);
+  });
+
+  test('create sale unwraps HTTP 200 item-level backend errors', () async {
+    final api = Api(
+      client: MockClient(
+        (_) async => http.Response(
+          '[{"headers":{},"original":{"error":{"message":"Stock allocation failed"}},"exception":null}]',
+          200,
+        ),
+      ),
+    );
+    const product = Product(
+      id: '1',
+      variationId: '2',
+      name: 'Rice',
+      sku: 'SKU-1',
+      barcode: 'SKU-1',
+      categoryId: '3',
+      purchasePrice: 4000,
+      sellingPrice: 4900,
+      stock: 2,
+      minimumStock: 1,
+    );
+
+    expect(
+      () => api.createSale(
+        accessToken: 'token-123',
+        locationId: '1',
+        customer: const Customer(id: '1', name: 'Walk-in'),
+        lines: const [CartLine(product: product)],
+        paymentMethod: 'cash',
+        total: 4900,
+      ),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.message,
+          'message',
+          'Stock allocation failed',
+        ),
+      ),
+    );
   });
 }

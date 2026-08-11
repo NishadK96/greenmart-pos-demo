@@ -7,6 +7,7 @@ import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
+import '../backend/presentation/backend_controller.dart';
 
 class PagePad extends StatelessWidget {
   const PagePad({super.key, required this.child});
@@ -55,7 +56,7 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          context.tr('Good morning, Nishad'),
+                          '${context.tr('Good morning')}, ${s.user?.name ?? ''}',
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
                                 color: Colors.white,
@@ -88,9 +89,9 @@ class DashboardScreen extends ConsumerWidget {
                         const SizedBox(width: 9),
                         _quick(
                           context,
-                          'Add stock',
-                          Icons.add_box_outlined,
-                          () => context.go('/purchases'),
+                          'Inventory',
+                          Icons.inventory_2_outlined,
+                          () => context.go('/inventory'),
                           false,
                         ),
                         const SizedBox(width: 9),
@@ -131,9 +132,9 @@ class DashboardScreen extends ConsumerWidget {
                   value: '${today.length}',
                   icon: Icons.receipt_long,
                 ),
-                const MetricCard(
+                MetricCard(
                   label: 'Gross profit',
-                  value: '—',
+                  value: money(s.profitLoss?.grossProfit ?? 0),
                   icon: Icons.savings_outlined,
                 ),
                 MetricCard(
@@ -143,14 +144,13 @@ class DashboardScreen extends ConsumerWidget {
                   tint: AppColors.accent,
                 ),
                 MetricCard(
-                  label: 'Pending sync',
-                  value: '${s.syncQueue.length}',
-                  icon: Icons.sync,
+                  label: 'Expenses',
+                  value: money(s.profitLoss?.totalExpenses ?? 0),
+                  icon: Icons.payments_outlined,
                 ),
                 MetricCard(
-                  label: 'Purchases today',
-                  value:
-                      '${s.purchases.where((p) => p.createdAt.day == DateTime.now().day).length}',
+                  label: 'Total purchases',
+                  value: money(s.profitLoss?.totalPurchases ?? 0),
                   icon: Icons.local_shipping_outlined,
                 ),
               ],
@@ -449,114 +449,40 @@ class PurchasesScreen extends ConsumerWidget {
     return PagePad(
       child: Column(
         children: [
-          PageTitle(
+          const PageTitle(
             'Purchases',
-            subtitle: 'Receive supplier stock locally.',
-            action: FilledButton.icon(
-              onPressed: () => _add(context, ref, s),
-              icon: const Icon(Icons.add),
-              label: Text(context.tr('Add purchase')),
-            ),
+            subtitle: 'Purchase APIs are not available in Connector.',
           ),
           const SizedBox(height: 18),
           Expanded(
             child: Surface(
-              child: ListView.separated(
-                itemCount: s.purchases.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (_, i) {
-                  final p = s.purchases[i];
-                  return ListTile(
-                    title: Text(
-                      p.invoiceNo,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+              child: s.purchases.isEmpty
+                  ? const EmptyState(
+                      'BACKEND CHANGE REQUIRED: No purchase API is available.',
+                    )
+                  : ListView.separated(
+                      itemCount: s.purchases.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (_, i) {
+                        final p = s.purchases[i];
+                        return ListTile(
+                          title: Text(
+                            p.invoiceNo,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            '${p.supplier.name} • ${p.items.length} lines',
+                          ),
+                          trailing: Text(
+                            money(p.total),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        );
+                      },
                     ),
-                    subtitle: Text(
-                      '${p.supplier.name} • ${p.items.length} lines',
-                    ),
-                    trailing: Text(
-                      money(p.total),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  );
-                },
-              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _add(BuildContext context, WidgetRef ref, AppState s) {
-    Product selected = s.products.first;
-    final qty = TextEditingController(text: '10'),
-        rate = TextEditingController(
-          text: (selected.purchasePrice / 100).toString(),
-        );
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, set) => AlertDialog(
-          title: Text(context.tr('Receive purchase')),
-          content: SizedBox(
-            width: 430,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<Product>(
-                  initialValue: selected,
-                  items: [
-                    for (final p in s.products)
-                      DropdownMenuItem(
-                        value: p,
-                        child: Text(context.tr(p.name)),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) set(() => selected = v);
-                  },
-                  decoration: InputDecoration(labelText: context.tr('Product')),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: qty,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: context.tr('Quantity'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: rate,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: context.tr('Purchase rate'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('Save draft')),
-            ),
-            FilledButton(
-              onPressed: () {
-                ref
-                    .read(appStoreProvider.notifier)
-                    .savePurchase(
-                      selected.id,
-                      int.tryParse(qty.text) ?? 0,
-                      toPaise(double.tryParse(rate.text) ?? 0),
-                    );
-                Navigator.pop(context);
-              },
-              child: Text(context.tr('Save purchase')),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -573,9 +499,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStoreProvider);
-    final low = s.products.where((p) => p.stock <= p.minimumStock).length,
-        out = s.products.where((p) => p.stock == 0).length;
-    final rows = s.products
+    final low = s.stockItems.where((p) => p.stock <= p.minimumStock).length,
+        out = s.stockItems.where((p) => p.stock == 0).length;
+    final rows = s.stockItems
         .where(
           (p) =>
               filter == 'All' ||
@@ -588,7 +514,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         children: [
           const PageTitle(
             'Inventory',
-            subtitle: 'Live local stock and adjustments.',
+            subtitle: 'Live stock reported by EazyERP.',
           ),
           const SizedBox(height: 16),
           Row(
@@ -596,7 +522,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               Expanded(
                 child: MetricCard(
                   label: 'Products',
-                  value: '${s.products.length}',
+                  value: '${s.stockItems.length}',
                   icon: Icons.inventory_2,
                 ),
               ),
@@ -653,7 +579,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(
-                      'Min ${p.minimumStock} • Cost ${money(p.purchasePrice)} • Sell ${money(p.sellingPrice)}',
+                      'Min ${p.minimumStock} • ${p.locationName} • ${money(p.unitPrice)}',
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -668,10 +594,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               ? AppColors.danger
                               : AppColors.primary,
                         ),
-                        IconButton(
-                          onPressed: () => _adjust(context, p),
-                          icon: const Icon(Icons.tune),
-                        ),
                       ],
                     ),
                   );
@@ -683,77 +605,58 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
     );
   }
-
-  void _adjust(BuildContext context, Product p) {
-    final q = TextEditingController(text: '1');
-    String reason = 'Increase';
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, set) => AlertDialog(
-          title: Text('${context.tr('Adjust')} ${context.tr(p.name)}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: reason,
-                items: ['Increase', 'Decrease', 'Damage', 'Correction']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => set(() => reason = v!),
-                decoration: InputDecoration(labelText: context.tr('Type')),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: q,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: context.tr('Quantity')),
-              ),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                final n = int.tryParse(q.text) ?? 0;
-                ref
-                    .read(appStoreProvider.notifier)
-                    .adjustStock(
-                      p.id,
-                      ['Decrease', 'Damage'].contains(reason) ? -n : n,
-                      reason,
-                    );
-                Navigator.pop(context);
-              },
-              child: Text(context.tr('Apply adjustment')),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class CustomersScreen extends ConsumerWidget {
+class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomersScreen> createState() => _CustomersScreenState();
+}
+
+class _CustomersScreenState extends ConsumerState<CustomersScreen> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(appStoreProvider);
+    final customers = s.customers
+        .where(
+          (customer) =>
+              customer.name.toLowerCase().contains(query.toLowerCase()) ||
+              customer.phone.contains(query) ||
+              customer.email.toLowerCase().contains(query.toLowerCase()),
+        )
+        .toList(growable: false);
     return PagePad(
       child: Column(
         children: [
-          const PageTitle(
+          PageTitle(
             'Customers',
             subtitle: 'Customer profiles for faster billing.',
+            action: FilledButton.icon(
+              onPressed: () => _customerForm(context, ref),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(context.tr('Add customer')),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            onChanged: (value) => setState(() => query = value),
+            decoration: InputDecoration(
+              hintText: context.tr('Search customers'),
+              prefixIcon: const Icon(Icons.search),
+            ),
           ),
           const SizedBox(height: 18),
           Expanded(
             child: Surface(
               child: ListView.separated(
-                itemCount: s.customers.length,
+                itemCount: customers.length,
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (_, i) {
-                  final c = s.customers[i];
+                  final c = customers[i];
                   return ListTile(
+                    onTap: () => _customerForm(context, ref, c),
                     leading: CircleAvatar(child: Text(c.name[0])),
                     title: Text(
                       c.name,
@@ -772,13 +675,162 @@ class CustomersScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _customerForm(
+    BuildContext context,
+    WidgetRef ref, [
+    Customer? existing,
+  ]) async {
+    final name = TextEditingController(text: existing?.name);
+    final mobile = TextEditingController(text: existing?.phone);
+    final email = TextEditingController(text: existing?.email);
+    final formKey = GlobalKey<FormState>();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var saving = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: Text(
+              context.tr(existing == null ? 'Add customer' : 'Edit customer'),
+            ),
+            content: Form(
+              key: formKey,
+              child: SizedBox(
+                width: 430,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: name,
+                      decoration: InputDecoration(
+                        labelText: context.tr('Customer name'),
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? context.tr('Required')
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: mobile,
+                      decoration: InputDecoration(
+                        labelText: context.tr('Mobile'),
+                      ),
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? context.tr('Required')
+                          : null,
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: email,
+                      decoration: InputDecoration(
+                        labelText: context.tr('Email'),
+                      ),
+                    ),
+                    if (error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        error!,
+                        style: const TextStyle(color: AppColors.danger),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                child: Text(context.tr('Cancel')),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setState(() {
+                          saving = true;
+                          error = null;
+                        });
+                        try {
+                          final controller = ref.read(
+                            backendControllerProvider.notifier,
+                          );
+                          if (existing == null) {
+                            await controller.createCustomer(
+                              name: name.text.trim(),
+                              mobile: mobile.text.trim(),
+                              email: email.text.trim(),
+                            );
+                          } else {
+                            await controller.updateCustomer(
+                              customer: existing,
+                              name: name.text.trim(),
+                              mobile: mobile.text.trim(),
+                              email: email.text.trim(),
+                              taxNumber: existing.taxNumber ?? '',
+                            );
+                          }
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                        } catch (exception) {
+                          setState(() {
+                            saving = false;
+                            error = exception.toString();
+                          });
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(context.tr('Save')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    name.dispose();
+    mobile.dispose();
+    email.dispose();
+  }
 }
 
-class SalesScreen extends ConsumerWidget {
+class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SalesScreen> createState() => _SalesScreenState();
+}
+
+class _SalesScreenState extends ConsumerState<SalesScreen> {
+  String period = 'Today';
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(appStoreProvider);
+    final now = DateTime.now();
+    final start = switch (period) {
+      'Yesterday' => DateTime(now.year, now.month, now.day - 1),
+      'This week' => DateTime(now.year, now.month, now.day - now.weekday + 1),
+      'This month' => DateTime(now.year, now.month),
+      _ => DateTime(now.year, now.month, now.day),
+    };
+    final end = period == 'Yesterday'
+        ? DateTime(now.year, now.month, now.day)
+        : DateTime(now.year, now.month, now.day + 1);
+    final sales = s.sales
+        .where(
+          (sale) =>
+              !sale.createdAt.isBefore(start) && sale.createdAt.isBefore(end),
+        )
+        .toList(growable: false);
     return PagePad(
       child: Column(
         children: [
@@ -792,10 +844,17 @@ class SalesScreen extends ConsumerWidget {
             child: Wrap(
               spacing: 8,
               children: [
-                Chip(label: Text(context.tr('Today'))),
-                Chip(label: Text(context.tr('Yesterday'))),
-                Chip(label: Text(context.tr('This week'))),
-                Chip(label: Text(context.tr('This month'))),
+                for (final value in [
+                  'Today',
+                  'Yesterday',
+                  'This week',
+                  'This month',
+                ])
+                  ChoiceChip(
+                    label: Text(context.tr(value)),
+                    selected: period == value,
+                    onSelected: (_) => setState(() => period = value),
+                  ),
               ],
             ),
           ),
@@ -803,10 +862,10 @@ class SalesScreen extends ConsumerWidget {
           Expanded(
             child: Surface(
               child: ListView.separated(
-                itemCount: s.sales.length,
+                itemCount: sales.length,
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (_, i) {
-                  final sale = s.sales[i];
+                  final sale = sales[i];
                   return ListTile(
                     onTap: () => _details(context, sale),
                     contentPadding: EdgeInsets.zero,
@@ -818,7 +877,7 @@ class SalesScreen extends ConsumerWidget {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(
-                      '${sale.customer.name} • ${sale.items.length} lines • ${sale.paymentMethod.name}',
+                      '${sale.customer.name} • ${sale.items.length} lines • ${sale.paymentMethod}',
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -857,7 +916,7 @@ class SalesScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${sale.customer.name} • ${sale.paymentMethod.name}'),
+            Text('${sale.customer.name} • ${sale.paymentMethod}'),
             const Divider(),
             for (final line in sale.items)
               Padding(
@@ -919,8 +978,13 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStoreProvider);
-    final total = s.sales.fold(0, (v, e) => v + e.total);
-    final tax = s.sales.fold(0, (v, e) => v + e.tax);
+    final report = s.profitLoss;
+    final total = report?.totalSales ?? 0;
+    final trend = s.sales.take(10).toList().reversed.toList();
+    final maxSale = trend.fold<int>(
+      0,
+      (maximum, sale) => sale.total > maximum ? sale.total : maximum,
+    );
     final units = <String, int>{};
     for (final sale in s.sales) {
       for (final item in sale.items) {
@@ -938,7 +1002,7 @@ class ReportsScreen extends ConsumerWidget {
         children: [
           const PageTitle(
             'Sales report',
-            subtitle: 'Performance from locally available transactions.',
+            subtitle: 'Performance reported by EazyERP.',
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -961,13 +1025,13 @@ class ReportsScreen extends ConsumerWidget {
                   icon: Icons.receipt,
                 ),
                 MetricCard(
-                  label: 'Average order',
-                  value: money(s.sales.isEmpty ? 0 : total ~/ s.sales.length),
+                  label: 'Gross profit',
+                  value: money(report?.grossProfit ?? 0),
                   icon: Icons.analytics_outlined,
                 ),
                 MetricCard(
-                  label: 'Tax collected',
-                  value: money(tax),
+                  label: 'Net profit',
+                  value: money(report?.netProfit ?? 0),
                   icon: Icons.account_balance_outlined,
                 ),
               ],
@@ -991,23 +1055,14 @@ class ReportsScreen extends ConsumerWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      for (final h in [
-                        46,
-                        80,
-                        66,
-                        120,
-                        94,
-                        145,
-                        126,
-                        164,
-                        136,
-                        170,
-                      ])
+                      for (final sale in trend)
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 5),
                             child: Container(
-                              height: h.toDouble(),
+                              height: maxSale == 0
+                                  ? 0
+                                  : 160 * sale.total / maxSale,
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: .22),
                                 borderRadius: const BorderRadius.vertical(
@@ -1060,7 +1115,7 @@ class SyncScreen extends ConsumerWidget {
         children: [
           const PageTitle(
             'Synchronization',
-            subtitle: 'Offline changes remain safely queued on this device.',
+            subtitle: 'Refresh data directly from EazyERP.',
           ),
           const SizedBox(height: 18),
           LayoutBuilder(
@@ -1078,16 +1133,14 @@ class SyncScreen extends ConsumerWidget {
                   icon: Icons.wifi,
                 ),
                 MetricCard(
-                  label: 'Pending records',
-                  value: '${s.syncQueue.length}',
-                  icon: Icons.pending_actions,
-                  tint: AppColors.accent,
+                  label: 'Products',
+                  value: '${s.products.length}',
+                  icon: Icons.inventory_2_outlined,
                 ),
-                const MetricCard(
-                  label: 'Failed records',
-                  value: '0',
-                  icon: Icons.error_outline,
-                  tint: AppColors.danger,
+                MetricCard(
+                  label: 'Customers',
+                  value: '${s.customers.length}',
+                  icon: Icons.people_outline,
                 ),
               ],
             ),
@@ -1101,7 +1154,7 @@ class SyncScreen extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        context.tr('Sync queue'),
+                        context.tr('Backend data'),
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -1109,35 +1162,23 @@ class SyncScreen extends ConsumerWidget {
                       ),
                     ),
                     FilledButton.icon(
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'No server endpoint configured. Local records remain pending.',
-                          ),
-                        ),
-                      ),
+                      onPressed: () =>
+                          ref.invalidate(backendControllerProvider),
                       icon: const Icon(Icons.sync),
                       label: Text(context.tr('Sync now')),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                if (s.syncQueue.isEmpty)
-                  EmptyState(context.tr('All local records are synchronized'))
-                else
-                  for (final item in s.syncQueue)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.cloud_upload_outlined),
-                      title: Text('${item.entityType} • ${item.entityId}'),
-                      subtitle: Text(
-                        'Queued ${item.createdAt.hour}:${item.createdAt.minute.toString().padLeft(2, '0')}',
-                      ),
-                      trailing: const StatusBadge(
-                        'Pending',
-                        color: AppColors.accent,
-                      ),
-                    ),
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.cloud_done_outlined),
+                  title: Text('API-backed mode'),
+                  subtitle: Text(
+                    'Products, categories, customers, sales, stock, and reports are loaded from EazyERP.',
+                  ),
+                  trailing: StatusBadge('Connected'),
+                ),
               ],
             ),
           ),
@@ -1147,50 +1188,60 @@ class SyncScreen extends ConsumerWidget {
   }
 }
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
   @override
-  Widget build(BuildContext context) => PagePad(
-    child: ListView(
-      children: [
-        const PageTitle(
-          'Settings',
-          subtitle: 'Configure your business and connected services.',
-        ),
-        const SizedBox(height: 18),
-        for (final section in const [
-          (
-            'Business profile',
-            'GreenMart • INR • RF invoice prefix',
-            Icons.store_outlined,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(appStoreProvider);
+    final business = state.business;
+    final user = state.user;
+    final locationNames = state.locations.map((item) => item.name).join(', ');
+    final sections = [
+      (
+        'Business profile',
+        '${business?.name ?? ''} • ${business?.currencyCode ?? ''} • ${business?.timeZone ?? ''}',
+        Icons.store_outlined,
+      ),
+      (
+        'Tax settings',
+        business?.taxLabel.isNotEmpty == true
+            ? business!.taxLabel
+            : 'No default business tax',
+        Icons.percent,
+      ),
+      ('Business locations', locationNames, Icons.location_on_outlined),
+      (
+        'User & profile',
+        '${user?.name ?? ''} • ${user?.isAdmin == true ? 'Administrator' : user?.username ?? ''}',
+        Icons.person_outline,
+      ),
+    ];
+    return PagePad(
+      child: ListView(
+        children: [
+          const PageTitle(
+            'Settings',
+            subtitle: 'Configure your business and connected services.',
           ),
-          ('Tax settings', 'Standard tax mode • ZATCA disabled', Icons.percent),
-          (
-            'Invoice settings',
-            'Receipt template and numbering',
-            Icons.receipt_outlined,
-          ),
-          ('Printer settings', 'Mock printer • 80mm', Icons.print_outlined),
-          ('Sync settings', 'Manual sync • Auto-sync ready', Icons.sync),
-          ('Appearance', 'Light theme', Icons.palette_outlined),
-          ('User & profile', 'Nishad • Administrator', Icons.person_outline),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Surface(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(child: Icon(section.$3)),
-                title: Text(
-                  context.tr(section.$1),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+          const SizedBox(height: 18),
+          for (final section in sections)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Surface(
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(child: Icon(section.$3)),
+                  title: Text(
+                    context.tr(section.$1),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(context.tr(section.$2)),
+                  trailing: const Icon(Icons.chevron_right),
                 ),
-                subtitle: Text(context.tr(section.$2)),
-                trailing: const Icon(Icons.chevron_right),
               ),
             ),
-          ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

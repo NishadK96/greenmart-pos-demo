@@ -12,6 +12,12 @@ class AppState {
     required this.purchases,
     required this.inventoryTransactions,
     required this.syncQueue,
+    required this.locations,
+    required this.paymentOptions,
+    required this.stockItems,
+    this.business,
+    this.user,
+    this.profitLoss,
     this.cart = const [],
     this.customer,
     this.lastSale,
@@ -23,6 +29,12 @@ class AppState {
   final List<Purchase> purchases;
   final List<InventoryTransaction> inventoryTransactions;
   final List<SyncQueueItem> syncQueue;
+  final List<BusinessLocation> locations;
+  final List<PaymentOption> paymentOptions;
+  final List<StockItem> stockItems;
+  final BusinessProfile? business;
+  final UserProfile? user;
+  final ProfitLoss? profitLoss;
   final List<CartLine> cart;
   final Customer? customer;
   final Sale? lastSale;
@@ -39,6 +51,12 @@ class AppState {
     List<Purchase>? purchases,
     List<InventoryTransaction>? inventoryTransactions,
     List<SyncQueueItem>? syncQueue,
+    List<BusinessLocation>? locations,
+    List<PaymentOption>? paymentOptions,
+    List<StockItem>? stockItems,
+    BusinessProfile? business,
+    UserProfile? user,
+    ProfitLoss? profitLoss,
     List<CartLine>? cart,
     Customer? customer,
     bool clearCustomer = false,
@@ -51,6 +69,12 @@ class AppState {
     purchases: purchases ?? this.purchases,
     inventoryTransactions: inventoryTransactions ?? this.inventoryTransactions,
     syncQueue: syncQueue ?? this.syncQueue,
+    locations: locations ?? this.locations,
+    paymentOptions: paymentOptions ?? this.paymentOptions,
+    stockItems: stockItems ?? this.stockItems,
+    business: business ?? this.business,
+    user: user ?? this.user,
+    profitLoss: profitLoss ?? this.profitLoss,
     cart: cart ?? this.cart,
     customer: clearCustomer ? null : customer ?? this.customer,
     lastSale: lastSale ?? this.lastSale,
@@ -89,60 +113,49 @@ class AppStore extends Notifier<AppState> {
   void clearCart() => state = state.copyWith(cart: [], clearCustomer: true);
   void selectCustomer(Customer value) =>
       state = state.copyWith(customer: value);
+  void addCustomer(Customer customer) =>
+      state = state.copyWith(customers: [...state.customers, customer]);
+  void updateCustomer(Customer customer) => state = state.copyWith(
+    customers: state.customers
+        .map((item) => item.id == customer.id ? customer : item)
+        .toList(growable: false),
+  );
   void replaceProducts(List<Product> products) =>
       state = state.copyWith(products: products);
   void replaceCatalog(List<Product> products, List<Category> categories) =>
       state = state.copyWith(products: products, categories: categories);
 
-  void adjustStock(String productId, int delta, String reason) {
-    final products = state.products
-        .map(
-          (p) => p.id == productId
-              ? p.copyWith(stock: (p.stock + delta).clamp(0, 999999))
-              : p,
-        )
-        .toList();
-    final tx = InventoryTransaction(
-      localId: 'it-${DateTime.now().microsecondsSinceEpoch}',
-      productId: productId,
-      quantityDelta: delta,
-      reason: reason,
-      createdAt: DateTime.now(),
-      syncStatus: SyncStatus.pending,
-    );
-    state = state.copyWith(
-      products: products,
-      inventoryTransactions: [tx, ...state.inventoryTransactions],
-      syncQueue: [_queue('inventory', tx.localId), ...state.syncQueue],
-    );
-  }
+  void replaceRemoteData({
+    required List<Product> products,
+    required List<Category> categories,
+    required List<Customer> customers,
+    required List<Sale> sales,
+    required List<BusinessLocation> locations,
+    required List<PaymentOption> paymentOptions,
+    required List<StockItem> stockItems,
+    required BusinessProfile business,
+    required UserProfile user,
+    required ProfitLoss profitLoss,
+  }) => state = state.copyWith(
+    products: products,
+    categories: categories,
+    customers: customers,
+    sales: sales,
+    locations: locations,
+    paymentOptions: paymentOptions,
+    stockItems: stockItems,
+    business: business,
+    user: user,
+    profitLoss: profitLoss,
+  );
 
-  void savePurchase(String productId, int quantity, int rate) {
-    adjustStock(productId, quantity, 'Purchase');
-    final now = DateTime.now();
-    final purchase = Purchase(
-      localId: 'p-${now.microsecondsSinceEpoch}',
-      invoiceNo: 'PUR-${1000 + state.purchases.length}',
-      supplier: const Supplier(id: 's1', name: 'Metro Wholesale'),
-      createdAt: now,
-      items: [
-        PurchaseItem(productId: productId, quantity: quantity, rate: rate),
-      ],
-      total: quantity * rate,
-      syncStatus: SyncStatus.pending,
-    );
-    state = state.copyWith(
-      purchases: [purchase, ...state.purchases],
-      syncQueue: [_queue('purchase', purchase.localId), ...state.syncQueue],
-    );
-  }
-
-  Sale checkout(PaymentMethod method) {
+  Sale checkout(String method, {String? serverId, String? invoiceNo}) {
     final now = DateTime.now();
     final customer = state.customer ?? state.customers.first;
     final sale = Sale(
       localId: 'sale-${now.microsecondsSinceEpoch}',
-      invoiceNo: 'RF-${(10001 + state.sales.length)}',
+      invoiceNo: invoiceNo ?? 'Pending',
+      serverId: serverId,
       createdAt: now,
       updatedAt: now,
       customer: customer,
@@ -151,7 +164,7 @@ class AppStore extends Notifier<AppState> {
       total: state.cartTotal,
       tax: state.cartTax,
       discount: state.cartDiscount,
-      syncStatus: SyncStatus.pending,
+      syncStatus: serverId == null ? SyncStatus.pending : SyncStatus.synced,
     );
     var products = [...state.products];
     for (final line in state.cart) {
@@ -166,20 +179,12 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(
       products: products,
       sales: [sale, ...state.sales],
-      syncQueue: [_queue('sale', sale.localId), ...state.syncQueue],
       cart: [],
       clearCustomer: true,
       lastSale: sale,
     );
     return sale;
   }
-
-  SyncQueueItem _queue(String type, String id) => SyncQueueItem(
-    localId: 'q-${DateTime.now().microsecondsSinceEpoch}',
-    entityType: type,
-    entityId: id,
-    createdAt: DateTime.now(),
-  );
 }
 
 AppState _seed() {
@@ -191,5 +196,8 @@ AppState _seed() {
     purchases: const [],
     inventoryTransactions: const [],
     syncQueue: const [],
+    locations: const [],
+    paymentOptions: const [],
+    stockItems: const [],
   );
 }

@@ -7,6 +7,7 @@ import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
+import '../backend/presentation/backend_controller.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -486,7 +487,7 @@ class _Cart extends ConsumerWidget {
             ),
             const Divider(height: 24),
             _sum(context, 'Subtotal', s.cartSubtotal),
-            _sum(context, 'Tax (5%)', s.cartTax),
+            _sum(context, 'Tax', s.cartTax),
             _sum(context, 'Discount', -s.cartDiscount),
             const SizedBox(height: 12),
             Container(
@@ -528,7 +529,11 @@ class _Cart extends ConsumerWidget {
                 Expanded(
                   flex: 2,
                   child: FilledButton.icon(
-                    onPressed: s.cart.isEmpty
+                    onPressed:
+                        s.cart.isEmpty ||
+                            s.locations.isEmpty ||
+                            s.customers.isEmpty ||
+                            s.paymentOptions.isEmpty
                         ? null
                         : () => _payment(context, ref, s),
                     icon: const Icon(Icons.payments_outlined),
@@ -579,46 +584,60 @@ class _Cart extends ConsumerWidget {
   void _payment(BuildContext context, WidgetRef ref, AppState s) =>
       showModalBottomSheet(
         context: context,
-        builder: (sheetContext) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '${context.tr('Collect')} ${money(s.cartTotal)}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 18),
-              for (final m in PaymentMethod.values)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: FilledButton.tonalIcon(
-                    onPressed: () {
-                      ref.read(appStoreProvider.notifier).checkout(m);
-                      Navigator.pop(sheetContext);
-                      context.go('/receipt');
-                    },
-                    icon: Icon(
-                      m == PaymentMethod.cash
-                          ? Icons.payments
-                          : m == PaymentMethod.card
-                          ? Icons.credit_card
-                          : Icons.qr_code,
-                    ),
-                    label: Text(
-                      m == PaymentMethod.digital
-                          ? context.tr('UPI / Digital')
-                          : context.tr(
-                              m.name[0].toUpperCase() + m.name.substring(1),
-                            ),
+        builder: (sheetContext) {
+          var submitting = false;
+          return StatefulBuilder(
+            builder: (context, setState) => Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${context.tr('Collect')} ${money(s.cartTotal)}',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-            ],
-          ),
-        ),
+                  const SizedBox(height: 18),
+                  if (submitting)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    for (final option in s.paymentOptions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: FilledButton.tonalIcon(
+                          onPressed: () async {
+                            setState(() => submitting = true);
+                            try {
+                              await ref
+                                  .read(backendControllerProvider.notifier)
+                                  .checkout(option.code);
+                              if (!sheetContext.mounted) return;
+                              Navigator.pop(sheetContext);
+                              context.go('/receipt');
+                            } catch (error) {
+                              if (!sheetContext.mounted) return;
+                              setState(() => submitting = false);
+                              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
+                            }
+                          },
+                          icon: Icon(
+                            option.code == 'cash'
+                                ? Icons.payments
+                                : option.code == 'card'
+                                ? Icons.credit_card
+                                : Icons.account_balance_outlined,
+                          ),
+                          label: Text(context.tr(option.label)),
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          );
+        },
       );
 }

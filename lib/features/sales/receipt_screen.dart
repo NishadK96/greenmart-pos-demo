@@ -48,7 +48,7 @@ class ReceiptScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${sale.invoiceNo} • Saved offline',
+                    '${sale.invoiceNo} • Saved to EazyERP',
                     style: const TextStyle(color: AppColors.muted),
                   ),
                   const SizedBox(height: 22),
@@ -56,7 +56,8 @@ class ReceiptScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          context.tr('GreenMart').toUpperCase(),
+                          (ref.watch(appStoreProvider).business?.name ?? '')
+                              .toUpperCase(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2,
@@ -71,7 +72,7 @@ class ReceiptScreen extends ConsumerWidget {
                           children: [
                             Text(sale.customer.name),
                             const Spacer(),
-                            Text(sale.paymentMethod.name.toUpperCase()),
+                            Text(sale.paymentMethod.toUpperCase()),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -116,10 +117,7 @@ class ReceiptScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        const StatusBadge(
-                          'Pending synchronization',
-                          color: AppColors.accent,
-                        ),
+                        const StatusBadge('Synchronized'),
                       ],
                     ),
                   ),

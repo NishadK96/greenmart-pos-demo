@@ -100,7 +100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 16),
                             Text(
                               context.tr(
-                                'Fast checkout, accurate stock, and an offline-first workflow for modern retail.',
+                                'Fast checkout, accurate stock, and connected workflows for modern retail.',
                               ),
                               style: const TextStyle(
                                 color: Color(0xFFD5E8E3),

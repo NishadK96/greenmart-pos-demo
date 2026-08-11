@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
 import '../config.dart';
@@ -120,6 +121,251 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<Customer>> customers(String accessToken) async {
+    final uri = Uri.parse(
+      ApiEndPoints.customersUrl,
+    ).replace(queryParameters: const {'type': 'customer', 'per_page': '-1'});
+    final data = await _getDataList(uri, accessToken, 'customers');
+    return data.map(_customerFromJson).toList(growable: false);
+  }
+
+  Future<List<BusinessLocation>> locations(String accessToken) async {
+    final data = await _getDataList(
+      Uri.parse(ApiEndPoints.locationsUrl),
+      accessToken,
+      'locations',
+    );
+    return data
+        .map(
+          (item) => BusinessLocation(
+            id: item['id'].toString(),
+            name: item['name']?.toString() ?? '',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<PaymentOption>> paymentOptions(String accessToken) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.paymentMethodsUrl),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, 'payment methods');
+    return json.entries
+        .map(
+          (entry) => PaymentOption(
+            code: entry.key,
+            label: entry.value?.toString() ?? entry.key,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<BusinessProfile> businessDetails(String accessToken) async {
+    final json = await _getDataObject(
+      Uri.parse(ApiEndPoints.businessDetailsUrl),
+      accessToken,
+      'business details',
+    );
+    final currency = _map(json['currency']);
+    return BusinessProfile(
+      name: json['name']?.toString() ?? '',
+      currencyCode: currency['code']?.toString() ?? '',
+      currencySymbol: currency['symbol']?.toString() ?? '',
+      timeZone: json['time_zone']?.toString() ?? '',
+      taxLabel: json['tax_label_1']?.toString() ?? '',
+    );
+  }
+
+  Future<UserProfile> loggedInUser(String accessToken) async {
+    final json = await _getDataObject(
+      Uri.parse(ApiEndPoints.loggedInUserUrl),
+      accessToken,
+      'user profile',
+    );
+    final names = [
+      json['first_name'],
+      json['last_name'],
+    ].where((value) => value?.toString().trim().isNotEmpty == true).join(' ');
+    return UserProfile(
+      name: names.isEmpty ? json['username']?.toString() ?? '' : names,
+      username: json['username']?.toString() ?? '',
+      isAdmin: json['is_admin'] == true || json['is_admin'] == 1,
+    );
+  }
+
+  Future<ProfitLoss> profitLoss(String accessToken) async {
+    final json = await _getDataObject(
+      Uri.parse(ApiEndPoints.profitLossUrl),
+      accessToken,
+      'profit and loss report',
+    );
+    return ProfitLoss(
+      totalSales: _money(json['total_sell']),
+      totalPurchases: _money(json['total_purchase']),
+      totalExpenses: _money(json['total_expense']),
+      grossProfit: _money(json['gross_profit']),
+      netProfit: _money(json['net_profit']),
+    );
+  }
+
+  Future<List<StockItem>> stockReport(String accessToken) async {
+    final data = await _getAllPages(
+      Uri.parse(ApiEndPoints.stockReportUrl),
+      accessToken,
+      'stock report',
+    );
+    return data
+        .map(
+          (item) => StockItem(
+            productId: item['product_id'].toString(),
+            variationId: item['variation_id'].toString(),
+            name: item['product']?.toString() ?? '',
+            sku: item['sku']?.toString() ?? '',
+            unit: item['unit']?.toString() ?? '',
+            stock: _number(item['stock']).floor(),
+            minimumStock: _number(item['alert_quantity']).floor(),
+            unitPrice: _money(item['unit_price']),
+            locationName: item['location_name']?.toString() ?? '',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<Sale>> sales(
+    String accessToken,
+    List<Product> products,
+    List<Customer> customers,
+  ) async {
+    final uri = Uri.parse(
+      ApiEndPoints.salesUrl,
+    ).replace(queryParameters: const {'per_page': '-1'});
+    final data = await _getDataList(uri, accessToken, 'sales');
+    final productById = {for (final item in products) item.id: item};
+    final customerById = {for (final item in customers) item.id: item};
+    return data
+        .map((item) => _saleFromJson(item, productById, customerById))
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> createSale({
+    required String accessToken,
+    required String locationId,
+    required Customer customer,
+    required List<CartLine> lines,
+    required String paymentMethod,
+    required int total,
+  }) async {
+    final body = {
+      'sells': [
+        {
+          'location_id': int.parse(locationId),
+          'contact_id': int.parse(customer.id),
+          'status': 'final',
+          'discount_type': 'fixed',
+          'discount_amount': 0,
+          'products': [
+            for (final line in lines)
+              {
+                'product_id': int.parse(line.product.id),
+                'variation_id': int.parse(line.product.variationId),
+                'quantity': line.quantity,
+                'unit_price': line.product.sellingPrice / 100,
+                'discount_type': 'fixed',
+                'discount_amount': line.discount / 100,
+              },
+          ],
+          'payment': [
+            {'amount': total / 100, 'method': paymentMethod},
+          ],
+        },
+      ],
+    };
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.salesUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 30));
+    final decoded = _decodeAny(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(decoded, 'Unable to create sale.'),
+        statusCode: response.statusCode,
+      );
+    }
+    if (decoded is! List || decoded.isEmpty || decoded.first is! Map) {
+      throw const ApiException('Invalid create-sale response.');
+    }
+    var result = Map<String, dynamic>.from(decoded.first as Map);
+    if (result['original'] is Map) result = _map(result['original']);
+    if (result['error'] != null || result['success'] == false) {
+      throw ApiException(_apiMessage(result, 'Unable to create sale.'));
+    }
+    return result;
+  }
+
+  Future<Customer> createCustomer({
+    required String accessToken,
+    required String name,
+    required String mobile,
+    String email = '',
+    String taxNumber = '',
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.customersUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'type': 'customer',
+            'first_name': name,
+            'mobile': mobile,
+            if (email.isNotEmpty) 'email': email,
+            if (taxNumber.isNotEmpty) 'tax_number': taxNumber,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'customer');
+    return _customerFromJson(_map(payload['data']));
+  }
+
+  Future<Customer> updateCustomer({
+    required String accessToken,
+    required Customer customer,
+    required String name,
+    required String mobile,
+    String email = '',
+    String taxNumber = '',
+  }) async {
+    final response = await _client
+        .put(
+          Uri.parse('${ApiEndPoints.customersUrl}/${customer.id}'),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'type': 'customer',
+            'first_name': name,
+            'mobile': mobile,
+            'email': email,
+            'tax_number': taxNumber,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'customer');
+    return _customerFromJson(_map(payload['data']));
+  }
+
   Map<String, String> _authorizedHeaders(String accessToken) => {
     'Accept': 'application/json',
     'Authorization': 'Bearer $accessToken',
@@ -146,6 +392,7 @@ class Api {
         ? category['id']?.toString() ?? ''
         : '';
     final sku = json['sku']?.toString() ?? '';
+    final productTax = _map(json['product_tax']);
     return Product(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
@@ -156,6 +403,8 @@ class Api {
       sellingPrice: (_number(variation['sell_price_inc_tax']) * 100).round(),
       stock: stock.floor(),
       minimumStock: _number(json['alert_quantity']).floor(),
+      variationId: variation['id']?.toString() ?? '',
+      taxPercent: _number(productTax['amount']),
       unit: (json['unit'] is Map<String, dynamic>)
           ? (json['unit']['short_name']?.toString() ?? 'pc')
           : 'pc',
@@ -166,6 +415,157 @@ class Api {
 
   double _number(dynamic value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
+  int _money(dynamic value) => (_number(value) * 100).round();
+
+  Customer _customerFromJson(Map<String, dynamic> json) => Customer(
+    id: json['id'].toString(),
+    name: json['name']?.toString().trim().isNotEmpty == true
+        ? json['name'].toString()
+        : json['first_name']?.toString() ?? '',
+    phone: json['mobile']?.toString() ?? '',
+    email: json['email']?.toString() ?? '',
+    address: [
+      json['address_line_1'],
+      json['address_line_2'],
+      json['city'],
+      json['state'],
+      json['country'],
+    ].where((value) => value?.toString().trim().isNotEmpty == true).join(', '),
+    taxNumber: json['tax_number']?.toString(),
+  );
+
+  Sale _saleFromJson(
+    Map<String, dynamic> json,
+    Map<String, Product> products,
+    Map<String, Customer> customers,
+  ) {
+    final lines = (json['sell_lines'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((line) {
+          final product = products[line['product_id'].toString()];
+          if (product == null) return null;
+          return CartLine(
+            product: product,
+            quantity: _number(line['quantity']).round(),
+            discount: _money(line['line_discount_amount']),
+          );
+        })
+        .whereType<CartLine>()
+        .toList(growable: false);
+    final payments = json['payment_lines'] as List? ?? const [];
+    final payment = payments.whereType<Map<String, dynamic>>().firstOrNull;
+    final created = DateTime.tryParse(
+      json['transaction_date']?.toString() ?? '',
+    );
+    return Sale(
+      localId: 'server-${json['id']}',
+      serverId: json['id']?.toString(),
+      invoiceNo: json['invoice_no']?.toString() ?? '',
+      createdAt: created ?? DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updated_at']?.toString() ?? '') ??
+          created ??
+          DateTime.now(),
+      customer:
+          customers[json['contact_id'].toString()] ??
+          Customer(
+            id: json['contact_id'].toString(),
+            name: _map(json['contact'])['name']?.toString() ?? 'Customer',
+          ),
+      items: lines,
+      paymentMethod: payment?['method']?.toString() ?? 'due',
+      total: _money(json['final_total']),
+      tax: _money(json['tax_amount']),
+      discount: _money(json['discount_amount']),
+      syncStatus: SyncStatus.synced,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _getDataList(
+    Uri uri,
+    String accessToken,
+    String resource,
+  ) async {
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, resource);
+    final data = json['data'];
+    if (data is! List) throw ApiException('Invalid $resource response.');
+    return data.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _getAllPages(
+    Uri uri,
+    String accessToken,
+    String resource,
+  ) async {
+    final items = <Map<String, dynamic>>[];
+    var page = 1;
+    var lastPage = 1;
+    do {
+      final response = await _client
+          .get(
+            uri.replace(queryParameters: {'page': '$page'}),
+            headers: _authorizedHeaders(accessToken),
+          )
+          .timeout(const Duration(seconds: 20));
+      final json = _requireObject(response, resource);
+      final data = json['data'];
+      if (data is! List) throw ApiException('Invalid $resource response.');
+      items.addAll(data.whereType<Map<String, dynamic>>());
+      lastPage =
+          int.tryParse(_map(json['meta'])['last_page']?.toString() ?? '') ?? 1;
+      page++;
+    } while (page <= lastPage);
+    return items;
+  }
+
+  Future<Map<String, dynamic>> _getDataObject(
+    Uri uri,
+    String accessToken,
+    String resource,
+  ) async {
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, resource);
+    return _map(json['data']);
+  }
+
+  Map<String, dynamic> _requireObject(http.Response response, String resource) {
+    final decoded = _decodeAny(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(decoded, 'Unable to load $resource.'),
+        statusCode: response.statusCode,
+        validationErrors: decoded is Map ? _map(decoded['errors']) : const {},
+      );
+    }
+    if (decoded is! Map) throw ApiException('Invalid $resource response.');
+    return Map<String, dynamic>.from(decoded);
+  }
+
+  dynamic _decodeAny(String body) {
+    try {
+      return jsonDecode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _map(dynamic value) =>
+      value is Map ? Map<String, dynamic>.from(value) : const {};
+
+  String _apiMessage(dynamic value, String fallback) {
+    if (value is Map) {
+      final message = value['message'] ?? value['error_description'];
+      if (message != null) return message.toString();
+      if (value['error'] != null) return _apiMessage(value['error'], fallback);
+    }
+    return fallback;
+  }
 
   Map<String, dynamic> _decode(String body) {
     try {
@@ -182,8 +582,14 @@ class Api {
 }
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(
+    this.message, {
+    this.statusCode,
+    this.validationErrors = const {},
+  });
   final String message;
+  final int? statusCode;
+  final Map<String, dynamic> validationErrors;
   @override
   String toString() => message;
 }

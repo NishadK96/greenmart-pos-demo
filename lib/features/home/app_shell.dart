@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
+import '../store/app_store.dart';
 
 const destinations = [
   ('/pos', 'POS', Icons.point_of_sale_outlined),
@@ -50,6 +51,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       .clamp(0, destinations.length - 1);
   @override
   Widget build(BuildContext context) {
+    final appState = ref.watch(appStoreProvider);
+    final businessName = appState.business?.name ?? '';
+    final userName = appState.user?.name ?? '';
+    final locationName = appState.locations.isEmpty
+        ? ''
+        : appState.locations.first.name;
     final width = MediaQuery.sizeOf(context).width;
     final desktop = width > 1100;
     final path = GoRouterState.of(context).uri.path;
@@ -129,7 +136,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  context.tr('GreenMart'),
+                                  businessName,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
@@ -258,12 +265,20 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       child: Row(
                         children: [
-                          const CircleAvatar(
+                          CircleAvatar(
                             radius: 18,
                             backgroundColor: AppColors.accent,
                             child: Text(
-                              'NK',
-                              style: TextStyle(
+                              userName.isEmpty
+                                  ? '?'
+                                  : userName
+                                        .split(' ')
+                                        .where((part) => part.isNotEmpty)
+                                        .take(2)
+                                        .map((part) => part[0])
+                                        .join()
+                                        .toUpperCase(),
+                              style: const TextStyle(
                                 color: AppColors.navy,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -275,9 +290,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Nishad',
-                                    style: TextStyle(
+                                  Text(
+                                    userName,
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -316,7 +331,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   child: Row(
                     children: [
                       Text(
-                        context.tr('GreenMart'),
+                        businessName,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -331,7 +346,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           borderRadius: BorderRadius.circular(7),
                         ),
                         child: Text(
-                          context.tr('Main Store').toUpperCase(),
+                          locationName.toUpperCase(),
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,

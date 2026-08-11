@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../apis/api.dart';
+import '../../core/network/api_provider.dart';
 
-final apiProvider = Provider<Api>((ref) => Api());
 final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
   AuthController.new,
 );

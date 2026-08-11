@@ -1,7 +1,5 @@
 enum SyncStatus { pending, synced, failed, conflict }
 
-enum PaymentMethod { cash, card, digital }
-
 class Category {
   const Category({
     required this.id,
@@ -25,12 +23,13 @@ class Product {
     required this.sellingPrice,
     required this.stock,
     required this.minimumStock,
+    required this.variationId,
     this.taxPercent = 5,
     this.unit = 'pc',
     this.active = true,
     this.imageUrl = '',
   });
-  final String id, name, sku, barcode, categoryId, unit;
+  final String id, name, sku, barcode, categoryId, unit, variationId;
   final String imageUrl;
   final int purchasePrice, sellingPrice, stock, minimumStock;
   final double taxPercent;
@@ -45,6 +44,7 @@ class Product {
     sellingPrice: sellingPrice,
     stock: stock ?? this.stock,
     minimumStock: minimumStock,
+    variationId: variationId,
     taxPercent: taxPercent,
     unit: unit,
     active: active,
@@ -63,6 +63,64 @@ class Customer {
   });
   final String id, name, phone, email, address;
   final String? taxNumber;
+}
+
+class BusinessLocation {
+  const BusinessLocation({required this.id, required this.name});
+  final String id, name;
+}
+
+class PaymentOption {
+  const PaymentOption({required this.code, required this.label});
+  final String code, label;
+}
+
+class BusinessProfile {
+  const BusinessProfile({
+    required this.name,
+    required this.currencyCode,
+    required this.currencySymbol,
+    required this.timeZone,
+    required this.taxLabel,
+  });
+  final String name, currencyCode, currencySymbol, timeZone, taxLabel;
+}
+
+class UserProfile {
+  const UserProfile({
+    required this.name,
+    required this.username,
+    required this.isAdmin,
+  });
+  final String name, username;
+  final bool isAdmin;
+}
+
+class ProfitLoss {
+  const ProfitLoss({
+    required this.totalSales,
+    required this.totalPurchases,
+    required this.totalExpenses,
+    required this.grossProfit,
+    required this.netProfit,
+  });
+  final int totalSales, totalPurchases, totalExpenses, grossProfit, netProfit;
+}
+
+class StockItem {
+  const StockItem({
+    required this.productId,
+    required this.variationId,
+    required this.name,
+    required this.sku,
+    required this.unit,
+    required this.stock,
+    required this.minimumStock,
+    required this.unitPrice,
+    required this.locationName,
+  });
+  final String productId, variationId, name, sku, unit, locationName;
+  final int stock, minimumStock, unitPrice;
 }
 
 class Supplier {
@@ -104,7 +162,7 @@ class Sale {
   final DateTime createdAt, updatedAt;
   final Customer customer;
   final List<CartLine> items;
-  final PaymentMethod paymentMethod;
+  final String paymentMethod;
   final int total, tax, discount;
   final SyncStatus syncStatus;
 }

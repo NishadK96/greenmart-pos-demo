@@ -185,12 +185,19 @@ class _Discovery extends ConsumerWidget {
           height: 48,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: state.categories.length,
+            itemCount: state.categories.length + 1,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
-              final c = state.categories[i];
+              if (i == 0) {
+                return ChoiceChip(
+                  label: Text(context.tr('All')),
+                  selected: selected == 'all',
+                  onSelected: (_) => onCategory('all'),
+                );
+              }
+              final c = state.categories[i - 1];
               return ChoiceChip(
-                label: Text('${c.icon}  ${context.tr(c.name)}'),
+                label: Text(context.tr(c.name)),
                 selected: selected == c.id,
                 onSelected: (_) => onCategory(c.id),
               );
@@ -243,16 +250,9 @@ class _Discovery extends ConsumerWidget {
                                           ),
                                         ),
                                         clipBehavior: Clip.antiAlias,
-                                        child: Image.asset(
-                                          p.imageAsset,
+                                        child: ProductImage(
+                                          p.imageUrl,
                                           fit: BoxFit.contain,
-                                          errorBuilder: (_, __, ___) => Icon(
-                                            _productIcon(p.categoryId),
-                                            size: 42,
-                                            color: AppColors.ink.withValues(
-                                              alpha: .7,
-                                            ),
-                                          ),
                                         ),
                                       ),
                                     ),
@@ -359,16 +359,6 @@ class _Discovery extends ConsumerWidget {
       ],
     );
   }
-
-  IconData _productIcon(String c) => c == 'beverages'
-      ? Icons.local_drink_outlined
-      : c == 'snacks'
-      ? Icons.cookie_outlined
-      : c == 'household'
-      ? Icons.cleaning_services_outlined
-      : c == 'personal'
-      ? Icons.spa_outlined
-      : Icons.shopping_basket_outlined;
 }
 
 class _Cart extends ConsumerWidget {
@@ -433,8 +423,8 @@ class _Cart extends ConsumerWidget {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(9),
-                              child: Image.asset(
-                                line.product.imageAsset,
+                              child: ProductImage(
+                                line.product.imageUrl,
                                 width: 58,
                                 height: 58,
                                 fit: BoxFit.contain,

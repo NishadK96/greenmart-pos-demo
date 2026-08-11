@@ -61,8 +61,9 @@ void main() {
         return http.Response('''
           {"data":[{
             "id":1,"name":"Whole Wheat Flour","sku":"SKU-1001",
-            "category":{"name":"Grocery"},
+            "category":{"id":7,"name":"Grocery"},
             "unit":{"short_name":"pc"},
+            "image_url":"http://localhost:8080/uploads/img/flour.jpg",
             "alert_quantity":"6.0000","is_inactive":0,
             "product_variations":[{"variations":[{
               "dpp_inc_tax":"36.7500","sell_price_inc_tax":"51.2500",
@@ -79,7 +80,26 @@ void main() {
     expect(products.single.name, 'Whole Wheat Flour');
     expect(products.single.sellingPrice, 5125);
     expect(products.single.stock, 19);
-    expect(products.single.categoryId, 'grocery');
-    expect(products.single.imageAsset, endsWith('/wheat_flour.jpg'));
+    expect(products.single.categoryId, '7');
+    expect(products.single.imageUrl, endsWith('/flour.jpg'));
+  });
+
+  test('categories loads product taxonomies from the backend', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        expect(request.url.queryParameters['type'], 'product');
+        return http.Response(
+          '{"data":[{"id":7,"name":"Grocery","category_type":"product"}]}',
+          200,
+        );
+      }),
+    );
+
+    final categories = await api.categories('token-123');
+
+    expect(categories, hasLength(1));
+    expect(categories.single.id, '7');
+    expect(categories.single.name, 'Grocery');
   });
 }

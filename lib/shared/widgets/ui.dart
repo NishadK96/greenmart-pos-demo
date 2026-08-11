@@ -145,3 +145,37 @@ class EmptyState extends StatelessWidget {
     ),
   );
 }
+
+class ProductImage extends StatelessWidget {
+  const ProductImage(
+    this.url, {
+    super.key,
+    this.width,
+    this.height,
+    this.fit = BoxFit.contain,
+  });
+  final String url;
+  final double? width, height;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = SizedBox(
+      width: width,
+      height: height,
+      child: const Icon(
+        Icons.inventory_2_outlined,
+        size: 42,
+        color: AppColors.muted,
+      ),
+    );
+    if (url.isEmpty) return placeholder;
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, __, ___) => placeholder,
+    );
+  }
+}

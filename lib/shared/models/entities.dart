@@ -28,10 +28,10 @@ class Product {
     this.taxPercent = 5,
     this.unit = 'pc',
     this.active = true,
-    this.imageAsset = 'assets/products/grocery.jpg',
+    this.imageUrl = '',
   });
   final String id, name, sku, barcode, categoryId, unit;
-  final String imageAsset;
+  final String imageUrl;
   final int purchasePrice, sellingPrice, stock, minimumStock;
   final double taxPercent;
   final bool active;
@@ -48,7 +48,7 @@ class Product {
     taxPercent: taxPercent,
     unit: unit,
     active: active,
-    imageAsset: imageAsset,
+    imageUrl: imageUrl,
   );
 }
 

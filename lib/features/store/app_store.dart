@@ -89,10 +89,10 @@ class AppStore extends Notifier<AppState> {
   void clearCart() => state = state.copyWith(cart: [], clearCustomer: true);
   void selectCustomer(Customer value) =>
       state = state.copyWith(customer: value);
-  void addProduct(Product product) =>
-      state = state.copyWith(products: [...state.products, product]);
   void replaceProducts(List<Product> products) =>
       state = state.copyWith(products: products);
+  void replaceCatalog(List<Product> products, List<Category> categories) =>
+      state = state.copyWith(products: products, categories: categories);
 
   void adjustStock(String productId, int delta, String reason) {
     final products = state.products
@@ -183,17 +183,9 @@ class AppStore extends Notifier<AppState> {
 }
 
 AppState _seed() {
-  const cats = [
-    Category(id: 'all', name: 'All', icon: '◉'),
-    Category(id: 'grocery', name: 'Grocery', icon: '🥫'),
-    Category(id: 'beverages', name: 'Beverages', icon: '🥤'),
-    Category(id: 'snacks', name: 'Snacks', icon: '🍿'),
-    Category(id: 'household', name: 'Household', icon: '🧹'),
-    Category(id: 'personal', name: 'Personal Care', icon: '🧴'),
-  ];
   return AppState(
     products: const [],
-    categories: cats,
+    categories: const [],
     customers: const [Customer(id: 'walkin', name: 'Walk-in Customer')],
     sales: const [],
     purchases: const [],

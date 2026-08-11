@@ -316,14 +316,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     return PagePad(
       child: Column(
         children: [
-          PageTitle(
+          const PageTitle(
             'Products',
             subtitle: 'Manage pricing, stock and barcodes.',
-            action: FilledButton.icon(
-              onPressed: () => _add(context),
-              icon: const Icon(Icons.add),
-              label: Text(context.tr('Add product')),
-            ),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -345,8 +340,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        p.imageAsset,
+                      child: ProductImage(
+                        p.imageUrl,
                         width: 46,
                         height: 46,
                         fit: BoxFit.cover,
@@ -385,78 +380,6 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       ),
     );
   }
-
-  void _add(BuildContext context) {
-    final name = TextEditingController(),
-        price = TextEditingController(),
-        stock = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('Add product')),
-        content: SizedBox(
-          width: 430,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: name,
-                decoration: InputDecoration(
-                  labelText: context.tr('Product name'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: price,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: context.tr('Selling price'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: stock,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: context.tr('Opening stock'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.tr('Cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (name.text.trim().isEmpty) return;
-              final n = DateTime.now().microsecondsSinceEpoch;
-              ref
-                  .read(appStoreProvider.notifier)
-                  .addProduct(
-                    Product(
-                      id: 'p$n',
-                      name: name.text.trim(),
-                      sku: 'SKU-$n',
-                      barcode: '890$n',
-                      categoryId: 'grocery',
-                      purchasePrice:
-                          toPaise(double.tryParse(price.text) ?? 0) * 7 ~/ 10,
-                      sellingPrice: toPaise(double.tryParse(price.text) ?? 0),
-                      stock: int.tryParse(stock.text) ?? 0,
-                      minimumStock: 5,
-                    ),
-                  );
-              Navigator.pop(dialogContext);
-            },
-            child: Text(context.tr('Save product')),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class CategoriesScreen extends ConsumerWidget {
@@ -485,9 +408,9 @@ class CategoriesScreen extends ConsumerWidget {
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                 ),
-                itemCount: s.categories.skip(1).length,
+                itemCount: s.categories.length,
                 itemBuilder: (_, i) {
-                  final cat = s.categories.skip(1).elementAt(i);
+                  final cat = s.categories[i];
                   final count = s.products
                       .where((p) => p.categoryId == cat.id)
                       .length;
@@ -495,7 +418,7 @@ class CategoriesScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(cat.icon, style: const TextStyle(fontSize: 26)),
+                        const Icon(Icons.category_outlined, size: 26),
                         const Spacer(),
                         Text(
                           context.tr(cat.name),

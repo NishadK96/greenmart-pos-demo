@@ -96,6 +96,35 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<Category>> categories(String accessToken) async {
+    final uri = Uri.parse(
+      ApiEndPoints.categoriesUrl,
+    ).replace(queryParameters: const {'type': 'product'});
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200) {
+      throw ApiException('Unable to load categories (${response.statusCode}).');
+    }
+    final data = _decode(response.body)['data'];
+    if (data is! List) throw const ApiException('Invalid category response.');
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => Category(
+            id: item['id'].toString(),
+            name: item['name']?.toString() ?? '',
+            icon: '',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Map<String, String> _authorizedHeaders(String accessToken) => {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $accessToken',
+  };
+
   Product _productFromJson(Map<String, dynamic> json) {
     final variationGroups = json['product_variations'];
     final variationGroup = variationGroups is List && variationGroups.isNotEmpty
@@ -113,8 +142,8 @@ class Api {
           )
         : 0;
     final category = json['category'];
-    final categoryName = category is Map<String, dynamic>
-        ? category['name']?.toString() ?? ''
+    final categoryId = category is Map<String, dynamic>
+        ? category['id']?.toString() ?? ''
         : '';
     final sku = json['sku']?.toString() ?? '';
     return Product(
@@ -122,7 +151,7 @@ class Api {
       name: json['name']?.toString() ?? '',
       sku: sku,
       barcode: sku,
-      categoryId: _categoryId(categoryName),
+      categoryId: categoryId,
       purchasePrice: (_number(variation['dpp_inc_tax']) * 100).round(),
       sellingPrice: (_number(variation['sell_price_inc_tax']) * 100).round(),
       stock: stock.floor(),
@@ -131,60 +160,12 @@ class Api {
           ? (json['unit']['short_name']?.toString() ?? 'pc')
           : 'pc',
       active: json['is_inactive'] != 1,
-      imageAsset: _imageForSku(sku),
+      imageUrl: json['image_url']?.toString() ?? '',
     );
   }
 
   double _number(dynamic value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
-
-  String _categoryId(String name) => switch (name.toLowerCase()) {
-    'personal care' => 'personal',
-    'beverages' => 'beverages',
-    'snacks' => 'snacks',
-    'household' => 'household',
-    _ => 'grocery',
-  };
-
-  String _imageForSku(String sku) {
-    const images = [
-      'basmati_rice',
-      'wheat_flour',
-      'toor_dal',
-      'sugar',
-      'sunflower_oil',
-      'salt',
-      'milk',
-      'orange_juice',
-      'mineral_water',
-      'cola',
-      'green_tea',
-      'coffee',
-      'chips',
-      'peanuts',
-      'biscuits',
-      'chocolate',
-      'makhana',
-      'granola_bar',
-      'dishwash',
-      'detergent',
-      'floor_cleaner',
-      'kitchen_towels',
-      'garbage_bags',
-      'aluminium_foil',
-      'shampoo',
-      'bath_soap',
-      'toothpaste',
-      'hand_wash',
-      'face_cream',
-      'baby_wipes',
-    ];
-    final index = int.tryParse(sku.replaceFirst('SKU-', ''));
-    final offset = index == null ? -1 : index - 1000;
-    return offset >= 0 && offset < images.length
-        ? 'assets/products/items/${images[offset]}.jpg'
-        : 'assets/products/grocery.jpg';
-  }
 
   Map<String, dynamic> _decode(String body) {
     try {

@@ -6,25 +6,16 @@ import 'package:retailflow_pos/shared/models/entities.dart';
 import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart';
 
 void main() {
-  test('login sends the OAuth password form and returns its token', () async {
+  test('login sends credentials to the backend-managed endpoint', () async {
     final api = Api(
-      loginUrl: 'https://example.test/oauth/token',
-      clientId: '9',
-      clientSecret: 'configured-secret',
+      loginUrl: 'https://example.test/connector/api/login',
       client: MockClient((request) async {
         expect(request.method, 'POST');
         expect(request.headers['Accept'], 'application/json');
-        expect(
-          request.headers['Content-Type'],
-          startsWith('application/x-www-form-urlencoded'),
-        );
-        expect(request.bodyFields, {
-          'grant_type': 'password',
-          'client_id': '9',
-          'client_secret': 'configured-secret',
-          'username': 'cashier',
-          'password': 'password',
-        });
+        expect(request.headers['Content-Type'], startsWith('application/json'));
+        expect(request.body, '{"username":"cashier","password":"password"}');
+        expect(request.body, isNot(contains('client_secret')));
+        expect(request.url.path, '/connector/api/login');
         return http.Response('{"access_token":"token-123"}', 200);
       }),
     );
@@ -37,9 +28,7 @@ void main() {
 
   test('invalid_grant becomes an invalid credentials result', () async {
     final api = Api(
-      loginUrl: 'https://example.test/oauth/token',
-      clientId: '9',
-      clientSecret: 'configured-secret',
+      loginUrl: 'https://example.test/connector/api/login',
       client: MockClient(
         (_) async => http.Response(
           '{"error":"invalid_grant","error_description":"Bad login"}',

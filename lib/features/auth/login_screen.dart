@@ -47,9 +47,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     LoginFailure.invalidCredentials => context.tr(
       'The username or password is incorrect.',
     ),
-    LoginFailure.configuration => context.tr(
-      'Login is not configured. Add the OAuth client secret to the build.',
-    ),
     LoginFailure.network => context.tr(
       'Unable to reach the server. Check your connection.',
     ),

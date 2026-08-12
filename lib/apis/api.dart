@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
-import '../config.dart';
 import '../shared/models/entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
 
-enum LoginFailure { invalidCredentials, configuration, network, server }
+enum LoginFailure { invalidCredentials, network, server }
 
 class LoginResult {
   const LoginResult.success(this.accessToken) : failure = null, message = null;
@@ -20,38 +19,22 @@ class LoginResult {
 }
 
 class Api {
-  Api({
-    http.Client? client,
-    String? loginUrl,
-    String? clientId,
-    String? clientSecret,
-  }) : _client = client ?? http.Client(),
-       _loginUrl = loginUrl ?? ApiEndPoints.loginUrl,
-       _clientId = clientId ?? Config.clientId,
-       _clientSecret = clientSecret ?? Config.clientSecret;
+  Api({http.Client? client, String? loginUrl})
+    : _client = client ?? http.Client(),
+      _loginUrl = loginUrl ?? ApiEndPoints.loginUrl;
   final http.Client _client;
-  final String _loginUrl, _clientId, _clientSecret;
+  final String _loginUrl;
 
   Future<LoginResult> login(String username, String password) async {
-    if (_clientSecret.isEmpty) {
-      return const LoginResult.failure(LoginFailure.configuration);
-    }
-
     try {
       final response = await _client
           .post(
             Uri.parse(_loginUrl),
             headers: const {
               'Accept': 'application/json',
-              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Type': 'application/json',
             },
-            body: {
-              'grant_type': 'password',
-              'client_id': _clientId,
-              'client_secret': _clientSecret,
-              'username': username,
-              'password': password,
-            },
+            body: jsonEncode({'username': username, 'password': password}),
           )
           .timeout(const Duration(seconds: 20));
 

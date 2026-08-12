@@ -3,11 +3,4 @@ abstract final class Config {
     'EAZYERP_BASE_URL',
     defaultValue: 'https://eazyerp.co',
   );
-
-  static const clientId = String.fromEnvironment(
-    'EAZYERP_CLIENT_ID',
-    defaultValue: '9',
-  );
-
-  static const clientSecret = String.fromEnvironment('EAZYERP_CLIENT_SECRET');
 }

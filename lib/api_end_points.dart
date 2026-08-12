@@ -1,7 +1,7 @@
 import 'config.dart';
 
 abstract final class ApiEndPoints {
-  static const loginUrl = '${Config.baseUrl}/oauth/token';
+  static const loginUrl = '${Config.baseUrl}/connector/api/login';
   static const productsUrl = '${Config.baseUrl}/connector/api/product';
   static const productWritesUrl = '${Config.baseUrl}/connector/api/products';
   static const quickProductUrl =

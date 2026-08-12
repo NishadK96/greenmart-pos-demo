@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
 import '../config.dart';
 import '../shared/models/entities.dart';
+import '../features/purchases/domain/purchase_entities.dart';
 
 enum LoginFailure { invalidCredentials, configuration, network, server }
 
@@ -351,6 +352,244 @@ class Api {
     ).replace(queryParameters: const {'type': 'customer', 'per_page': '-1'});
     final data = await _getDataList(uri, accessToken, 'customers');
     return data.map(_customerFromJson).toList(growable: false);
+  }
+
+  Future<List<Supplier>> suppliers(String accessToken) async {
+    final uri = Uri.parse(
+      ApiEndPoints.customersUrl,
+    ).replace(queryParameters: const {'type': 'supplier', 'per_page': '-1'});
+    final data = await _getDataList(uri, accessToken, 'suppliers');
+    return data
+        .map(
+          (item) => Supplier(
+            id: item['id'].toString(),
+            name:
+                item['supplier_business_name']?.toString().trim().isNotEmpty ==
+                    true
+                ? item['supplier_business_name'].toString()
+                : item['name']?.toString() ?? 'Supplier',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<PurchaseDocument>> purchaseDocuments(
+    String accessToken,
+    PurchaseDocumentType type,
+  ) async {
+    final uri = Uri.parse(
+      _purchaseUrl(type),
+    ).replace(queryParameters: const {'per_page': '-1'});
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, _purchaseLabel(type));
+    final raw = json['data'];
+    final list = raw is List
+        ? raw
+        : raw is Map && raw['data'] is List
+        ? raw['data'] as List
+        : const [];
+    return list
+        .whereType<Map>()
+        .map((item) => _purchaseFromJson(Map<String, dynamic>.from(item), type))
+        .toList(growable: false);
+  }
+
+  Future<PurchaseDocument> purchaseDocument(
+    String accessToken,
+    PurchaseDocumentType type,
+    String id,
+  ) async {
+    final response = await _client
+        .get(
+          Uri.parse('${_purchaseUrl(type)}/$id'),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, _purchaseLabel(type));
+    final data = _map(json['data']);
+    return _purchaseFromJson(data.isEmpty ? json : data, type);
+  }
+
+  Future<PurchaseDocument> savePurchaseDocument({
+    required String accessToken,
+    required PurchaseDraft draft,
+    String? id,
+  }) async {
+    final uri = Uri.parse(
+      id == null ? _purchaseUrl(draft.type) : '${_purchaseUrl(draft.type)}/$id',
+    );
+    final body = jsonEncode(draft.toJson());
+    final response =
+        await (id == null
+                ? _client.post(
+                    uri,
+                    headers: _jsonHeaders(accessToken),
+                    body: body,
+                  )
+                : _client.patch(
+                    uri,
+                    headers: _jsonHeaders(accessToken),
+                    body: body,
+                  ))
+            .timeout(const Duration(seconds: 30));
+    final json = _requireObject(response, _purchaseLabel(draft.type));
+    final data = _map(json['data']);
+    if (data.isNotEmpty) return _purchaseFromJson(data, draft.type);
+    final savedId = json['id']?.toString() ?? id;
+    if (savedId != null && savedId.isNotEmpty) {
+      return purchaseDocument(accessToken, draft.type, savedId);
+    }
+    return PurchaseDocument(
+      id: id ?? '',
+      type: draft.type,
+      reference: draft.reference,
+      supplierId: draft.supplierId,
+      supplierName: '',
+      locationId: draft.locationId,
+      locationName: '',
+      date: draft.date,
+      status: draft.status,
+      shippingStatus: draft.shippingStatus,
+      notes: draft.notes,
+      purchaseOrderId: draft.purchaseOrderId,
+      lines: draft.lines,
+      total: draft.lines.fold(0, (sum, line) => sum + line.lineTotal.round()),
+    );
+  }
+
+  Future<void> deletePurchaseDocument(
+    String accessToken,
+    PurchaseDocumentType type,
+    String id,
+  ) async {
+    final response = await _client
+        .delete(
+          Uri.parse('${_purchaseUrl(type)}/$id'),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, _purchaseLabel(type));
+  }
+
+  Future<PurchaseDocument> updatePurchaseOrderStatus(
+    String accessToken,
+    String id,
+    String status,
+  ) async {
+    final response = await _client
+        .patch(
+          Uri.parse('${ApiEndPoints.purchaseOrdersUrl}/$id/status'),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({'status': status}),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, 'purchase order status');
+    final data = _map(json['data']);
+    return data.isEmpty
+        ? purchaseDocument(accessToken, PurchaseDocumentType.order, id)
+        : _purchaseFromJson(data, PurchaseDocumentType.order);
+  }
+
+  String _purchaseUrl(PurchaseDocumentType type) => switch (type) {
+    PurchaseDocumentType.order => ApiEndPoints.purchaseOrdersUrl,
+    PurchaseDocumentType.invoice => ApiEndPoints.purchasesUrl,
+    PurchaseDocumentType.purchaseReturn => ApiEndPoints.purchaseReturnsUrl,
+  };
+
+  String _purchaseLabel(PurchaseDocumentType type) => switch (type) {
+    PurchaseDocumentType.order => 'purchase orders',
+    PurchaseDocumentType.invoice => 'purchase invoices',
+    PurchaseDocumentType.purchaseReturn => 'purchase returns',
+  };
+
+  Map<String, String> _jsonHeaders(String token) => {
+    ..._authorizedHeaders(token),
+    'Content-Type': 'application/json',
+  };
+
+  PurchaseDocument _purchaseFromJson(
+    Map<String, dynamic> json,
+    PurchaseDocumentType type,
+  ) {
+    final contact = _map(json['contact'] ?? json['supplier']);
+    final location = _map(json['location'] ?? json['business_location']);
+    final rawLines =
+        json['purchase_lines'] ??
+        json['purchase_order_lines'] ??
+        json['return_lines'] ??
+        json['products'] ??
+        json['lines'] ??
+        const [];
+    final lines = rawLines is List
+        ? rawLines
+              .whereType<Map>()
+              .map((raw) {
+                final line = Map<String, dynamic>.from(raw);
+                final product = _map(line['product']);
+                final variation = _map(line['variation']);
+                final quantity = _number(
+                  line['quantity_returned'] ?? line['quantity'] ?? line['qty'],
+                );
+                final cost = _number(
+                  line['purchase_price_inc_tax'] ??
+                      line['purchase_price'] ??
+                      line['unit_cost'] ??
+                      line['unit_price'],
+                );
+                return PurchaseLineRecord(
+                  id: line['id']?.toString(),
+                  productId: (line['product_id'] ?? product['id'] ?? '')
+                      .toString(),
+                  variationId: (line['variation_id'] ?? variation['id'] ?? '')
+                      .toString(),
+                  name:
+                      product['name']?.toString() ??
+                      line['product_name']?.toString() ??
+                      variation['name']?.toString() ??
+                      'Product',
+                  sku:
+                      variation['sub_sku']?.toString() ??
+                      line['sub_sku']?.toString() ??
+                      '',
+                  quantity: quantity,
+                  unitCost: cost * 100,
+                  discountPercent: _number(line['discount_percent']),
+                  taxId: line['tax_id']?.toString(),
+                );
+              })
+              .toList(growable: false)
+        : const <PurchaseLineRecord>[];
+    final parsedDate = DateTime.tryParse(
+      (json['transaction_date'] ?? json['created_at'] ?? '').toString(),
+    );
+    return PurchaseDocument(
+      id: json['id']?.toString() ?? '',
+      type: type,
+      reference: (json['ref_no'] ?? json['invoice_no'] ?? '#${json['id']}')
+          .toString(),
+      supplierId:
+          (json['contact_id'] ?? json['supplier_id'] ?? contact['id'] ?? '')
+              .toString(),
+      supplierName:
+          contact['supplier_business_name']?.toString() ??
+          contact['name']?.toString() ??
+          json['supplier_name']?.toString() ??
+          'Supplier',
+      locationId: (json['location_id'] ?? location['id'] ?? '').toString(),
+      locationName:
+          location['name']?.toString() ??
+          json['location_name']?.toString() ??
+          '',
+      date: parsedDate ?? DateTime.now(),
+      status: json['status']?.toString() ?? 'draft',
+      shippingStatus: json['shipping_status']?.toString() ?? '',
+      notes: (json['additional_notes'] ?? json['notes'] ?? '').toString(),
+      purchaseOrderId: json['purchase_order_id']?.toString(),
+      lines: lines,
+      total: _money(json['final_total'] ?? json['total']),
+    );
   }
 
   Future<List<BusinessLocation>> locations(String accessToken) async {

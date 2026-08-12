@@ -471,8 +471,8 @@ class CategoriesScreen extends ConsumerWidget {
   }
 }
 
-class PurchasesScreen extends ConsumerWidget {
-  const PurchasesScreen({super.key});
+class LegacyPurchasesScreen extends ConsumerWidget {
+  const LegacyPurchasesScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStoreProvider);

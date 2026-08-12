@@ -28,4 +28,9 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/profit-loss-report';
   static const stockReportUrl =
       '${Config.baseUrl}/connector/api/product-stock-report';
+  static const purchaseOrdersUrl =
+      '${Config.baseUrl}/connector/api/purchase-orders';
+  static const purchasesUrl = '${Config.baseUrl}/connector/api/purchases';
+  static const purchaseReturnsUrl =
+      '${Config.baseUrl}/connector/api/purchase-returns';
 }

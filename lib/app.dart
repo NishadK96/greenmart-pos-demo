@@ -9,6 +9,7 @@ import 'features/auth/auth_gate.dart';
 import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
+import 'features/purchases/presentation/purchase_screens.dart';
 import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
 

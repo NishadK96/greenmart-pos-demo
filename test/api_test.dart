@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:retailflow_pos/apis/api.dart';
 import 'package:retailflow_pos/shared/models/entities.dart';
+import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart';
 
 void main() {
   test('login sends the OAuth password form and returns its token', () async {
@@ -51,6 +52,80 @@ void main() {
 
     expect(result.isSuccess, isFalse);
     expect(result.failure, LoginFailure.invalidCredentials);
+  });
+
+  test('purchase orders map Laravel document and line resources', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/connector/api/purchase-orders');
+        return http.Response('''
+          {"data":[{
+            "id":41,"ref_no":"PO-0041","contact_id":7,
+            "contact":{"id":7,"name":"Fresh Foods Ltd"},
+            "location_id":2,"location":{"id":2,"name":"Main Store"},
+            "transaction_date":"2026-08-12T10:00:00+05:30",
+            "status":"ordered","final_total":"250.00",
+            "purchase_order_lines":[{
+              "id":9,"product_id":3,"variation_id":4,"quantity":"5.00",
+              "purchase_price_inc_tax":"50.00",
+              "product":{"id":3,"name":"Rice"},
+              "variation":{"id":4,"sub_sku":"RICE-5KG"}
+            }]
+          }]}
+        ''', 200);
+      }),
+    );
+
+    final result = await api.purchaseDocuments(
+      'token-123',
+      PurchaseDocumentType.order,
+    );
+
+    expect(result.single.reference, 'PO-0041');
+    expect(result.single.supplierName, 'Fresh Foods Ltd');
+    expect(result.single.total, 25000);
+    expect(result.single.lines.single.unitCost, 5000);
+  });
+
+  test('purchase creation sends the modern Connector JSON contract', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/purchases');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        expect(request.body, contains('"contact_id":"7"'));
+        expect(request.body, contains('"lines":'));
+        expect(request.body, contains('"purchase_price":50.0'));
+        return http.Response(
+          '{"data":{"id":55,"ref_no":"PUR-55","status":"received","final_total":"100.00"}}',
+          201,
+        );
+      }),
+    );
+
+    final saved = await api.savePurchaseDocument(
+      accessToken: 'token-123',
+      draft: PurchaseDraft(
+        type: PurchaseDocumentType.invoice,
+        supplierId: '7',
+        locationId: '2',
+        date: DateTime(2026, 8, 12),
+        status: 'received',
+        lines: const [
+          PurchaseLineRecord(
+            productId: '3',
+            variationId: '4',
+            name: 'Rice',
+            quantity: 2,
+            unitCost: 5000,
+          ),
+        ],
+      ),
+    );
+
+    expect(saved.id, '55');
+    expect(saved.total, 10000);
   });
 
   test('products maps EazyERP price, stock, category, and image', () async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../apis/api.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
@@ -449,6 +450,20 @@ class _Cart extends ConsumerWidget {
                                       fontSize: 12,
                                     ),
                                   ),
+                                  const SizedBox(height: 3),
+                                  InkWell(
+                                    onTap: () => _discount(context, ref, line),
+                                    child: Text(
+                                      line.discount == 0
+                                          ? context.tr('Add discount')
+                                          : '${context.tr('Discount')} ${money(line.discount)}',
+                                      style: const TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -581,63 +596,221 @@ class _Cart extends ConsumerWidget {
       ),
     ),
   );
-  void _payment(BuildContext context, WidgetRef ref, AppState s) =>
-      showModalBottomSheet(
-        context: context,
-        builder: (sheetContext) {
-          var submitting = false;
-          return StatefulBuilder(
-            builder: (context, setState) => Padding(
-              padding: const EdgeInsets.all(24),
+
+  Future<void> _discount(
+    BuildContext context,
+    WidgetRef ref,
+    CartLine line,
+  ) async {
+    final controller = TextEditingController(
+      text: line.discount == 0 ? '' : (line.discount / 100).toStringAsFixed(2),
+    );
+    final formKey = GlobalKey<FormState>();
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('Line discount')),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: context.tr('Discount amount'),
+              prefixText: '₹ ',
+              helperText: '${context.tr('Maximum')} ${money(line.subtotal)}',
+            ),
+            validator: (value) {
+              final parsed = double.tryParse(value?.trim() ?? '');
+              if (parsed == null || parsed < 0)
+                return context.tr('Enter a valid amount');
+              if ((parsed * 100).round() > line.subtotal) {
+                return context.tr('Discount cannot exceed subtotal');
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          if (line.discount > 0)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 0),
+              child: Text(context.tr('Remove discount')),
+            ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                dialogContext,
+                (double.parse(controller.text.trim()) * 100).round(),
+              );
+            },
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    );
+    if (amount != null) {
+      ref.read(appStoreProvider.notifier).discount(line.product.id, amount);
+    }
+  }
+
+  void _payment(BuildContext context, WidgetRef ref, AppState s) {
+    // Resolve inherited dependencies before opening the sheet. Its context is
+    // deactivated as soon as the successful payment closes the sheet.
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (sheetContext) {
+        var submitting = false;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final height = MediaQuery.sizeOf(context).height;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: height * .82),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    '${context.tr('Collect')} ${money(s.cartTotal)}',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 14, 16, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD5DDDA),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: context.tr('Cancel'),
+                          onPressed: submitting
+                              ? null
+                              : () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  if (submitting)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    for (final option in s.paymentOptions)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: FilledButton.tonalIcon(
-                          onPressed: () async {
-                            setState(() => submitting = true);
-                            try {
-                              await ref
-                                  .read(backendControllerProvider.notifier)
-                                  .checkout(option.code);
-                              if (!sheetContext.mounted) return;
-                              Navigator.pop(sheetContext);
-                              context.go('/receipt');
-                            } catch (error) {
-                              if (!sheetContext.mounted) return;
-                              setState(() => submitting = false);
-                              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                SnackBar(content: Text(error.toString())),
-                              );
-                            }
-                          },
-                          icon: Icon(
-                            option.code == 'cash'
-                                ? Icons.payments
-                                : option.code == 'card'
-                                ? Icons.credit_card
-                                : Icons.account_balance_outlined,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                context.tr('Select payment method'),
+                                style: const TextStyle(
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${context.tr('Collect')} ${money(s.cartTotal)}',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ],
                           ),
-                          label: Text(context.tr(option.label)),
+                        ),
+                        StatusBadge('${s.itemCount} items'),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (submitting)
+                    const Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 14),
+                            Text('Processing payment…'),
+                          ],
                         ),
                       ),
+                    )
+                  else
+                    Flexible(
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.all(24),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 280,
+                              mainAxisExtent: 76,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                            ),
+                        itemCount: s.paymentOptions.length,
+                        itemBuilder: (context, index) {
+                          final option = s.paymentOptions[index];
+                          return FilledButton.tonalIcon(
+                            style: FilledButton.styleFrom(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                            ),
+                            onPressed: () async {
+                              setState(() => submitting = true);
+                              try {
+                                await ref
+                                    .read(backendControllerProvider.notifier)
+                                    .checkout(option.code);
+                                if (!sheetContext.mounted) return;
+                                Navigator.pop(sheetContext);
+                                router.go('/receipt');
+                              } catch (error) {
+                                if (!sheetContext.mounted) return;
+                                setState(() => submitting = false);
+                                final message = error is ApiException
+                                    ? error.message
+                                    : error.toString();
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(message)),
+                                );
+                              }
+                            },
+                            icon: Icon(_paymentIcon(option.code)),
+                            label: Text(
+                              context.tr(option.label),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                 ],
               ),
-            ),
-          );
-        },
-      );
+            );
+          },
+        );
+      },
+    );
+  }
+
+  IconData _paymentIcon(String code) => switch (code) {
+    'cash' => Icons.payments_outlined,
+    'card' => Icons.credit_card,
+    'cheque' => Icons.account_balance_wallet_outlined,
+    'bank_transfer' => Icons.account_balance_outlined,
+    _ => Icons.more_horiz,
+  };
 }

@@ -118,6 +118,15 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(cart: lines);
   }
 
+  void discount(String id, int amount) {
+    final lines = [...state.cart];
+    final i = lines.indexWhere((e) => e.product.id == id);
+    if (i < 0) return;
+    final maximum = lines[i].subtotal;
+    lines[i] = lines[i].copyWith(discount: amount.clamp(0, maximum));
+    state = state.copyWith(cart: lines);
+  }
+
   void remove(String id) => state = state.copyWith(
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );

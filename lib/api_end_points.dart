@@ -20,6 +20,8 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/business-location';
   static const paymentMethodsUrl =
       '${Config.baseUrl}/connector/api/payment-methods';
+  static const paymentAccountsUrl =
+      '${Config.baseUrl}/connector/api/payment-accounts';
   static const businessDetailsUrl =
       '${Config.baseUrl}/connector/api/business-details';
   static const loggedInUserUrl =

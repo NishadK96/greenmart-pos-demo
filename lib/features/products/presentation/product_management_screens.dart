@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -60,6 +62,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _unitId = p?.unitId.isNotEmpty == true ? p!.unitId : null;
     _categoryId = p?.categoryId.isNotEmpty == true ? p!.categoryId : null;
     _taxId = p?.taxId.isNotEmpty == true ? p!.taxId : null;
+    for (final controller in [
+      _name,
+      _sku,
+      _purchase,
+      _selling,
+      _margin,
+      _minimum,
+    ]) {
+      controller.addListener(_refreshPreview);
+    }
+  }
+
+  void _refreshPreview() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -85,6 +101,811 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(appStoreProvider);
+    _unitId ??= state.units.isNotEmpty ? state.units.first.id : null;
+    if (_locationIds.isEmpty && state.locations.length == 1) {
+      _locationIds.add(state.locations.first.id);
+    }
+    final editing = widget.product != null;
+    return _buildProductWorkspace(state, editing);
+  }
+
+  Widget _buildProductWorkspace(AppState state, bool editing) => Form(
+    key: _formKey,
+    child: Scaffold(
+      backgroundColor: const Color(0xFFF7F9F8),
+      body: Column(
+        children: [
+          _productHeader(editing),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final desktop = constraints.maxWidth >= 1080;
+                final content = _productFormContent(state);
+                final sidebar = _productPreview(state);
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    desktop ? 22 : 14,
+                    18,
+                    desktop ? 22 : 14,
+                    100,
+                  ),
+                  child: desktop
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: content),
+                            const SizedBox(width: 16),
+                            SizedBox(width: 300, child: sidebar),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            content,
+                            const SizedBox(height: 16),
+                            sidebar,
+                          ],
+                        ),
+                );
+              },
+            ),
+          ),
+          _productActions(editing),
+        ],
+      ),
+    ),
+  );
+
+  Widget _productHeader(bool editing) => Container(
+    color: Colors.white,
+    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+    child: Row(
+      children: [
+        IconButton(
+          onPressed: () => context.go('/products'),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Products  /  Create product',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              Text(
+                editing ? 'Edit product' : 'Create product',
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Text(
+                'Add product details, pricing, inventory and availability.',
+                style: TextStyle(color: AppColors.muted, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        OutlinedButton(
+          onPressed: _saving ? null : () => _save(_SaveMode.save),
+          child: const Text('Save draft'),
+        ),
+        const SizedBox(width: 10),
+        FilledButton.icon(
+          onPressed: _saving ? null : () => _save(_SaveMode.save),
+          icon: const Icon(Icons.save_outlined),
+          label: Text(editing ? 'Save changes' : 'Save product'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _productFormContent(AppState state) => Column(
+    children: [
+      _productSection(
+        1,
+        'Product information',
+        'Basic information used to identify this product.',
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 760
+                ? 3
+                : constraints.maxWidth >= 500
+                ? 2
+                : 1;
+            final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: _field(_name, 'Product name', required: true),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _field(_sku, 'SKU (leave blank to auto-generate)'),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _choice(
+                    'Barcode type',
+                    _barcodeType,
+                    const [
+                      LookupOption(id: 'C128', name: 'Code 128 (C128)'),
+                      LookupOption(id: 'C39', name: 'Code 39 (C39)'),
+                      LookupOption(id: 'EAN13', name: 'EAN-13'),
+                    ],
+                    (v) => setState(() => _barcodeType = v!),
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _dropdown(
+                    'Category',
+                    _categoryId,
+                    state.categories
+                        .map((e) => LookupOption(id: e.id, name: e.name))
+                        .toList(),
+                    (v) => setState(() {
+                      _categoryId = v;
+                      _subCategoryId = null;
+                    }),
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _dropdown(
+                    'Subcategory',
+                    _subCategoryId,
+                    _subCategories(state),
+                    (v) => setState(() => _subCategoryId = v),
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _dropdown(
+                    'Brand',
+                    _brandId,
+                    state.brands,
+                    (v) => setState(() => _brandId = v),
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _dropdown(
+                          'Unit',
+                          _unitId,
+                          state.units,
+                          (v) => setState(() => _unitId = v),
+                          required: true,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 9),
+                        child: SizedBox.square(
+                          dimension: 38,
+                          child: IconButton.outlined(
+                            tooltip: 'Create unit of measure',
+                            padding: EdgeInsets.zero,
+                            style: IconButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: Color(0xFFD5DEDB)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: _showCreateUnitDialog,
+                            icon: const Icon(Icons.add_rounded, size: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: width, child: _field(_weight, 'Weight')),
+                SizedBox(
+                  width: width,
+                  child: _field(
+                    _preparation,
+                    'Preparation time (minutes)',
+                    number: true,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        2,
+        'Product media',
+        'Add an image and supporting product documents.',
+        Row(
+          children: [
+            Expanded(
+              child: _uploadPanel(
+                Icons.image_outlined,
+                'Product image',
+                _imageName ?? 'Upload product image',
+                'PNG, JPG or WEBP • Max 5 MB • 1:1 recommended',
+                _pickImage,
+                image: true,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _uploadPanel(
+                Icons.description_outlined,
+                'Product brochure (optional)',
+                _brochureName ?? 'Upload brochure',
+                'PDF, document, spreadsheet, ZIP or image',
+                _pickBrochure,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        3,
+        'Inventory',
+        'Configure stock tracking and inventory behaviour.',
+        Column(
+          children: [
+            _settingRow(
+              Icons.inventory_2_outlined,
+              'Track inventory',
+              'Track stock quantities and receive low-stock alerts.',
+              _manageStock,
+              (v) => setState(() => _manageStock = v),
+              trailing: SizedBox(
+                width: 210,
+                child: _field(
+                  _minimum,
+                  'Low-stock alert quantity',
+                  number: true,
+                ),
+              ),
+            ),
+            _settingRow(
+              Icons.sell_outlined,
+              'Not for selling',
+              'Keep this item in inventory but prevent it from being sold through POS.',
+              _notForSelling,
+              (v) => setState(() => _notForSelling = v),
+            ),
+            _settingRow(
+              Icons.qr_code_2_rounded,
+              'Track serial / IMEI numbers',
+              'Record a unique serial or IMEI number for each item.',
+              _serialNumber,
+              (v) => setState(() => _serialNumber = v),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        4,
+        'Product description',
+        'Add product details, specifications or internal notes.',
+        TextFormField(
+          controller: _description,
+          minLines: 4,
+          maxLines: 7,
+          maxLength: 1000,
+          decoration: const InputDecoration(
+            hintText:
+                'Add product details, specifications or internal notes...',
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        5,
+        'Business locations',
+        'Choose where this product will be available for sale.',
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: state.locations
+              .map(
+                (location) => _locationCard(
+                  LookupOption(id: location.id, name: location.name),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        6,
+        'Tax & product type',
+        'Configure how this product will be taxed and sold.',
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: 260,
+              child: _dropdown('Applicable tax', _taxId, state.taxes, (v) {
+                setState(() => _taxId = v);
+                _recalculatePrices(state);
+              }),
+            ),
+            SizedBox(
+              width: 260,
+              child: _choice(
+                'Selling price tax type',
+                _taxType,
+                const [
+                  LookupOption(id: 'exclusive', name: 'Exclusive'),
+                  LookupOption(id: 'inclusive', name: 'Inclusive'),
+                ],
+                (v) => setState(() => _taxType = v!),
+              ),
+            ),
+            SizedBox(
+              width: 260,
+              child: _choice('Product type', 'single', const [
+                LookupOption(id: 'single', name: 'Single product'),
+              ], (_) {}),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        7,
+        'Pricing',
+        'Configure purchase cost, margin and selling price.',
+        Column(
+          children: [
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Purchase cost'),
+                SizedBox(width: 22),
+                Icon(Icons.arrow_forward, color: AppColors.primary),
+                SizedBox(width: 22),
+                Text('Margin'),
+                SizedBox(width: 22),
+                Icon(Icons.arrow_forward, color: AppColors.primary),
+                SizedBox(width: 22),
+                Text('Selling price'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      _priceField(
+                        _purchase,
+                        'Purchase cost excluding tax',
+                        () => _recalculatePrices(state),
+                      ),
+                      const SizedBox(height: 10),
+                      _priceField(
+                        _purchaseInc,
+                        'Purchase cost including tax',
+                        null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _margin,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Margin (%)',
+                      suffixText: '%',
+                    ),
+                    onChanged: (_) => _recalculatePrices(state),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _priceField(
+                        _selling,
+                        'Selling price excluding tax',
+                        () => _recalculateSellingInc(state),
+                      ),
+                      const SizedBox(height: 10),
+                      _priceField(
+                        _sellingInc,
+                        'Selling price including tax',
+                        null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'ⓘ  Estimated profit per unit: ${state.business?.currencySymbol ?? ''}${((double.tryParse(_selling.text) ?? 0) - (double.tryParse(_purchase.text) ?? 0)).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _productSection(
+    int number,
+    String title,
+    String subtitle,
+    Widget child,
+  ) => Surface(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 13,
+              backgroundColor: AppColors.primary,
+              child: Text(
+                '$number',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        child,
+      ],
+    ),
+  );
+
+  Widget _uploadPanel(
+    IconData icon,
+    String title,
+    String label,
+    String help,
+    VoidCallback action, {
+    bool image = false,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      InkWell(
+        onTap: action,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 190,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: const Color(0xFFBFD7CF),
+              style: BorderStyle.solid,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            color: const Color(0xFFFBFDFC),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (image && _imageBytes != null)
+                Image.memory(
+                  Uint8List.fromList(_imageBytes!),
+                  width: 72,
+                  height: 72,
+                  fit: BoxFit.cover,
+                )
+              else
+                Icon(icon, size: 34, color: AppColors.primary),
+              const SizedBox(height: 12),
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 5),
+              Text(
+                help,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _settingRow(
+    IconData icon,
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> changed, {
+    Widget? trailing,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Color(0xFFE5EAE8))),
+    ),
+    child: Row(
+      children: [
+        CircleAvatar(
+          backgroundColor: const Color(0xFFEAF4F1),
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(
+                subtitle,
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[trailing, const SizedBox(width: 12)],
+        Switch.adaptive(value: value, onChanged: changed),
+      ],
+    ),
+  );
+
+  Widget _locationCard(LookupOption location) {
+    final selected = _locationIds.contains(location.id);
+    return InkWell(
+      onTap: () => setState(
+        () => selected
+            ? _locationIds.remove(location.id)
+            : _locationIds.add(location.id),
+      ),
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFF2FAF7) : Colors.white,
+          border: Border.all(
+            color: selected ? AppColors.primary : const Color(0xFFDDE5E2),
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.check_box : Icons.check_box_outline_blank,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 12),
+            const CircleAvatar(child: Icon(Icons.storefront_outlined)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                location.name,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _productPreview(AppState state) => Column(
+    children: [
+      Surface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Product preview',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              height: 150,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F6F5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: _imageBytes == null
+                  ? const Icon(
+                      Icons.storefront_outlined,
+                      size: 46,
+                      color: Color(0xFFB8BFBC),
+                    )
+                  : Image.memory(
+                      Uint8List.fromList(_imageBytes!),
+                      fit: BoxFit.contain,
+                    ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _name.text.trim().isEmpty ? 'Untitled product' : _name.text,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              _sku.text.trim().isEmpty ? 'SKU will be generated' : _sku.text,
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            const Divider(),
+            const Text(
+              'Pricing',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            _previewLine('Purchase cost', _moneyPreview(_purchase.text, state)),
+            _previewLine('Selling price', _moneyPreview(_selling.text, state)),
+            _previewLine('Margin', '${_margin.text}%'),
+            const SizedBox(height: 14),
+            const Divider(),
+            const Text(
+              'Inventory',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            _previewLine('Tracking', _manageStock ? 'Enabled' : 'Disabled'),
+            _previewLine('Low-stock alert', _minimum.text),
+            _previewLine('Locations', '${_locationIds.length}'),
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      Surface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Product setup',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            _progressItem(
+              'Basic information',
+              _name.text.trim().isNotEmpty && _unitId != null,
+            ),
+            _progressItem(
+              'Media',
+              _imageBytes != null ||
+                  (widget.product?.imageUrl.isNotEmpty ?? false),
+            ),
+            _progressItem('Inventory', true),
+            _progressItem('Location', _locationIds.isNotEmpty),
+            _progressItem('Pricing', double.tryParse(_selling.text) != null),
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: _completion / 5),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  int get _completion => [
+    _name.text.trim().isNotEmpty && _unitId != null,
+    _imageBytes != null || (widget.product?.imageUrl.isNotEmpty ?? false),
+    true,
+    _locationIds.isNotEmpty,
+    double.tryParse(_selling.text) != null,
+  ].where((e) => e).length;
+  Widget _progressItem(String label, bool done) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Icon(
+          done ? Icons.check_circle : Icons.circle_outlined,
+          size: 18,
+          color: done ? AppColors.primary : AppColors.muted,
+        ),
+        const SizedBox(width: 9),
+        Text(label),
+      ],
+    ),
+  );
+  Widget _previewLine(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+  String _moneyPreview(String text, AppState state) =>
+      '${state.business?.currencySymbol ?? ''}${(double.tryParse(text) ?? 0).toStringAsFixed(2)}';
+
+  Widget _productActions(bool editing) => Container(
+    color: Colors.white,
+    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 10,
+      runSpacing: 8,
+      children: [
+        OutlinedButton(
+          onPressed: _saving ? null : () => context.go('/products'),
+          child: const Text('Cancel'),
+        ),
+        if (!editing && !widget.quick)
+          FilledButton.tonalIcon(
+            onPressed: _saving ? null : () => _save(_SaveMode.addAnother),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Save & add another'),
+          ),
+        if (!editing && !widget.quick)
+          FilledButton.tonalIcon(
+            onPressed: _saving ? null : () => _save(_SaveMode.openingStock),
+            icon: const Icon(Icons.inventory_2_outlined),
+            label: const Text('Save & add opening stock'),
+          ),
+        FilledButton.icon(
+          onPressed: _saving ? null : () => _save(_SaveMode.save),
+          icon: const Icon(Icons.save_outlined),
+          label: Text(editing ? 'Save changes' : 'Save product'),
+        ),
+      ],
+    ),
+  );
+
+  // ignore: unused_element
+  Widget _legacyBuild(BuildContext context) {
     final state = ref.watch(appStoreProvider);
     _unitId ??= state.units.isNotEmpty ? state.units.first.id : null;
     if (_locationIds.isEmpty && state.locations.length == 1) {
@@ -513,6 +1334,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     validator: required ? (v) => v == null ? '$label is required' : null : null,
   );
 
+  Future<void> _showCreateUnitDialog() async {
+    final created = await showDialog<LookupOption>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _CreateUnitDialog(),
+    );
+    if (created != null && mounted) {
+      setState(() => _unitId = created.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${created.name} was added and selected.')),
+      );
+    }
+  }
+
   Widget _choice(
     String label,
     String value,
@@ -725,6 +1560,217 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _brochureBytes = null;
       _brochureName = null;
     });
+  }
+}
+
+class _CreateUnitDialog extends ConsumerStatefulWidget {
+  const _CreateUnitDialog();
+
+  @override
+  ConsumerState<_CreateUnitDialog> createState() => _CreateUnitDialogState();
+}
+
+class _CreateUnitDialogState extends ConsumerState<_CreateUnitDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _shortName = TextEditingController();
+  bool _allowDecimal = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _shortName.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.white,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF1F5F4),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.straighten_rounded,
+                        color: AppColors.primary,
+                        size: 29,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create unit of measure',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Add a reusable UOM for products and inventory.',
+                            style: TextStyle(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: _saving ? null : () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const Divider(height: 1),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _name,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit name *',
+                    hintText: 'e.g. Kilogram, Box, Litre',
+                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter a unit name'
+                      : null,
+                ),
+                const SizedBox(height: 18),
+                TextFormField(
+                  controller: _shortName,
+                  decoration: const InputDecoration(
+                    labelText: 'Symbol / short name *',
+                    hintText: 'e.g. kg, box, L',
+                    prefixIcon: Icon(Icons.short_text_rounded),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Enter a short name'
+                      : null,
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F9F8),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8E6)),
+                  ),
+                  child: SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _allowDecimal,
+                    onChanged: (value) => setState(() => _allowDecimal = value),
+                    title: const Text(
+                      'Allow decimal quantities',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      _allowDecimal
+                          ? 'Supports quantities such as 0.5 kg or 1.25 L.'
+                          : 'Use whole quantities only, such as 1 box or 2 pieces.',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'The new UOM will be available across product creation, purchasing and inventory.',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 26),
+                const Divider(height: 1),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: _saving ? null : () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_saving ? 'Saving…' : 'Create UOM'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      final unit = await ref
+          .read(backendControllerProvider.notifier)
+          .createUnit(
+            name: _name.text.trim(),
+            shortName: _shortName.text.trim(),
+            allowDecimal: _allowDecimal,
+          );
+      if (mounted) Navigator.pop(context, unit);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to create the unit. Try again.')),
+      );
+    }
   }
 }
 

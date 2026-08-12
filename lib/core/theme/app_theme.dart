@@ -29,7 +29,7 @@ ThemeData buildTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.canvas,
     fontFamily: 'Inter',
-    visualDensity: VisualDensity.standard,
+    visualDensity: VisualDensity.compact,
     dividerTheme: const DividerThemeData(
       color: Color(0xFFE8ECEA),
       thickness: 1,
@@ -64,7 +64,22 @@ ThemeData buildTheme() {
         borderRadius: BorderRadius.circular(AppRadius.sm),
         borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    ),
+    hoverColor: AppColors.primary.withValues(alpha: .04),
+    focusColor: AppColors.primary.withValues(alpha: .08),
+    checkboxTheme: CheckboxThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      side: const BorderSide(color: Color(0xFFB7C1BE)),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 10,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE3E8E6)),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(

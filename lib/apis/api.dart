@@ -84,6 +84,40 @@ class Api {
   Future<List<LookupOption>> units(String accessToken) =>
       _lookupOptions(ApiEndPoints.unitsUrl, accessToken, 'units');
 
+  Future<LookupOption> createUnit({
+    required String accessToken,
+    required String name,
+    required String shortName,
+    required bool allowDecimal,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.unitsUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'actual_name': name,
+            'short_name': shortName,
+            'allow_decimal': allowDecimal,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _decode(response.body);
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      throw ApiException(_message(payload) ?? 'Unable to create unit.');
+    }
+    final data = payload['data'];
+    if (data is! Map<String, dynamic>) {
+      throw const ApiException('Invalid unit response.');
+    }
+    return LookupOption(
+      id: data['id'].toString(),
+      name: data['actual_name']?.toString() ?? name,
+    );
+  }
+
   Future<List<LookupOption>> taxes(String accessToken) =>
       _lookupOptions(ApiEndPoints.taxesUrl, accessToken, 'taxes');
 
@@ -356,6 +390,56 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<Supplier> createSupplier({
+    required String accessToken,
+    required String businessName,
+    required String contactName,
+    required String mobile,
+    String email = '',
+    String address = '',
+    int? payTermNumber,
+    String payTermType = 'days',
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.customersUrl),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'type': 'supplier',
+            'supplier_business_name': businessName.trim(),
+            'first_name': contactName.trim(),
+            'mobile': mobile.trim(),
+            if (email.trim().isNotEmpty) 'email': email.trim(),
+            if (address.trim().isNotEmpty) 'address_line_1': address.trim(),
+            if (payTermNumber != null) 'pay_term_number': payTermNumber,
+            if (payTermNumber != null) 'pay_term_type': payTermType,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'supplier');
+    final item = _map(payload['data']);
+    return Supplier(
+      id: item['id'].toString(),
+      name: item['supplier_business_name']?.toString() ?? businessName.trim(),
+    );
+  }
+
+  Future<List<LookupOption>> paymentAccounts(String accessToken) async {
+    final data = await _getDataList(
+      Uri.parse(ApiEndPoints.paymentAccountsUrl),
+      accessToken,
+      'payment accounts',
+    );
+    return data
+        .map(
+          (item) => LookupOption(
+            id: item['id'].toString(),
+            name: item['name']?.toString() ?? 'Account',
+          ),
+        )
+        .toList(growable: false);
+  }
+
   Future<List<PurchaseDocument>> purchaseDocuments(
     String accessToken,
     PurchaseDocumentType type,
@@ -513,7 +597,11 @@ class Api {
                 final product = _map(line['product']);
                 final variation = _map(line['variation']);
                 final quantity = _number(
-                  line['quantity_returned'] ?? line['quantity'] ?? line['qty'],
+                  type == PurchaseDocumentType.purchaseReturn
+                      ? line['quantity_returned'] ??
+                            line['quantity'] ??
+                            line['qty']
+                      : line['quantity'] ?? line['qty'],
                 );
                 final cost = _number(
                   line['purchase_price_inc_tax'] ??
@@ -547,6 +635,33 @@ class Api {
     final parsedDate = DateTime.tryParse(
       (json['transaction_date'] ?? json['created_at'] ?? '').toString(),
     );
+    final expenses = <PurchaseExpense>[
+      for (var i = 1; i <= 4; i++)
+        if ((json['additional_expense_key_$i'] ?? '').toString().isNotEmpty ||
+            _number(json['additional_expense_value_$i']) > 0)
+          PurchaseExpense(
+            name: (json['additional_expense_key_$i'] ?? '').toString(),
+            amount: _number(json['additional_expense_value_$i']),
+          ),
+    ];
+    final rawPayments = json['payments'];
+    final payments = rawPayments is List
+        ? rawPayments
+              .whereType<Map>()
+              .map((raw) {
+                final payment = Map<String, dynamic>.from(raw);
+                return PurchasePaymentDraft(
+                  amount: _number(payment['amount']),
+                  method: payment['method']?.toString() ?? 'cash',
+                  paidOn:
+                      DateTime.tryParse(payment['paid_on']?.toString() ?? '') ??
+                      DateTime.now(),
+                  accountId: payment['account_id']?.toString(),
+                  note: payment['note']?.toString() ?? '',
+                );
+              })
+              .toList(growable: false)
+        : const <PurchasePaymentDraft>[];
     return PurchaseDocument(
       id: json['id']?.toString() ?? '',
       type: type,
@@ -571,6 +686,19 @@ class Api {
       notes: (json['additional_notes'] ?? json['notes'] ?? '').toString(),
       purchaseOrderId: json['purchase_order_id']?.toString(),
       lines: lines,
+      exchangeRate: _number(json['exchange_rate']) > 0
+          ? _number(json['exchange_rate'])
+          : 1,
+      discountType: json['discount_type']?.toString() ?? 'fixed',
+      discountAmount: _number(json['discount_amount']),
+      taxId: json['tax_id']?.toString(),
+      shippingDetails: json['shipping_details']?.toString() ?? '',
+      shippingCharges: _number(json['shipping_charges']),
+      deliveryDate: DateTime.tryParse(json['delivery_date']?.toString() ?? ''),
+      payTermNumber: int.tryParse(json['pay_term_number']?.toString() ?? ''),
+      payTermType: json['pay_term_type']?.toString() ?? 'days',
+      expenses: expenses,
+      payments: payments,
       total: _money(json['final_total'] ?? json['total']),
     );
   }

@@ -18,6 +18,31 @@ class EazyErpPurchaseRepository implements PurchaseRepository {
       _api.suppliers(accessToken);
 
   @override
+  Future<Supplier> createSupplier(
+    String accessToken, {
+    required String businessName,
+    required String contactName,
+    required String mobile,
+    String email = '',
+    String address = '',
+    int? payTermNumber,
+    String payTermType = 'days',
+  }) => _api.createSupplier(
+    accessToken: accessToken,
+    businessName: businessName,
+    contactName: contactName,
+    mobile: mobile,
+    email: email,
+    address: address,
+    payTermNumber: payTermNumber,
+    payTermType: payTermType,
+  );
+
+  @override
+  Future<List<LookupOption>> paymentAccounts(String accessToken) =>
+      _api.paymentAccounts(accessToken);
+
+  @override
   Future<List<PurchaseDocument>> list(
     String accessToken,
     PurchaseDocumentType type,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
@@ -30,14 +31,32 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   bool expanded = true;
+  bool sidebarInitialized = false;
   late final Timer timer;
   DateTime now = DateTime.now();
   @override
   void initState() {
     super.initState();
+    _loadSidebarPreference();
     timer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => now = DateTime.now());
     });
+  }
+
+  Future<void> _loadSidebarPreference() async {
+    final preferences = await SharedPreferences.getInstance();
+    final saved = preferences.getBool('greenmart_sidebar_expanded');
+    if (!mounted || saved == null) return;
+    setState(() {
+      expanded = saved;
+      sidebarInitialized = true;
+    });
+  }
+
+  Future<void> _setExpanded(bool value) async {
+    setState(() => expanded = value);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('greenmart_sidebar_expanded', value);
   }
 
   @override
@@ -59,6 +78,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         : appState.locations.first.name;
     final width = MediaQuery.sizeOf(context).width;
     final desktop = width > 1100;
+    if (desktop && !sidebarInitialized) {
+      expanded = width >= 1280;
+      sidebarInitialized = true;
+    }
     final path = GoRouterState.of(context).uri.path;
     if (!desktop) {
       final mobile = [
@@ -107,7 +130,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     return Scaffold(
       body: Row(
         children: [
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
             width: expanded ? 244 : 82,
             color: AppColors.navy,
             child: SafeArea(
@@ -156,7 +181,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ],
                         if (expanded)
                           IconButton(
-                            onPressed: () => setState(() => expanded = false),
+                            onPressed: () => _setExpanded(false),
                             icon: const Icon(
                               Icons.keyboard_double_arrow_left,
                               color: Colors.white54,
@@ -169,7 +194,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                   if (!expanded)
                     IconButton(
-                      onPressed: () => setState(() => expanded = true),
+                      onPressed: () => _setExpanded(true),
                       icon: const Icon(
                         Icons.keyboard_double_arrow_right,
                         color: Colors.white54,
@@ -325,9 +350,14 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: Column(
               children: [
                 Container(
-                  height: 76,
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  color: Colors.white,
+                  height: 68,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFFE7ECEA)),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Text(
@@ -369,20 +399,79 @@ class _AppShellState extends ConsumerState<AppShell> {
                             child: Text('🇸🇦  ${context.tr('Arabic')}'),
                           ),
                         ],
-                        child: Chip(
-                          avatar: const Icon(Icons.language, size: 17),
-                          label: Text(context.isArabic ? 'العربية' : 'English'),
+                        child: Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: const Color(0xFFDCE4E1)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.language, size: 17),
+                              const SizedBox(width: 7),
+                              Text(context.isArabic ? 'العربية' : 'English'),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      StatusBadge('● ${context.tr('Online')}'),
-                      const SizedBox(width: 8),
-                      StatusBadge(context.tr('Synced')),
-                      const SizedBox(width: 18),
-                      Text(
-                        '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+                      const SizedBox(width: 10),
+                      Container(
+                        height: 38,
+                        padding: const EdgeInsets.symmetric(horizontal: 11),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F7F5),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              context.tr('Online'),
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 15,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              context.tr('Synced'),
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 18),
+                      if (width >= 1320) ...[
+                        const SizedBox(width: 14),
+                        Text(
+                          '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 14),
                       FilledButton.icon(
                         onPressed: () => context.go('/pos'),
                         icon: const Icon(Icons.add),

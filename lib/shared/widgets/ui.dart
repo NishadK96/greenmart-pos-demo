@@ -8,29 +8,47 @@ class PageTitle extends StatelessWidget {
   final String? subtitle;
   final Widget? action;
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.tr(title),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            if (subtitle != null)
-              Text(
-                context.tr(subtitle!),
-                style: const TextStyle(color: AppColors.muted),
-              ),
-          ],
+  Widget build(BuildContext context) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.tr(title),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.5,
+          ),
         ),
-      ),
-      if (action != null) action!,
-    ],
-  );
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            context.tr(subtitle!),
+            style: const TextStyle(color: AppColors.muted, fontSize: 13),
+          ),
+        ],
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520 && action != null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              text,
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerLeft, child: action!),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: text),
+            if (action != null) action!,
+          ],
+        );
+      },
+    );
+  }
 }
 
 class Surface extends StatelessWidget {

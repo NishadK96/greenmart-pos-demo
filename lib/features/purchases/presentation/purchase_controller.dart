@@ -11,9 +11,11 @@ class PurchaseWorkspaceState {
     this.invoices = const [],
     this.returns = const [],
     this.suppliers = const [],
+    this.paymentAccounts = const [],
   });
   final List<PurchaseDocument> orders, invoices, returns;
   final List<Supplier> suppliers;
+  final List<LookupOption> paymentAccounts;
   List<PurchaseDocument> forType(PurchaseDocumentType type) => switch (type) {
     PurchaseDocumentType.order => orders,
     PurchaseDocumentType.invoice => invoices,
@@ -36,12 +38,14 @@ class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
       repository.list(token, PurchaseDocumentType.invoice),
       repository.list(token, PurchaseDocumentType.purchaseReturn),
       repository.suppliers(token),
+      repository.paymentAccounts(token),
     ]);
     return PurchaseWorkspaceState(
       orders: result[0] as List<PurchaseDocument>,
       invoices: result[1] as List<PurchaseDocument>,
       returns: result[2] as List<PurchaseDocument>,
       suppliers: result[3] as List<Supplier>,
+      paymentAccounts: result[4] as List<LookupOption>,
     );
   }
 
@@ -62,6 +66,31 @@ class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
       state = AsyncError(error, stackTrace);
       rethrow;
     }
+  }
+
+  Future<Supplier> createSupplier({
+    required String businessName,
+    required String contactName,
+    required String mobile,
+    String email = '',
+    String address = '',
+    int? payTermNumber,
+    String payTermType = 'days',
+  }) async {
+    final supplier = await ref
+        .read(purchaseRepositoryProvider)
+        .createSupplier(
+          await _token(),
+          businessName: businessName,
+          contactName: contactName,
+          mobile: mobile,
+          email: email,
+          address: address,
+          payTermNumber: payTermNumber,
+          payTermType: payTermType,
+        );
+    ref.invalidateSelf();
+    return supplier;
   }
 
   Future<void> remove(PurchaseDocument document) async {

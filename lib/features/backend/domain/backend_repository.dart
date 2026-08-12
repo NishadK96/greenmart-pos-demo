@@ -39,6 +39,13 @@ class CreatedSale {
 abstract interface class BackendRepository {
   Future<BackendSnapshot> load(String accessToken);
 
+  Future<LookupOption> createUnit({
+    required String accessToken,
+    required String name,
+    required String shortName,
+    required bool allowDecimal,
+  });
+
   Future<Customer> createCustomer({
     required String accessToken,
     required String name,

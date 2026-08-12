@@ -3,6 +3,17 @@ import '../../../shared/models/entities.dart';
 
 abstract interface class PurchaseRepository {
   Future<List<Supplier>> suppliers(String accessToken);
+  Future<Supplier> createSupplier(
+    String accessToken, {
+    required String businessName,
+    required String contactName,
+    required String mobile,
+    String email,
+    String address,
+    int? payTermNumber,
+    String payTermType,
+  });
+  Future<List<LookupOption>> paymentAccounts(String accessToken);
   Future<List<PurchaseDocument>> list(
     String accessToken,
     PurchaseDocumentType type,

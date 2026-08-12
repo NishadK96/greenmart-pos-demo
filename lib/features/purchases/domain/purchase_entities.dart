@@ -1,5 +1,34 @@
 enum PurchaseDocumentType { order, invoice, purchaseReturn }
 
+class PurchaseExpense {
+  const PurchaseExpense({this.name = '', this.amount = 0});
+  final String name;
+  final double amount;
+}
+
+class PurchasePaymentDraft {
+  const PurchasePaymentDraft({
+    required this.amount,
+    required this.method,
+    required this.paidOn,
+    this.accountId,
+    this.note = '',
+  });
+  final double amount;
+  final String method;
+  final DateTime paidOn;
+  final String? accountId;
+  final String note;
+
+  Map<String, dynamic> toJson() => {
+    'amount': amount,
+    'method': method,
+    'paid_on': paidOn.toIso8601String(),
+    if (accountId != null && accountId!.isNotEmpty) 'account_id': accountId,
+    if (note.trim().isNotEmpty) 'note': note.trim(),
+  };
+}
+
 class PurchaseLineRecord {
   const PurchaseLineRecord({
     required this.productId,
@@ -49,6 +78,17 @@ class PurchaseDocument {
     this.shippingStatus = '',
     this.purchaseOrderId,
     this.lines = const [],
+    this.exchangeRate = 1,
+    this.discountType = 'fixed',
+    this.discountAmount = 0,
+    this.taxId,
+    this.shippingDetails = '',
+    this.shippingCharges = 0,
+    this.deliveryDate,
+    this.payTermNumber,
+    this.payTermType = 'days',
+    this.expenses = const [],
+    this.payments = const [],
   });
 
   final String id,
@@ -59,10 +99,17 @@ class PurchaseDocument {
       locationName;
   final String status, shippingStatus, notes;
   final String? purchaseOrderId;
+  final String? taxId, payTermType;
   final DateTime date;
+  final DateTime? deliveryDate;
   final int total;
+  final double exchangeRate, discountAmount, shippingCharges;
+  final String discountType, shippingDetails;
+  final int? payTermNumber;
   final PurchaseDocumentType type;
   final List<PurchaseLineRecord> lines;
+  final List<PurchaseExpense> expenses;
+  final List<PurchasePaymentDraft> payments;
 }
 
 class PurchaseDraft {
@@ -77,13 +124,31 @@ class PurchaseDraft {
     this.shippingStatus = '',
     this.notes = '',
     this.purchaseOrderId,
+    this.exchangeRate = 1,
+    this.discountType = 'fixed',
+    this.discountAmount = 0,
+    this.taxId,
+    this.shippingDetails = '',
+    this.shippingCharges = 0,
+    this.deliveryDate,
+    this.payTermNumber,
+    this.payTermType = 'days',
+    this.expenses = const [],
+    this.payments = const [],
   });
 
   final PurchaseDocumentType type;
   final String supplierId, locationId, reference, status, shippingStatus, notes;
   final String? purchaseOrderId;
+  final String? taxId, payTermType;
   final DateTime date;
+  final DateTime? deliveryDate;
   final List<PurchaseLineRecord> lines;
+  final double exchangeRate, discountAmount, shippingCharges;
+  final String discountType, shippingDetails;
+  final int? payTermNumber;
+  final List<PurchaseExpense> expenses;
+  final List<PurchasePaymentDraft> payments;
 
   Map<String, dynamic> toJson() => {
     'contact_id': supplierId,
@@ -96,6 +161,22 @@ class PurchaseDraft {
     if (notes.trim().isNotEmpty) 'additional_notes': notes.trim(),
     if (notes.trim().isNotEmpty) 'notes': notes.trim(),
     if (purchaseOrderId != null) 'purchase_order_id': purchaseOrderId,
+    'exchange_rate': exchangeRate,
+    'discount_type': discountType,
+    'discount_amount': discountAmount,
+    if (taxId != null && taxId!.isNotEmpty) 'tax_id': taxId,
+    'shipping_charges': shippingCharges,
+    if (shippingDetails.trim().isNotEmpty)
+      'shipping_details': shippingDetails.trim(),
+    if (deliveryDate != null) 'delivery_date': deliveryDate!.toIso8601String(),
+    if (payTermNumber != null) 'pay_term_number': payTermNumber,
+    if (payTermNumber != null) 'pay_term_type': payTermType,
+    for (var i = 0; i < expenses.length && i < 4; i++) ...{
+      'additional_expense_key_${i + 1}': expenses[i].name.trim(),
+      'additional_expense_value_${i + 1}': expenses[i].amount,
+    },
+    if (payments.isNotEmpty)
+      'payments': payments.map((payment) => payment.toJson()).toList(),
     'lines': lines.map((line) => line.toJson()).toList(growable: false),
   };
 }

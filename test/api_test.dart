@@ -57,6 +57,7 @@ void main() {
             "status":"ordered","final_total":"250.00",
             "purchase_order_lines":[{
               "id":9,"product_id":3,"variation_id":4,"quantity":"5.00",
+              "quantity_returned":"0.00",
               "purchase_price_inc_tax":"50.00",
               "product":{"id":3,"name":"Rice"},
               "variation":{"id":4,"sub_sku":"RICE-5KG"}
@@ -74,6 +75,7 @@ void main() {
     expect(result.single.reference, 'PO-0041');
     expect(result.single.supplierName, 'Fresh Foods Ltd');
     expect(result.single.total, 25000);
+    expect(result.single.lines.single.quantity, 5);
     expect(result.single.lines.single.unitCost, 5000);
   });
 
@@ -115,6 +117,80 @@ void main() {
 
     expect(saved.id, '55');
     expect(saved.total, 10000);
+  });
+
+  test('purchase invoice sends totals, expenses, shipping and payment', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        final body = request.body;
+        expect(body, contains('"discount_type":"percentage"'));
+        expect(body, contains('"discount_amount":5.0'));
+        expect(body, contains('"shipping_charges":10.0'));
+        expect(body, contains('"additional_expense_key_1":"Handling"'));
+        expect(body, contains('"additional_expense_value_1":2.5'));
+        expect(body, contains('"method":"cash"'));
+        expect(body, contains('"account_id":"3"'));
+        return http.Response(
+          '{"data":{"id":56,"ref_no":"PUR-56","status":"received","final_total":"107.50"}}',
+          201,
+        );
+      }),
+    );
+
+    await api.savePurchaseDocument(
+      accessToken: 'token',
+      draft: PurchaseDraft(
+        type: PurchaseDocumentType.invoice,
+        supplierId: '7',
+        locationId: '2',
+        date: DateTime(2026, 8, 12),
+        status: 'received',
+        discountType: 'percentage',
+        discountAmount: 5,
+        shippingCharges: 10,
+        expenses: const [PurchaseExpense(name: 'Handling', amount: 2.5)],
+        payments: [
+          PurchasePaymentDraft(
+            amount: 50,
+            method: 'cash',
+            paidOn: DateTime(2026, 8, 12),
+            accountId: '3',
+          ),
+        ],
+        lines: const [
+          PurchaseLineRecord(
+            productId: '3',
+            variationId: '4',
+            name: 'Rice',
+            quantity: 2,
+            unitCost: 5000,
+          ),
+        ],
+      ),
+    );
+  });
+
+  test('supplier creation uses the supplier contact contract', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/contactapi');
+        expect(request.body, contains('"type":"supplier"'));
+        expect(request.body, contains('"supplier_business_name":"Acme"'));
+        return http.Response(
+          '{"data":{"id":99,"supplier_business_name":"Acme"}}',
+          201,
+        );
+      }),
+    );
+    final supplier = await api.createSupplier(
+      accessToken: 'token',
+      businessName: 'Acme',
+      contactName: 'Asha',
+      mobile: '9999999999',
+    );
+    expect(supplier.id, '99');
+    expect(supplier.name, 'Acme');
   });
 
   test('products maps EazyERP price, stock, category, and image', () async {

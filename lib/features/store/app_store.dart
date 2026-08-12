@@ -140,6 +140,8 @@ class AppStore extends Notifier<AppState> {
         .map((item) => item.id == customer.id ? customer : item)
         .toList(growable: false),
   );
+  void addUnit(LookupOption unit) =>
+      state = state.copyWith(units: [...state.units, unit]);
   void replaceProducts(List<Product> products) =>
       state = state.copyWith(products: products);
   void upsertProduct(Product product) {

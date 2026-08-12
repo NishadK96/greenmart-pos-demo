@@ -124,6 +124,23 @@ class BackendController extends AsyncNotifier<void> {
     return product;
   }
 
+  Future<LookupOption> createUnit({
+    required String name,
+    required String shortName,
+    required bool allowDecimal,
+  }) async {
+    final unit = await ref
+        .read(backendRepositoryProvider)
+        .createUnit(
+          accessToken: await _token(),
+          name: name,
+          shortName: shortName,
+          allowDecimal: allowDecimal,
+        );
+    ref.read(appStoreProvider.notifier).addUnit(unit);
+    return unit;
+  }
+
   Future<Product> updateProduct(Product product, ProductDraft draft) async {
     final updated = await ref
         .read(backendRepositoryProvider)

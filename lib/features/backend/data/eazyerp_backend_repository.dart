@@ -13,6 +13,19 @@ class EazyErpBackendRepository implements BackendRepository {
   final Api _api;
 
   @override
+  Future<LookupOption> createUnit({
+    required String accessToken,
+    required String name,
+    required String shortName,
+    required bool allowDecimal,
+  }) => _api.createUnit(
+    accessToken: accessToken,
+    name: name,
+    shortName: shortName,
+    allowDecimal: allowDecimal,
+  );
+
+  @override
   Future<BackendSnapshot> load(String accessToken) async {
     final products = await _api.products(accessToken);
     final results = await Future.wait<Object>([

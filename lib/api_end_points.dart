@@ -14,6 +14,11 @@ abstract final class ApiEndPoints {
   static const taxesUrl = '${Config.baseUrl}/connector/api/tax';
   static const brandsUrl = '${Config.baseUrl}/connector/api/brand';
   static const categoriesUrl = '${Config.baseUrl}/connector/api/taxonomy';
+  static String categoryUrl(String id) => '$categoriesUrl/$id';
+  static String productUrl(String id) => '$productWritesUrl/$id';
+  static String productStatusUrl(String id) => '$productWritesUrl/$id/status';
+  static String productImageUrl(String id) => '$productWritesUrl/$id/image';
+  static const productSkuCheckUrl = '$productWritesUrl/check-sku';
   static const customersUrl = '${Config.baseUrl}/connector/api/contactapi';
   static const salesUrl = '${Config.baseUrl}/connector/api/sell';
   static const locationsUrl =

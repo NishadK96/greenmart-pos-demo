@@ -141,6 +141,93 @@ class BackendController extends AsyncNotifier<void> {
     return unit;
   }
 
+  Future<void> _reloadCategories() async {
+    final categories = await ref
+        .read(backendRepositoryProvider)
+        .categories(await _token());
+    ref.read(appStoreProvider.notifier).replaceCategories(categories);
+  }
+
+  Future<void> createCategory({
+    required String name,
+    String nameAr = '',
+    String? parentId,
+  }) async {
+    await ref
+        .read(backendRepositoryProvider)
+        .createCategory(
+          accessToken: await _token(),
+          name: name,
+          nameAr: nameAr,
+          parentId: parentId,
+        );
+    await _reloadCategories();
+  }
+
+  Future<void> updateCategory({
+    required String id,
+    required String name,
+    String nameAr = '',
+  }) async {
+    await ref
+        .read(backendRepositoryProvider)
+        .updateCategory(
+          accessToken: await _token(),
+          id: id,
+          name: name,
+          nameAr: nameAr,
+        );
+    await _reloadCategories();
+  }
+
+  Future<void> deleteCategory({
+    required String id,
+    String? replacementId,
+  }) async {
+    await ref
+        .read(backendRepositoryProvider)
+        .deleteCategory(
+          accessToken: await _token(),
+          id: id,
+          replacementId: replacementId,
+        );
+    await _reloadCategories();
+  }
+
+  Future<bool> checkSku(String sku, {String? excludeProductId}) async => ref
+      .read(backendRepositoryProvider)
+      .checkSku(
+        accessToken: await _token(),
+        sku: sku,
+        excludeProductId: excludeProductId,
+      );
+
+  Future<void> deleteProduct(Product product) async {
+    await ref
+        .read(backendRepositoryProvider)
+        .deleteProduct(await _token(), product.id);
+    ref.read(appStoreProvider.notifier).removeProduct(product.id);
+  }
+
+  Future<void> updateProductStatus(Product product, bool active) async {
+    final updated = await ref
+        .read(backendRepositoryProvider)
+        .updateProductStatus(
+          accessToken: await _token(),
+          product: product,
+          active: active,
+        );
+    ref.read(appStoreProvider.notifier).upsertProduct(updated);
+  }
+
+  Future<Product> removeProductImage(Product product) async {
+    final updated = await ref
+        .read(backendRepositoryProvider)
+        .removeProductImage(accessToken: await _token(), product: product);
+    ref.read(appStoreProvider.notifier).upsertProduct(updated);
+    return updated;
+  }
+
   Future<Product> updateProduct(Product product, ProductDraft draft) async {
     final updated = await ref
         .read(backendRepositoryProvider)

@@ -350,7 +350,11 @@ class Api {
     if (data is! List) throw const ApiException('Invalid category response.');
     Category mapCategory(Map<String, dynamic> item) => Category(
       id: item['id'].toString(),
-      name: item['name']?.toString() ?? '',
+      name: item['name_en']?.toString().trim().isNotEmpty == true
+          ? item['name_en'].toString()
+          : item['name']?.toString() ?? '',
+      nameEn: item['name_en']?.toString() ?? '',
+      nameAr: item['name_ar']?.toString() ?? '',
       icon: '',
       subCategories: (item['sub_categories'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
@@ -361,6 +365,115 @@ class Api {
         .whereType<Map<String, dynamic>>()
         .map(mapCategory)
         .toList(growable: false);
+  }
+
+  Future<void> createCategory({
+    required String accessToken,
+    required String name,
+    String nameAr = '',
+    String? parentId,
+  }) => _catalogMutation(
+    method: 'POST',
+    url: ApiEndPoints.categoriesUrl,
+    accessToken: accessToken,
+    body: {
+      'name': name,
+      'name_en': name,
+      if (nameAr.isNotEmpty) 'name_ar': nameAr,
+      'parent_id': parentId ?? 0,
+    },
+  );
+
+  Future<void> updateCategory({
+    required String accessToken,
+    required String id,
+    required String name,
+    String nameAr = '',
+  }) => _catalogMutation(
+    method: 'PUT',
+    url: ApiEndPoints.categoryUrl(id),
+    accessToken: accessToken,
+    body: {
+      'name': name,
+      'name_en': name,
+      if (nameAr.isNotEmpty) 'name_ar': nameAr,
+    },
+  );
+
+  Future<void> deleteCategory({
+    required String accessToken,
+    required String id,
+    String? replacementId,
+  }) => _catalogMutation(
+    method: 'DELETE',
+    url: ApiEndPoints.categoryUrl(id),
+    accessToken: accessToken,
+    body: {if (replacementId != null) 'replacement_id': replacementId},
+  );
+
+  Future<bool> checkSku({
+    required String accessToken,
+    required String sku,
+    String? excludeProductId,
+  }) async {
+    final response = await _client.post(
+      Uri.parse(ApiEndPoints.productSkuCheckUrl),
+      headers: _jsonHeaders(accessToken),
+      body: jsonEncode({
+        'sku': sku,
+        if (excludeProductId != null) 'exclude_product_id': excludeProductId,
+      }),
+    );
+    final payload = _requireObject(response, 'SKU availability');
+    return payload['available'] == true;
+  }
+
+  Future<void> deleteProduct(String accessToken, String id) => _catalogMutation(
+    method: 'DELETE',
+    url: ApiEndPoints.productUrl(id),
+    accessToken: accessToken,
+  );
+
+  Future<Product> updateProductStatus({
+    required String accessToken,
+    required Product product,
+    required bool active,
+  }) async {
+    final response = await _client.patch(
+      Uri.parse(ApiEndPoints.productStatusUrl(product.id)),
+      headers: _jsonHeaders(accessToken),
+      body: jsonEncode({'status': active ? 'active' : 'inactive'}),
+    );
+    _requireObject(response, 'product status');
+    return product.copyWith(active: active);
+  }
+
+  Future<Product> removeProductImage({
+    required String accessToken,
+    required Product product,
+  }) async {
+    await _catalogMutation(
+      method: 'DELETE',
+      url: ApiEndPoints.productImageUrl(product.id),
+      accessToken: accessToken,
+    );
+    return product.copyWith(imageUrl: '');
+  }
+
+  Future<void> _catalogMutation({
+    required String method,
+    required String url,
+    required String accessToken,
+    Map<String, Object?> body = const {},
+  }) async {
+    final request = http.Request(method, Uri.parse(url));
+    request.headers.addAll(_jsonHeaders(accessToken));
+    if (body.isNotEmpty) request.body = jsonEncode(body);
+    final streamed = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 20));
+    final response = await http.Response.fromStream(streamed);
+    _requireObject(response, 'catalog operation');
   }
 
   Future<List<Customer>> customers(String accessToken) async {

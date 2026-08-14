@@ -45,6 +45,39 @@ abstract interface class BackendRepository {
     required String shortName,
     required bool allowDecimal,
   });
+  Future<List<Category>> categories(String accessToken);
+  Future<void> createCategory({
+    required String accessToken,
+    required String name,
+    String nameAr,
+    String? parentId,
+  });
+  Future<void> updateCategory({
+    required String accessToken,
+    required String id,
+    required String name,
+    String nameAr,
+  });
+  Future<void> deleteCategory({
+    required String accessToken,
+    required String id,
+    String? replacementId,
+  });
+  Future<bool> checkSku({
+    required String accessToken,
+    required String sku,
+    String? excludeProductId,
+  });
+  Future<void> deleteProduct(String accessToken, String id);
+  Future<Product> updateProductStatus({
+    required String accessToken,
+    required Product product,
+    required bool active,
+  });
+  Future<Product> removeProductImage({
+    required String accessToken,
+    required Product product,
+  });
 
   Future<Customer> createCustomer({
     required String accessToken,

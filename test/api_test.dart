@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -243,6 +245,51 @@ void main() {
     expect(categories.single.id, '7');
     expect(categories.single.name, 'Grocery');
   });
+
+  test('category creation sends bilingual taxonomy data', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/taxonomy');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        final body = jsonDecode(request.body);
+        expect(body['name_en'], 'Bakery');
+        expect(body['name_ar'], 'مخبز');
+        expect(body['parent_id'], '7');
+        return http.Response('{"data":{"id":8}}', 201);
+      }),
+    );
+
+    await api.createCategory(
+      accessToken: 'token-123',
+      name: 'Bakery',
+      nameAr: 'مخبز',
+      parentId: '7',
+    );
+  });
+
+  test(
+    'SKU availability sends the edit exclusion and maps availability',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.url.path, '/connector/api/products/check-sku');
+          final body = jsonDecode(request.body);
+          expect(body['sku'], 'SKU-1000');
+          expect(body['exclude_product_id'], '10');
+          return http.Response('{"available":true}', 200);
+        }),
+      );
+
+      final available = await api.checkSku(
+        accessToken: 'token-123',
+        sku: 'SKU-1000',
+        excludeProductId: '10',
+      );
+
+      expect(available, isTrue);
+    },
+  );
 
   test('stock report follows backend pagination', () async {
     var requests = 0;

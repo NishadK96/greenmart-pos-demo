@@ -5,10 +5,13 @@ class Category {
     required this.id,
     required this.name,
     required this.icon,
+    this.nameEn = '',
+    this.nameAr = '',
     this.active = true,
     this.subCategories = const [],
   });
   final String id, name;
+  final String nameEn, nameAr;
   final String icon;
   final bool active;
   final List<Category> subCategories;
@@ -58,6 +61,7 @@ class Product {
     int? stock,
     int? minimumStock,
     String? imageUrl,
+    bool? active,
   }) => Product(
     id: id,
     name: name ?? this.name,
@@ -73,7 +77,7 @@ class Product {
     unit: unit ?? this.unit,
     unitId: unitId ?? this.unitId,
     taxId: taxId ?? this.taxId,
-    active: active,
+    active: active ?? this.active,
     imageUrl: imageUrl ?? this.imageUrl,
   );
 }

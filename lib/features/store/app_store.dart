@@ -24,6 +24,7 @@ class AppState {
     this.cart = const [],
     this.customer,
     this.lastSale,
+    this.heldCarts = const [],
   });
   final List<Product> products;
   final List<Category> categories;
@@ -43,6 +44,7 @@ class AppState {
   final List<CartLine> cart;
   final Customer? customer;
   final Sale? lastSale;
+  final List<List<CartLine>> heldCarts;
   int get cartSubtotal => cart.fold(0, (v, e) => v + e.subtotal);
   int get cartTax => cart.fold(0, (v, e) => v + e.tax);
   int get cartDiscount => cart.fold(0, (v, e) => v + e.discount);
@@ -69,6 +71,7 @@ class AppState {
     Customer? customer,
     bool clearCustomer = false,
     Sale? lastSale,
+    List<List<CartLine>>? heldCarts,
   }) => AppState(
     products: products ?? this.products,
     categories: categories ?? this.categories,
@@ -89,6 +92,7 @@ class AppState {
     cart: cart ?? this.cart,
     customer: clearCustomer ? null : customer ?? this.customer,
     lastSale: lastSale ?? this.lastSale,
+    heldCarts: heldCarts ?? this.heldCarts,
   );
 }
 
@@ -131,6 +135,26 @@ class AppStore extends Notifier<AppState> {
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );
   void clearCart() => state = state.copyWith(cart: [], clearCustomer: true);
+  void holdCart() {
+    if (state.cart.isEmpty) return;
+    state = state.copyWith(
+      heldCarts: [
+        [...state.cart],
+        ...state.heldCarts,
+      ],
+      cart: [],
+      clearCustomer: true,
+    );
+  }
+
+  void resumeLastHeldCart() {
+    if (state.heldCarts.isEmpty || state.cart.isNotEmpty) return;
+    state = state.copyWith(
+      cart: [...state.heldCarts.first],
+      heldCarts: state.heldCarts.skip(1).toList(growable: false),
+    );
+  }
+
   void selectCustomer(Customer value) =>
       state = state.copyWith(customer: value);
   void addCustomer(Customer customer) =>
@@ -142,6 +166,11 @@ class AppStore extends Notifier<AppState> {
   );
   void addUnit(LookupOption unit) =>
       state = state.copyWith(units: [...state.units, unit]);
+  void replaceCategories(List<Category> categories) =>
+      state = state.copyWith(categories: categories);
+  void removeProduct(String id) => state = state.copyWith(
+    products: state.products.where((product) => product.id != id).toList(),
+  );
   void replaceProducts(List<Product> products) =>
       state = state.copyWith(products: products);
   void upsertProduct(Product product) {

@@ -13,6 +13,79 @@ class EazyErpBackendRepository implements BackendRepository {
   final Api _api;
 
   @override
+  Future<List<Category>> categories(String accessToken) =>
+      _api.categories(accessToken);
+
+  @override
+  Future<void> createCategory({
+    required String accessToken,
+    required String name,
+    String nameAr = '',
+    String? parentId,
+  }) => _api.createCategory(
+    accessToken: accessToken,
+    name: name,
+    nameAr: nameAr,
+    parentId: parentId,
+  );
+
+  @override
+  Future<void> updateCategory({
+    required String accessToken,
+    required String id,
+    required String name,
+    String nameAr = '',
+  }) => _api.updateCategory(
+    accessToken: accessToken,
+    id: id,
+    name: name,
+    nameAr: nameAr,
+  );
+
+  @override
+  Future<void> deleteCategory({
+    required String accessToken,
+    required String id,
+    String? replacementId,
+  }) => _api.deleteCategory(
+    accessToken: accessToken,
+    id: id,
+    replacementId: replacementId,
+  );
+
+  @override
+  Future<bool> checkSku({
+    required String accessToken,
+    required String sku,
+    String? excludeProductId,
+  }) => _api.checkSku(
+    accessToken: accessToken,
+    sku: sku,
+    excludeProductId: excludeProductId,
+  );
+
+  @override
+  Future<void> deleteProduct(String accessToken, String id) =>
+      _api.deleteProduct(accessToken, id);
+
+  @override
+  Future<Product> updateProductStatus({
+    required String accessToken,
+    required Product product,
+    required bool active,
+  }) => _api.updateProductStatus(
+    accessToken: accessToken,
+    product: product,
+    active: active,
+  );
+
+  @override
+  Future<Product> removeProductImage({
+    required String accessToken,
+    required Product product,
+  }) => _api.removeProductImage(accessToken: accessToken, product: product);
+
+  @override
   Future<LookupOption> createUnit({
     required String accessToken,
     required String name,

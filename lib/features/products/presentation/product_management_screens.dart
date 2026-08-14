@@ -35,7 +35,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String _barcodeType = 'C128', _taxType = 'exclusive';
   final Set<String> _locationIds = {};
   bool _manageStock = true, _serialNumber = false, _notForSelling = false;
-  bool _saving = false;
+  bool _saving = false, _existingImageRemoved = false;
   List<int>? _imageBytes, _brochureBytes;
   String? _imageName, _brochureName;
 
@@ -226,7 +226,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 ),
                 SizedBox(
                   width: width,
-                  child: _field(_sku, 'SKU (leave blank to auto-generate)'),
+                  child: TextFormField(
+                    controller: _sku,
+                    decoration: InputDecoration(
+                      labelText: 'SKU',
+                      hintText: 'Leave blank to auto-generate',
+                      suffixIcon: _sku.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Check SKU availability',
+                              onPressed: _checkSkuAvailability,
+                              icon: const Icon(Icons.fact_check_outlined),
+                            ),
+                    ),
+                  ),
                 ),
                 SizedBox(
                   width: width,
@@ -332,13 +345,29 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         Row(
           children: [
             Expanded(
-              child: _uploadPanel(
-                Icons.image_outlined,
-                'Product image',
-                _imageName ?? 'Upload product image',
-                'PNG, JPG or WEBP • Max 5 MB • 1:1 recommended',
-                _pickImage,
-                image: true,
+              child: Column(
+                children: [
+                  _uploadPanel(
+                    Icons.image_outlined,
+                    'Product image',
+                    _imageName ?? 'Upload product image',
+                    'PNG, JPG or WEBP • Max 5 MB • 1:1 recommended',
+                    _pickImage,
+                    image: true,
+                  ),
+                  if (widget.product?.imageUrl.isNotEmpty == true &&
+                      !_existingImageRemoved) ...[
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: _saving ? null : _removeExistingImage,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: const Text('Remove existing image'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(width: 14),
@@ -1413,6 +1442,52 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       });
   }
 
+  Future<void> _checkSkuAvailability() async {
+    final sku = _sku.text.trim();
+    if (sku.isEmpty) return;
+    try {
+      final available = await ref
+          .read(backendControllerProvider.notifier)
+          .checkSku(sku, excludeProductId: widget.product?.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            available ? 'SKU is available.' : 'SKU is already in use.',
+          ),
+          backgroundColor: available ? AppColors.primary : AppColors.danger,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _removeExistingImage() async {
+    final product = widget.product;
+    if (product == null) return;
+    try {
+      await ref
+          .read(backendControllerProvider.notifier)
+          .removeProductImage(product);
+      if (!mounted) return;
+      setState(() => _existingImageRemoved = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Product image removed.')));
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
   double _taxPercent(AppState state) {
     return state.taxes.where((e) => e.id == _taxId).firstOrNull?.value ?? 0;
   }
@@ -1437,6 +1512,32 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _save(_SaveMode mode) async {
     if (!_formKey.currentState!.validate() || _unitId == null) return;
+    final sku = _sku.text.trim();
+    if (sku.isNotEmpty) {
+      try {
+        final available = await ref
+            .read(backendControllerProvider.notifier)
+            .checkSku(sku, excludeProductId: widget.product?.id);
+        if (!available) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('This SKU is already in use.'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+          }
+          return;
+        }
+      } on ApiException catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.message)));
+        }
+        return;
+      }
+    }
     if (mode == _SaveMode.openingStock) {
       final proceed = await _requestOpeningStock();
       if (!proceed) return;

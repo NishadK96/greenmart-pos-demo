@@ -86,36 +86,159 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (!desktop) {
       final mobile = [
         destinations[0],
-        destinations[1],
-        destinations[5],
+        destinations[2],
         destinations[7],
+        destinations[5],
         ('/settings', 'More', Icons.more_horiz),
       ];
+      final phone = width < 700;
       return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            context.tr('RetailFlow'),
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-          actions: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.language),
-              onSelected: (code) =>
-                  ref.read(localeProvider.notifier).setLanguage(code),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'en', child: Text('🇬🇧  English')),
-                PopupMenuItem(value: 'ar', child: Text('🇸🇦  العربية')),
-              ],
-            ),
-            StatusBadge(context.tr('Online')),
-            IconButton(
-              onPressed: () => context.go('/pos'),
-              icon: const Icon(Icons.add_shopping_cart),
-            ),
-          ],
-        ),
+        appBar: phone
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(112),
+                child: SafeArea(
+                  bottom: false,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFFE4EAE7)),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              child: const Icon(
+                                Icons.storefront_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    businessName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    context.tr('Point of Sale'),
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (path == '/pos')
+                              OutlinedButton(
+                                onPressed: () {},
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 42),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('Register 01'),
+                                    SizedBox(width: 4),
+                                    Icon(Icons.keyboard_arrow_down, size: 18),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'Notifications',
+                              onPressed: () {},
+                              icon: const Icon(Icons.notifications_none),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            StatusBadge(context.tr('Online')),
+                            const SizedBox(width: 7),
+                            StatusBadge(context.tr('Synced')),
+                            const Spacer(),
+                            PopupMenuButton<String>(
+                              tooltip: context.tr('Language'),
+                              onSelected: (code) => ref
+                                  .read(localeProvider.notifier)
+                                  .setLanguage(code),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'en',
+                                  child: Text('English'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'ar',
+                                  child: Text('العربية'),
+                                ),
+                              ],
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.language, size: 16),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    context.isArabic ? 'العربية' : 'English',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            : AppBar(
+                title: Text(
+                  context.tr('RetailFlow'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                actions: [
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.language),
+                    onSelected: (code) =>
+                        ref.read(localeProvider.notifier).setLanguage(code),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'en', child: Text('English')),
+                      PopupMenuItem(value: 'ar', child: Text('العربية')),
+                    ],
+                  ),
+                  StatusBadge(context.tr('Online')),
+                  IconButton(
+                    onPressed: () => context.go('/pos'),
+                    icon: const Icon(Icons.add_shopping_cart),
+                  ),
+                ],
+              ),
         body: widget.child,
         bottomNavigationBar: NavigationBar(
+          height: phone ? 66 : 72,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           selectedIndex: mobile
               .indexWhere((e) => path.startsWith(e.$1))
               .clamp(0, 4),
@@ -360,30 +483,76 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                   child: Row(
                     children: [
-                      Text(
-                        businessName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.canvas,
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Text(
-                          locationName.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.muted,
+                      if (path == '/pos') ...[
+                        OutlinedButton.icon(
+                          onPressed: () {},
+                          icon: const Icon(
+                            Icons.point_of_sale_rounded,
+                            size: 17,
+                          ),
+                          label: const Text('Register 01'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 42),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 14),
+                        const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: Color(0xFF15945B),
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Shift Open',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '09:00 AM - 09:00 PM',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Text(
+                          businessName,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.canvas,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            locationName.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ],
                       const Spacer(),
                       PopupMenuButton<String>(
                         tooltip: context.tr('Language'),

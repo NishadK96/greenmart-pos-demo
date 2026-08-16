@@ -231,4 +231,25 @@ class EazyErpBackendRepository implements BackendRepository {
       invoiceNo: json['invoice_no']?.toString() ?? '',
     );
   }
+
+  @override
+  Future<String> createSaleReturn({
+    required String accessToken,
+    required Sale sale,
+    required Map<String, int> quantities,
+  }) async {
+    final result = await _api.createSaleReturn(
+      accessToken: accessToken,
+      sale: sale,
+      quantities: quantities,
+    );
+    return result['invoice_no']?.toString() ??
+        result['ref_no']?.toString() ??
+        result['id']?.toString() ??
+        '';
+  }
+
+  @override
+  Future<List<SaleReturnRecord>> saleReturns({required String accessToken}) =>
+      _api.saleReturns(accessToken);
 }

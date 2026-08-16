@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
+import '../zatca/presentation/zatca_screen.dart';
 
 class ReceiptScreen extends ConsumerWidget {
   const ReceiptScreen({super.key});
@@ -163,6 +164,18 @@ class ReceiptScreen extends ConsumerWidget {
                       child: Center(child: Text(context.tr('Start new sale'))),
                     ),
                   ),
+                  if (sale.serverId != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            showZatcaInvoiceDialog(context, ref, sale),
+                        icon: const Icon(Icons.verified_user_outlined),
+                        label: const Text('ZATCA invoice status & documents'),
+                      ),
+                    ),
+                  ],
                   TextButton(
                     onPressed: () => context.go('/sales'),
                     child: Text(context.tr('View sales history')),

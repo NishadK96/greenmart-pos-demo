@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:retailflow_pos/apis/api.dart';
 import 'package:retailflow_pos/shared/models/entities.dart';
 import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart';
+import 'package:retailflow_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
   test('login sends credentials to the backend-managed endpoint', () async {
@@ -43,6 +44,68 @@ void main() {
 
     expect(result.isSuccess, isFalse);
     expect(result.failure, LoginFailure.invalidCredentials);
+  });
+
+  test('sale return sends selected backend sell-line quantities', () async {
+    final product = Product(
+      id: '3',
+      name: 'Rice',
+      sku: 'RICE-1',
+      barcode: '123',
+      categoryId: '1',
+      purchasePrice: 4000,
+      sellingPrice: 5000,
+      stock: 8,
+      minimumStock: 2,
+      variationId: '4',
+      taxPercent: 0,
+    );
+    final sale = Sale(
+      localId: 'server-41',
+      serverId: '41',
+      invoiceNo: 'INV-41',
+      createdAt: DateTime(2026, 8, 16),
+      updatedAt: DateTime(2026, 8, 16),
+      customer: const Customer(id: '7', name: 'Walk-in Customer'),
+      items: [
+        CartLine(
+          product: product,
+          quantity: 3,
+          sellLineId: '91',
+          quantityReturned: 1,
+        ),
+      ],
+      paymentMethod: 'cash',
+      total: 15000,
+      tax: 0,
+      discount: 0,
+      syncStatus: SyncStatus.synced,
+    );
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/sell-return');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['transaction_id'], 41);
+        final products = body['products'] as List<dynamic>;
+        expect(products.single['sell_line_id'], 91);
+        expect(products.single['quantity'], 2);
+        expect(products.single['unit_price_inc_tax'], 50.0);
+        return http.Response(
+          '{"id":88,"invoice_no":"CN-0088","return_parent_id":41}',
+          201,
+        );
+      }),
+    );
+
+    final result = await api.createSaleReturn(
+      accessToken: 'token-123',
+      sale: sale,
+      quantities: const {'91': 2},
+    );
+
+    expect(result['invoice_no'], 'CN-0088');
   });
 
   test('purchase orders map Laravel document and line resources', () async {
@@ -471,6 +534,104 @@ void main() {
       fileName: 'products.csv',
     );
     expect(products.single.id, '8');
+  });
+
+  test('sale return history maps parent invoice and refund metadata', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/list-sell-return');
+        expect(request.url.queryParameters['per_page'], '-1');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        return http.Response(
+          '''{"data":[{"id":71,"invoice_no":"SR-0071","return_parent_id":41,"transaction_date":"2026-08-16 14:30:00","final_total":"-75.50","payment_status":"paid","contact":{"name":"Riyadh Retail"},"payment_lines":[{"method":"cash"}],"return_parent_sell":{"id":41,"invoice_no":"INV-0041"}}]}''',
+          200,
+        );
+      }),
+    );
+
+    final returns = await api.saleReturns('token-123');
+
+    expect(returns, hasLength(1));
+    expect(returns.single.invoiceNo, 'SR-0071');
+    expect(returns.single.parentInvoiceNo, 'INV-0041');
+    expect(returns.single.customerName, 'Riyadh Retail');
+    expect(returns.single.total, 7550);
+    expect(returns.single.paymentMethod, 'cash');
+  });
+
+  test('ZATCA status maps safe integration and location metadata', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/zatca/status');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        return http.Response(
+          '{"data":{"installed":true,"subscription_enabled":true,"sync_frequency":"instant","locations":[{"id":2,"name":"Main Store","configured":true,"portal_mode":"simulation"}],"totals":{"pending":2,"success":18,"failed":1}}}',
+          200,
+        );
+      }),
+    );
+
+    final status = await api.zatcaStatus('token-123');
+
+    expect(status.installed, isTrue);
+    expect(status.locations.single.portalMode, 'simulation');
+    expect(status.totals.success, 18);
+  });
+
+  test(
+    'ZATCA onboarding sends exact device contract without client secrets',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.url.path, '/connector/api/zatca/onboarding/2');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['otp'], '123456');
+          expect(body['country_code'], 'SA');
+          expect(body['invoice_type'], '1100');
+          expect(body, isNot(contains('client_secret')));
+          return http.Response(
+            '{"success":true,"data":{"location_id":2,"name":"Main Store","configured":true,"portal_mode":"simulation"}}',
+            200,
+          );
+        }),
+      );
+
+      final location = await api.onboardZatca(
+        accessToken: 'token-123',
+        locationId: '2',
+        draft: const ZatcaOnboardingDraft(
+          portalMode: 'simulation',
+          otp: '123456',
+          email: 'zatca@example.test',
+          commonName: 'Main Store Device',
+          organizationUnitName: 'Main Store',
+          organizationName: 'GreenMart LLC',
+          vatNumber: '300000000000003',
+          invoiceType: '1100',
+          registeredAddress: 'RRRD2929',
+          businessCategory: 'Retail',
+        ),
+      );
+
+      expect(location.configured, isTrue);
+    },
+  );
+
+  test('ZATCA rejected invoice is returned as a retry result', () async {
+    final api = Api(
+      client: MockClient(
+        (request) async => http.Response(
+          '{"success":false,"message":"ZATCA rejected the invoice.","data":{"sale_id":55,"zatca_status":"failed"}}',
+          409,
+        ),
+      ),
+    );
+
+    final result = await api.syncZatcaInvoice('token-123', '55');
+
+    expect(result.success, isFalse);
+    expect(result.status, 'failed');
+    expect(result.message, contains('rejected'));
   });
 }
 

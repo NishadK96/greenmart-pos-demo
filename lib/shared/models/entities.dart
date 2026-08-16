@@ -214,9 +214,19 @@ class Supplier {
 }
 
 class CartLine {
-  const CartLine({required this.product, this.quantity = 1, this.discount = 0});
+  const CartLine({
+    required this.product,
+    this.quantity = 1,
+    this.discount = 0,
+    this.sellLineId,
+    this.quantityReturned = 0,
+  });
   final Product product;
   final int quantity, discount;
+  final String? sellLineId;
+  final int quantityReturned;
+  int get returnableQuantity =>
+      (quantity - quantityReturned).clamp(0, quantity);
   int get subtotal => product.sellingPrice * quantity;
   int get tax => ((subtotal - discount) * product.taxPercent / 100).round();
   int get total => subtotal - discount + tax;
@@ -224,6 +234,8 @@ class CartLine {
     product: product,
     quantity: quantity ?? this.quantity,
     discount: discount ?? this.discount,
+    sellLineId: sellLineId,
+    quantityReturned: quantityReturned,
   );
 }
 
@@ -250,6 +262,30 @@ class Sale {
   final String paymentMethod;
   final int total, tax, discount;
   final SyncStatus syncStatus;
+}
+
+class SaleReturnRecord {
+  const SaleReturnRecord({
+    required this.id,
+    required this.invoiceNo,
+    required this.parentSaleId,
+    required this.parentInvoiceNo,
+    required this.createdAt,
+    required this.customerName,
+    required this.total,
+    required this.paymentStatus,
+    required this.paymentMethod,
+  });
+
+  final String id;
+  final String invoiceNo;
+  final String parentSaleId;
+  final String parentInvoiceNo;
+  final DateTime createdAt;
+  final String customerName;
+  final int total;
+  final String paymentStatus;
+  final String paymentMethod;
 }
 
 class Purchase {

@@ -105,6 +105,14 @@ abstract interface class BackendRepository {
     required int total,
   });
 
+  Future<String> createSaleReturn({
+    required String accessToken,
+    required Sale sale,
+    required Map<String, int> quantities,
+  });
+
+  Future<List<SaleReturnRecord>> saleReturns({required String accessToken});
+
   Future<Product> createProduct({
     required String accessToken,
     required ProductDraft draft,

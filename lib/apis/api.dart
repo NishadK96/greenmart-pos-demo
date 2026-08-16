@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
 import '../shared/models/entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
+import '../features/zatca/domain/zatca_entities.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -937,6 +938,43 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<SaleReturnRecord>> saleReturns(String accessToken) async {
+    final uri = Uri.parse(
+      ApiEndPoints.saleReturnsListUrl,
+    ).replace(queryParameters: const {'per_page': '-1'});
+    final data = await _getDataList(uri, accessToken, 'sale returns');
+    return data
+        .map((item) {
+          final parent = _map(item['return_parent_sell']);
+          final contact = _map(item['contact']);
+          final parentContact = _map(parent['contact']);
+          final payments = item['payment_lines'] as List? ?? const [];
+          final payment = payments
+              .whereType<Map<String, dynamic>>()
+              .firstOrNull;
+          return SaleReturnRecord(
+            id: item['id']?.toString() ?? '',
+            invoiceNo: item['invoice_no']?.toString() ?? '',
+            parentSaleId:
+                item['return_parent_id']?.toString() ??
+                parent['id']?.toString() ??
+                '',
+            parentInvoiceNo: parent['invoice_no']?.toString() ?? '',
+            createdAt:
+                DateTime.tryParse(item['transaction_date']?.toString() ?? '') ??
+                DateTime.now(),
+            customerName:
+                contact['name']?.toString() ??
+                parentContact['name']?.toString() ??
+                'Walk-In Customer',
+            total: _money(item['final_total']).abs(),
+            paymentStatus: item['payment_status']?.toString() ?? 'due',
+            paymentMethod: payment?['method']?.toString() ?? 'due',
+          );
+        })
+        .toList(growable: false);
+  }
+
   Future<Map<String, dynamic>> createSale({
     required String accessToken,
     required String locationId,
@@ -996,6 +1034,264 @@ class Api {
       throw ApiException(_apiMessage(result, 'Unable to create sale.'));
     }
     return result;
+  }
+
+  Future<Map<String, dynamic>> createSaleReturn({
+    required String accessToken,
+    required Sale sale,
+    required Map<String, int> quantities,
+  }) async {
+    if (sale.serverId == null || sale.serverId!.isEmpty) {
+      throw const ApiException('This sale has not been synchronized yet.');
+    }
+    final products = <Map<String, dynamic>>[];
+    for (final line in sale.items) {
+      final quantity = quantities[line.sellLineId];
+      if (line.sellLineId == null || quantity == null || quantity <= 0) {
+        continue;
+      }
+      if (quantity > line.returnableQuantity) {
+        throw ApiException(
+          'Return quantity exceeds the available quantity for ${line.product.name}.',
+        );
+      }
+      products.add({
+        'sell_line_id': int.parse(line.sellLineId!),
+        'quantity': quantity,
+        'unit_price_inc_tax': line.product.sellingPrice / 100,
+      });
+    }
+    if (products.isEmpty) {
+      throw const ApiException('Select at least one item to return.');
+    }
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    final body = {
+      'transaction_id': int.parse(sale.serverId!),
+      'transaction_date':
+          '${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}:${two(now.second)}',
+      'discount_type': 'fixed',
+      'discount_amount': 0,
+      'products': products,
+    };
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.saleReturnsUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 30));
+    final decoded = _decodeAny(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(decoded, 'Unable to create the sale return.'),
+        statusCode: response.statusCode,
+        validationErrors: decoded is Map ? _map(decoded['errors']) : const {},
+      );
+    }
+    if (decoded is! Map) {
+      throw const ApiException('Invalid sale-return response.');
+    }
+    final result = Map<String, dynamic>.from(decoded);
+    if (result['error'] != null || result['success'] == false) {
+      throw ApiException(
+        _apiMessage(result, 'Unable to create the sale return.'),
+      );
+    }
+    return result;
+  }
+
+  Future<ZatcaIntegrationStatus> zatcaStatus(String accessToken) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.zatcaStatusUrl),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'ZATCA status');
+    final data = _map(root['data']);
+    final totals = _map(data['totals']);
+    final rawLocations = data['locations'];
+    return ZatcaIntegrationStatus(
+      installed: data['installed'] == true || data['installed'] == 1,
+      subscriptionEnabled:
+          data['subscription_enabled'] == true ||
+          data['subscription_enabled'] == 1,
+      syncFrequency: data['sync_frequency']?.toString() ?? 'disable',
+      version: data['version']?.toString(),
+      locations: rawLocations is List
+          ? rawLocations
+                .whereType<Map>()
+                .map((raw) {
+                  final item = Map<String, dynamic>.from(raw);
+                  return ZatcaLocationStatus(
+                    id: item['id'].toString(),
+                    name: item['name']?.toString() ?? 'Location',
+                    configured:
+                        item['configured'] == true || item['configured'] == 1,
+                    portalMode: item['portal_mode']?.toString(),
+                    syncFrom: item['sync_from_datetime']?.toString(),
+                  );
+                })
+                .toList(growable: false)
+          : const [],
+      totals: ZatcaTotals(
+        pending: _number(totals['pending']).round(),
+        success: _number(totals['success']).round(),
+        failed: _number(totals['failed']).round(),
+      ),
+    );
+  }
+
+  Future<ZatcaLocationStatus> onboardZatca({
+    required String accessToken,
+    required String locationId,
+    required ZatcaOnboardingDraft draft,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.zatcaOnboardingUrl(locationId)),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode(draft.toJson()),
+        )
+        .timeout(const Duration(seconds: 60));
+    final root = _requireObject(response, 'ZATCA device onboarding');
+    final data = _map(root['data']);
+    return ZatcaLocationStatus(
+      id: data['location_id']?.toString() ?? locationId,
+      name: data['name']?.toString() ?? 'Location',
+      configured: data['configured'] == true || data['configured'] == 1,
+      portalMode: data['portal_mode']?.toString(),
+      syncFrom: data['sync_from_datetime']?.toString(),
+    );
+  }
+
+  Future<ZatcaInvoiceStatus> zatcaInvoiceStatus(
+    String accessToken,
+    String saleId,
+  ) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.zatcaInvoiceUrl(saleId)),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'ZATCA invoice status');
+    final data = _map(root['data']);
+    return ZatcaInvoiceStatus(
+      saleId: data['sale_id']?.toString() ?? saleId,
+      invoiceNo: data['invoice_no']?.toString() ?? '',
+      status: data['zatca_status']?.toString() ?? 'pending',
+      document: _zatcaDocument(data['document']),
+    );
+  }
+
+  Future<ZatcaOperationResult> syncZatcaInvoice(
+    String accessToken,
+    String saleId,
+  ) => _syncZatca(accessToken, ApiEndPoints.zatcaInvoiceSyncUrl(saleId));
+
+  Future<ZatcaOperationResult> syncZatcaReturn(
+    String accessToken,
+    String returnId,
+  ) => _syncZatca(accessToken, ApiEndPoints.zatcaReturnSyncUrl(returnId));
+
+  Future<ZatcaOperationResult> _syncZatca(
+    String accessToken,
+    String url,
+  ) async {
+    final response = await _client
+        .post(Uri.parse(url), headers: _jsonHeaders(accessToken))
+        .timeout(const Duration(seconds: 60));
+    final decoded = _decodeAny(response.body);
+    if (decoded is! Map)
+      throw const ApiException('Invalid ZATCA sync response.');
+    final root = Map<String, dynamic>.from(decoded);
+    if ((response.statusCode < 200 || response.statusCode >= 300) &&
+        response.statusCode != 409) {
+      throw ApiException(
+        _apiMessage(root, 'Unable to sync with ZATCA.'),
+        statusCode: response.statusCode,
+      );
+    }
+    final data = _map(root['data']);
+    return ZatcaOperationResult(
+      success: root['success'] == true || root['success'] == 1,
+      message: root['message']?.toString() ?? 'ZATCA sync completed.',
+      status: data['zatca_status']?.toString() ?? 'pending',
+    );
+  }
+
+  Future<ZatcaQrPayload> zatcaQr(String accessToken, String saleId) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.zatcaInvoiceQrUrl(saleId)),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'ZATCA QR');
+    final data = _map(root['data']);
+    return ZatcaQrPayload(
+      saleId: data['sale_id']?.toString() ?? saleId,
+      value: data['qr_value']?.toString() ?? '',
+      format: data['format']?.toString() ?? 'base64_tlv',
+    );
+  }
+
+  Future<ZatcaDownload> downloadZatcaXml(String accessToken, String saleId) =>
+      _zatcaDownload(
+        accessToken,
+        ApiEndPoints.zatcaInvoiceXmlUrl(saleId),
+        'zatca-$saleId.xml',
+      );
+
+  Future<ZatcaDownload> downloadZatcaPdf(String accessToken, String saleId) =>
+      _zatcaDownload(
+        accessToken,
+        ApiEndPoints.zatcaInvoicePdfUrl(saleId),
+        'zatca-$saleId.pdf',
+      );
+
+  Future<ZatcaDownload> _zatcaDownload(
+    String accessToken,
+    String url,
+    String fallbackName,
+  ) async {
+    final response = await _client
+        .get(Uri.parse(url), headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(
+          _decodeAny(response.body),
+          'Unable to download ZATCA document.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    final disposition = response.headers['content-disposition'] ?? '';
+    final match = RegExp('filename="?([^";]+)').firstMatch(disposition);
+    return ZatcaDownload(
+      bytes: response.bodyBytes,
+      fileName: match?.group(1) ?? fallbackName,
+    );
+  }
+
+  ZatcaDocumentInfo? _zatcaDocument(dynamic raw) {
+    final item = _map(raw);
+    if (item.isEmpty) return null;
+    return ZatcaDocumentInfo(
+      id: item['id']?.toString() ?? '',
+      status: item['status']?.toString() ?? 'pending',
+      sentToZatca: item['sent_to_zatca'] == true || item['sent_to_zatca'] == 1,
+      icv: item['icv']?.toString(),
+      uuid: item['uuid']?.toString(),
+      portalMode: item['portal_mode']?.toString(),
+      signingTime: item['signing_time']?.toString(),
+    );
   }
 
   Future<Customer> createCustomer({
@@ -1141,6 +1437,8 @@ class Api {
             product: product,
             quantity: _number(line['quantity']).round(),
             discount: _money(line['line_discount_amount']),
+            sellLineId: line['id']?.toString(),
+            quantityReturned: _number(line['quantity_returned']).round(),
           );
         })
         .whereType<CartLine>()

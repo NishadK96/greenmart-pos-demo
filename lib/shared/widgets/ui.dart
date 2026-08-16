@@ -193,6 +193,11 @@ class ProductImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      // EazyERP's uploaded product assets are served without CORS headers.
+      // Flutter Web normally fetches the bytes and the browser blocks that
+      // request. Falling back to a native HTML image keeps the same widget API
+      // and also remains harmless on Android, iOS and desktop.
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
       errorBuilder: (_, __, ___) => placeholder,
     );
   }

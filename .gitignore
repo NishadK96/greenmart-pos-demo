@@ -53,3 +53,7 @@ app.*.map.json
 # Local backend checkout and Docker runtime data
 /Eazyerp/
 /tmp/
+# Local backend checkout and visual QA artifacts
+Eazyerp-zatca-test/
+design-qa-*.png
+output/

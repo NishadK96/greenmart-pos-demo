@@ -19,6 +19,7 @@ const destinations = [
   ('/sales', 'Sales', Icons.receipt_long_outlined),
   ('/reports', 'Reports', Icons.query_stats),
   ('/sync', 'Sync', Icons.sync),
+  ('/zatca', 'ZATCA', Icons.verified_user_outlined),
   ('/settings', 'Settings', Icons.settings_outlined),
 ];
 

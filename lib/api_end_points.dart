@@ -21,6 +21,9 @@ abstract final class ApiEndPoints {
   static const productSkuCheckUrl = '$productWritesUrl/check-sku';
   static const customersUrl = '${Config.baseUrl}/connector/api/contactapi';
   static const salesUrl = '${Config.baseUrl}/connector/api/sell';
+  static const saleReturnsUrl = '${Config.baseUrl}/connector/api/sell-return';
+  static const saleReturnsListUrl =
+      '${Config.baseUrl}/connector/api/list-sell-return';
   static const locationsUrl =
       '${Config.baseUrl}/connector/api/business-location';
   static const paymentMethodsUrl =
@@ -40,4 +43,19 @@ abstract final class ApiEndPoints {
   static const purchasesUrl = '${Config.baseUrl}/connector/api/purchases';
   static const purchaseReturnsUrl =
       '${Config.baseUrl}/connector/api/purchase-returns';
+  static const zatcaStatusUrl = '${Config.baseUrl}/connector/api/zatca/status';
+  static String zatcaOnboardingUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/zatca/onboarding/$locationId';
+  static String zatcaInvoiceUrl(String saleId) =>
+      '${Config.baseUrl}/connector/api/zatca/invoices/$saleId';
+  static String zatcaInvoiceSyncUrl(String saleId) =>
+      '${zatcaInvoiceUrl(saleId)}/sync';
+  static String zatcaReturnSyncUrl(String returnId) =>
+      '${Config.baseUrl}/connector/api/zatca/returns/$returnId/sync';
+  static String zatcaInvoiceQrUrl(String saleId) =>
+      '${zatcaInvoiceUrl(saleId)}/qr';
+  static String zatcaInvoiceXmlUrl(String saleId) =>
+      '${zatcaInvoiceUrl(saleId)}/xml';
+  static String zatcaInvoicePdfUrl(String saleId) =>
+      '${zatcaInvoiceUrl(saleId)}/pdf';
 }

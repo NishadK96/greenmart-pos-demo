@@ -112,6 +112,25 @@ class BackendController extends AsyncNotifier<void> {
     return sale;
   }
 
+  Future<String> createSaleReturn({
+    required Sale sale,
+    required Map<String, int> quantities,
+  }) async {
+    final reference = await ref
+        .read(backendRepositoryProvider)
+        .createSaleReturn(
+          accessToken: await _token(),
+          sale: sale,
+          quantities: quantities,
+        );
+    ref.invalidateSelf();
+    return reference;
+  }
+
+  Future<List<SaleReturnRecord>> saleReturns() async => ref
+      .read(backendRepositoryProvider)
+      .saleReturns(accessToken: await _token());
+
   Future<Product> createProduct(
     ProductDraft draft, {
     bool quick = false,

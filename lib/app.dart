@@ -12,6 +12,7 @@ import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
 import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
+import 'features/zatca/presentation/zatca_screen.dart';
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
     NoTransitionPage<void>(key: state.pageKey, child: child);
@@ -103,6 +104,10 @@ final _router = GoRouter(
           path: '/settings',
           pageBuilder: (_, state) =>
               _instantPage(state, const SettingsScreen()),
+        ),
+        GoRoute(
+          path: '/zatca',
+          pageBuilder: (_, state) => _instantPage(state, const ZatcaScreen()),
         ),
       ],
     ),

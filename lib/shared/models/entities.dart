@@ -145,9 +145,52 @@ class Customer {
     this.email = '',
     this.address = '',
     this.taxNumber,
+    this.businessName = '',
+    this.commercialRegistrationNumber = '',
+    this.addressLine1 = '',
+    this.addressLine2 = '',
+    this.city = '',
+    this.state = '',
+    this.country = '',
+    this.zipCode = '',
+    this.contactId = '',
+    this.prefix = '',
+    this.middleName = '',
+    this.lastName = '',
+    this.alternateNumber = '',
+    this.landline = '',
+    this.dateOfBirth = '',
+    this.customerGroupId = '',
+    this.payTermNumber = '',
+    this.payTermType = 'days',
+    this.shippingAddress = '',
+    this.position = '',
   });
   final String id, name, phone, email, address;
   final String? taxNumber;
+  final String businessName,
+      commercialRegistrationNumber,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      country,
+      zipCode,
+      contactId,
+      prefix,
+      middleName,
+      lastName,
+      alternateNumber,
+      landline,
+      dateOfBirth,
+      customerGroupId,
+      payTermNumber,
+      payTermType,
+      shippingAddress,
+      position;
+
+  bool get isBusiness =>
+      businessName.trim().isNotEmpty || (taxNumber?.trim().isNotEmpty ?? false);
 }
 
 class BusinessLocation {

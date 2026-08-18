@@ -46,6 +46,95 @@ void main() {
     expect(result.failure, LoginFailure.invalidCredentials);
   });
 
+  test('business customer sends ZATCA identity and address fields', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/contactapi');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['type'], 'customer');
+        expect(body['first_name'], 'Ahmed Ali');
+        expect(body['supplier_business_name'], 'Acme Trading');
+        expect(body['tax_number'], '300000000000003');
+        expect(body['commercial_registration_number'], 'CR-1024');
+        expect(body['address_line_1'], 'King Fahd Road');
+        expect(body['city'], 'Riyadh');
+        expect(body['country'], 'Saudi Arabia');
+        expect(body['contact_id'], 'CUST-42');
+        expect(body['prefix'], 'Mr');
+        expect(body['middle_name'], 'Hassan');
+        expect(body['last_name'], 'Ali');
+        expect(body['alternate_number'], '0110000000');
+        expect(body['landline'], '0111111111');
+        expect(body['dob'], '1990-01-02');
+        expect(body['customer_group_id'], '7');
+        expect(body['pay_term_number'], '30');
+        expect(body['pay_term_type'], 'days');
+        expect(body['shipping_address'], 'Warehouse 4, Riyadh');
+        expect(body['position'], 'Purchasing manager');
+        return http.Response(
+          jsonEncode({
+            'data': {
+              'id': 42,
+              'name': 'Ahmed Ali',
+              'mobile': '0500000000',
+              'supplier_business_name': 'Acme Trading',
+              'tax_number': '300000000000003',
+              'commercial_registration_number': 'CR-1024',
+              'address_line_1': 'King Fahd Road',
+              'city': 'Riyadh',
+              'country': 'Saudi Arabia',
+              'contact_id': 'CUST-42',
+              'prefix': 'Mr',
+              'middle_name': 'Hassan',
+              'last_name': 'Ali',
+              'alternate_number': '0110000000',
+              'landline': '0111111111',
+              'dob': '1990-01-02',
+              'customer_group_id': 7,
+              'pay_term_number': 30,
+              'pay_term_type': 'days',
+              'shipping_address': 'Warehouse 4, Riyadh',
+              'position': 'Purchasing manager',
+            },
+          }),
+          201,
+        );
+      }),
+    );
+
+    final customer = await api.createCustomer(
+      accessToken: 'token-123',
+      name: 'Ahmed Ali',
+      mobile: '0500000000',
+      businessName: 'Acme Trading',
+      taxNumber: '300000000000003',
+      commercialRegistrationNumber: 'CR-1024',
+      addressLine1: 'King Fahd Road',
+      city: 'Riyadh',
+      country: 'Saudi Arabia',
+      contactId: 'CUST-42',
+      prefix: 'Mr',
+      middleName: 'Hassan',
+      lastName: 'Ali',
+      alternateNumber: '0110000000',
+      landline: '0111111111',
+      dateOfBirth: '1990-01-02',
+      customerGroupId: '7',
+      payTermNumber: '30',
+      payTermType: 'days',
+      shippingAddress: 'Warehouse 4, Riyadh',
+      position: 'Purchasing manager',
+    );
+
+    expect(customer.isBusiness, isTrue);
+    expect(customer.businessName, 'Acme Trading');
+    expect(customer.address, 'King Fahd Road, Riyadh, Saudi Arabia');
+    expect(customer.contactId, 'CUST-42');
+    expect(customer.middleName, 'Hassan');
+    expect(customer.shippingAddress, 'Warehouse 4, Riyadh');
+  });
+
   test('sale return sends selected backend sell-line quantities', () async {
     final product = Product(
       id: '3',

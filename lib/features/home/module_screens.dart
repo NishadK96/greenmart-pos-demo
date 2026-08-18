@@ -2667,6 +2667,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         .where(
           (customer) =>
               customer.name.toLowerCase().contains(query.toLowerCase()) ||
+              customer.businessName.toLowerCase().contains(
+                query.toLowerCase(),
+              ) ||
               customer.phone.contains(query) ||
               customer.email.toLowerCase().contains(query.toLowerCase()),
         )
@@ -2701,13 +2704,34 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   final c = customers[i];
                   return ListTile(
                     onTap: () => _customerForm(context, ref, c),
-                    leading: CircleAvatar(child: Text(c.name[0])),
+                    leading: CircleAvatar(
+                      child: Icon(
+                        c.isBusiness
+                            ? Icons.storefront_outlined
+                            : Icons.person_outline,
+                      ),
+                    ),
                     title: Text(
-                      c.name,
+                      c.isBusiness && c.businessName.isNotEmpty
+                          ? c.businessName
+                          : c.name,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    subtitle: Text(
-                      c.phone.isEmpty ? 'Default billing customer' : c.phone,
+                    subtitle: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: c.phone.isEmpty
+                                ? 'Default billing customer'
+                                : c.phone,
+                          ),
+                          if (c.isBusiness && c.name.isNotEmpty)
+                            TextSpan(text: '  •  ${c.name}'),
+                          TextSpan(
+                            text: '  •  ${c.isBusiness ? 'B2B' : 'B2C'}',
+                          ),
+                        ],
+                      ),
                     ),
                     trailing: const Icon(Icons.chevron_right),
                   );
@@ -2728,60 +2752,526 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final name = TextEditingController(text: existing?.name);
     final mobile = TextEditingController(text: existing?.phone);
     final email = TextEditingController(text: existing?.email);
+    final businessName = TextEditingController(text: existing?.businessName);
+    final taxNumber = TextEditingController(text: existing?.taxNumber);
+    final registrationNumber = TextEditingController(
+      text: existing?.commercialRegistrationNumber,
+    );
+    final addressLine1 = TextEditingController(text: existing?.addressLine1);
+    final addressLine2 = TextEditingController(text: existing?.addressLine2);
+    final city = TextEditingController(text: existing?.city);
+    final state = TextEditingController(text: existing?.state);
+    final country = TextEditingController(
+      text: existing?.country.isNotEmpty == true
+          ? existing!.country
+          : 'Saudi Arabia',
+    );
+    final zipCode = TextEditingController(text: existing?.zipCode);
+    final contactId = TextEditingController(text: existing?.contactId);
+    final prefix = TextEditingController(text: existing?.prefix);
+    final middleName = TextEditingController(text: existing?.middleName);
+    final lastName = TextEditingController(text: existing?.lastName);
+    final alternateNumber = TextEditingController(
+      text: existing?.alternateNumber,
+    );
+    final landline = TextEditingController(text: existing?.landline);
+    final dateOfBirth = TextEditingController(text: existing?.dateOfBirth);
+    final customerGroupId = TextEditingController(
+      text: existing?.customerGroupId,
+    );
+    final payTermNumber = TextEditingController(text: existing?.payTermNumber);
+    final shippingAddress = TextEditingController(
+      text: existing?.shippingAddress,
+    );
+    final position = TextEditingController(text: existing?.position);
     final formKey = GlobalKey<FormState>();
+    var isBusiness = existing?.isBusiness ?? false;
+    var payTermType = existing?.payTermType.isNotEmpty == true
+        ? existing!.payTermType
+        : 'days';
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        final screenSize = MediaQuery.sizeOf(dialogContext);
+        final dialogWidth = math.min(
+          760.0,
+          math.max(280.0, screenSize.width - 84),
+        );
+        final dialogHeight = math.min(650.0, screenSize.height - 180);
         var saving = false;
         String? error;
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
-            title: Text(
-              context.tr(existing == null ? 'Add customer' : 'Edit customer'),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 20,
+            ),
+            titlePadding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
+            contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+            title: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: .10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isBusiness
+                        ? Icons.storefront_outlined
+                        : Icons.person_outline,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr(
+                          existing == null ? 'Add customer' : 'Edit customer',
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isBusiness
+                            ? 'Create a ZATCA-ready business customer'
+                            : 'Create a customer for simplified invoices',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.muted,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.tr('Close'),
+                  onPressed: saving ? null : () => Navigator.pop(dialogContext),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
             ),
             content: Form(
               key: formKey,
               child: SizedBox(
-                width: 430,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: name,
-                      decoration: InputDecoration(
-                        labelText: context.tr('Customer name'),
-                      ),
-                      validator: (value) =>
+                width: dialogWidth,
+                height: dialogHeight,
+                child: SingleChildScrollView(
+                  child: Builder(
+                    builder: (context) {
+                      final fieldWidth = dialogWidth >= 680
+                          ? (dialogWidth - 12) / 2
+                          : dialogWidth;
+                      Widget field(
+                        TextEditingController controller,
+                        String label,
+                        IconData icon, {
+                        String? hint,
+                        TextInputType? keyboardType,
+                        String? Function(String?)? validator,
+                      }) => SizedBox(
+                        width: fieldWidth,
+                        child: TextFormField(
+                          controller: controller,
+                          keyboardType: keyboardType,
+                          decoration: InputDecoration(
+                            labelText: context.tr(label),
+                            hintText: hint,
+                            prefixIcon: Icon(icon, size: 20),
+                          ),
+                          validator: validator,
+                        ),
+                      );
+                      String? requiredValue(String? value) =>
                           value == null || value.trim().isEmpty
                           ? context.tr('Required')
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: mobile,
-                      decoration: InputDecoration(
-                        labelText: context.tr('Mobile'),
-                      ),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                          ? context.tr('Required')
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: email,
-                      decoration: InputDecoration(
-                        labelText: context.tr('Email'),
-                      ),
-                    ),
-                    if (error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        error!,
-                        style: const TextStyle(color: AppColors.danger),
-                      ),
-                    ],
-                  ],
+                          : null;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Invoice customer type',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: false,
+                                  icon: Icon(Icons.person_outline),
+                                  label: Text('Individual (B2C)'),
+                                ),
+                                ButtonSegment(
+                                  value: true,
+                                  icon: Icon(Icons.storefront_outlined),
+                                  label: Text('Business (B2B)'),
+                                ),
+                              ],
+                              selected: {isBusiness},
+                              onSelectionChanged: saving
+                                  ? null
+                                  : (selection) => setState(
+                                      () => isBusiness = selection.first,
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: .06),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  size: 19,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    isBusiness
+                                        ? 'B2B invoices use the company VAT and registered address for ZATCA clearance.'
+                                        : 'B2C customers use the simplified invoice flow. Business tax fields are not required.',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.badge_outlined,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Contact type',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              const Spacer(),
+                              Chip(
+                                avatar: const Icon(
+                                  Icons.person_outline,
+                                  size: 17,
+                                ),
+                                label: const Text('Customer'),
+                                side: BorderSide.none,
+                                backgroundColor: AppColors.primary.withValues(
+                                  alpha: .08,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const _CustomerFormSectionTitle(
+                            icon: Icons.person_outline,
+                            title: 'Contact details',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              field(
+                                name,
+                                isBusiness ? 'Contact person' : 'First name',
+                                Icons.person_outline,
+                                validator: requiredValue,
+                              ),
+                              if (!isBusiness)
+                                field(
+                                  prefix,
+                                  'Prefix',
+                                  Icons.person_outline,
+                                  hint: 'Mr / Mrs / Miss',
+                                ),
+                              if (!isBusiness)
+                                field(
+                                  middleName,
+                                  'Middle name',
+                                  Icons.person_outline,
+                                ),
+                              if (!isBusiness)
+                                field(
+                                  lastName,
+                                  'Last name',
+                                  Icons.person_outline,
+                                ),
+                              field(
+                                mobile,
+                                'Mobile',
+                                Icons.phone_outlined,
+                                keyboardType: TextInputType.phone,
+                                validator: requiredValue,
+                              ),
+                              field(
+                                alternateNumber,
+                                'Alternate contact number',
+                                Icons.phone_outlined,
+                                keyboardType: TextInputType.phone,
+                              ),
+                              field(
+                                landline,
+                                'Landline',
+                                Icons.call_outlined,
+                                keyboardType: TextInputType.phone,
+                              ),
+                              field(
+                                email,
+                                'Email',
+                                Icons.email_outlined,
+                                keyboardType: TextInputType.emailAddress,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isNotEmpty && !text.contains('@')) {
+                                    return 'Enter a valid email address';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                          ),
+                          if (isBusiness) ...[
+                            const SizedBox(height: 22),
+                            const Divider(),
+                            const SizedBox(height: 14),
+                            const _CustomerFormSectionTitle(
+                              icon: Icons.business_outlined,
+                              title: 'Business & ZATCA details',
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Fields marked required are used to produce a standard B2B tax invoice.',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                field(
+                                  businessName,
+                                  'Business name',
+                                  Icons.storefront_outlined,
+                                  validator: requiredValue,
+                                ),
+                                field(
+                                  taxNumber,
+                                  'VAT number',
+                                  Icons.receipt_long_outlined,
+                                  hint: '15 digits, starts and ends with 3',
+                                  keyboardType: TextInputType.number,
+                                  validator: (value) {
+                                    final vat = value?.trim() ?? '';
+                                    if (vat.isEmpty)
+                                      return context.tr('Required');
+                                    if (!RegExp(r'^3\d{13}3$').hasMatch(vat)) {
+                                      return 'Enter a valid 15-digit Saudi VAT number';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                field(
+                                  registrationNumber,
+                                  'Commercial registration number',
+                                  Icons.badge_outlined,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            const _CustomerFormSectionTitle(
+                              icon: Icons.location_on_outlined,
+                              title: 'Registered address',
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                field(
+                                  addressLine1,
+                                  'Address line 1',
+                                  Icons.location_on_outlined,
+                                  validator: requiredValue,
+                                ),
+                                field(
+                                  addressLine2,
+                                  'Address line 2',
+                                  Icons.location_on_outlined,
+                                ),
+                                field(
+                                  city,
+                                  'City',
+                                  Icons.location_city_outlined,
+                                  validator: requiredValue,
+                                ),
+                                field(
+                                  state,
+                                  'State / Province',
+                                  Icons.map_outlined,
+                                ),
+                                field(
+                                  country,
+                                  'Country',
+                                  Icons.public_outlined,
+                                  validator: requiredValue,
+                                ),
+                                field(
+                                  zipCode,
+                                  'Postal code',
+                                  Icons.markunread_mailbox_outlined,
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding: const EdgeInsets.only(bottom: 8),
+                            leading: const Icon(
+                              Icons.more_horiz,
+                              color: AppColors.primary,
+                            ),
+                            title: const Text(
+                              'More information',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            subtitle: const Text(
+                              'Optional identifiers, terms and delivery details',
+                            ),
+                            children: [
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  field(
+                                    contactId,
+                                    'Contact ID',
+                                    Icons.badge_outlined,
+                                    hint: 'Leave blank to auto-generate',
+                                  ),
+                                  field(
+                                    customerGroupId,
+                                    'Customer group ID',
+                                    Icons.groups_outlined,
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                  if (!isBusiness)
+                                    field(
+                                      dateOfBirth,
+                                      'Date of birth',
+                                      Icons.cake_outlined,
+                                      hint: 'YYYY-MM-DD',
+                                      keyboardType: TextInputType.datetime,
+                                      validator: (value) {
+                                        final text = value?.trim() ?? '';
+                                        if (text.isNotEmpty &&
+                                            !RegExp(
+                                              r'^\d{4}-\d{2}-\d{2}$',
+                                            ).hasMatch(text)) {
+                                          return 'Use YYYY-MM-DD';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  field(
+                                    position,
+                                    'Position / designation',
+                                    Icons.work_outline,
+                                  ),
+                                  field(
+                                    payTermNumber,
+                                    'Payment term',
+                                    Icons.calendar_month_outlined,
+                                    hint: 'e.g. 30',
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                  SizedBox(
+                                    width: fieldWidth,
+                                    child: DropdownButtonFormField<String>(
+                                      initialValue: payTermType,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Payment term unit',
+                                        prefixIcon: Icon(
+                                          Icons.schedule_outlined,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      items: const [
+                                        DropdownMenuItem(
+                                          value: 'days',
+                                          child: Text('Days'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'months',
+                                          child: Text('Months'),
+                                        ),
+                                      ],
+                                      onChanged: saving
+                                          ? null
+                                          : (value) => setState(
+                                              () =>
+                                                  payTermType = value ?? 'days',
+                                            ),
+                                    ),
+                                  ),
+                                  field(
+                                    shippingAddress,
+                                    'Shipping address',
+                                    Icons.local_shipping_outlined,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: .08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              'Assigned user and additional contact persons require dedicated backend endpoints. They are not added as unsaved placeholder fields.',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          if (error != null) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              error!,
+                              style: const TextStyle(color: AppColors.danger),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -2808,6 +3298,41 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               name: name.text.trim(),
                               mobile: mobile.text.trim(),
                               email: email.text.trim(),
+                              taxNumber: isBusiness
+                                  ? taxNumber.text.trim()
+                                  : '',
+                              businessName: isBusiness
+                                  ? businessName.text.trim()
+                                  : '',
+                              commercialRegistrationNumber: isBusiness
+                                  ? registrationNumber.text.trim()
+                                  : '',
+                              addressLine1: isBusiness
+                                  ? addressLine1.text.trim()
+                                  : '',
+                              addressLine2: isBusiness
+                                  ? addressLine2.text.trim()
+                                  : '',
+                              city: isBusiness ? city.text.trim() : '',
+                              state: isBusiness ? state.text.trim() : '',
+                              country: isBusiness ? country.text.trim() : '',
+                              zipCode: isBusiness ? zipCode.text.trim() : '',
+                              contactId: contactId.text.trim(),
+                              prefix: isBusiness ? '' : prefix.text.trim(),
+                              middleName: isBusiness
+                                  ? ''
+                                  : middleName.text.trim(),
+                              lastName: isBusiness ? '' : lastName.text.trim(),
+                              alternateNumber: alternateNumber.text.trim(),
+                              landline: landline.text.trim(),
+                              dateOfBirth: isBusiness
+                                  ? ''
+                                  : dateOfBirth.text.trim(),
+                              customerGroupId: customerGroupId.text.trim(),
+                              payTermNumber: payTermNumber.text.trim(),
+                              payTermType: payTermType,
+                              shippingAddress: shippingAddress.text.trim(),
+                              position: position.text.trim(),
                             );
                           } else {
                             await controller.updateCustomer(
@@ -2815,7 +3340,41 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               name: name.text.trim(),
                               mobile: mobile.text.trim(),
                               email: email.text.trim(),
-                              taxNumber: existing.taxNumber ?? '',
+                              taxNumber: isBusiness
+                                  ? taxNumber.text.trim()
+                                  : '',
+                              businessName: isBusiness
+                                  ? businessName.text.trim()
+                                  : '',
+                              commercialRegistrationNumber: isBusiness
+                                  ? registrationNumber.text.trim()
+                                  : '',
+                              addressLine1: isBusiness
+                                  ? addressLine1.text.trim()
+                                  : '',
+                              addressLine2: isBusiness
+                                  ? addressLine2.text.trim()
+                                  : '',
+                              city: isBusiness ? city.text.trim() : '',
+                              state: isBusiness ? state.text.trim() : '',
+                              country: isBusiness ? country.text.trim() : '',
+                              zipCode: isBusiness ? zipCode.text.trim() : '',
+                              contactId: contactId.text.trim(),
+                              prefix: isBusiness ? '' : prefix.text.trim(),
+                              middleName: isBusiness
+                                  ? ''
+                                  : middleName.text.trim(),
+                              lastName: isBusiness ? '' : lastName.text.trim(),
+                              alternateNumber: alternateNumber.text.trim(),
+                              landline: landline.text.trim(),
+                              dateOfBirth: isBusiness
+                                  ? ''
+                                  : dateOfBirth.text.trim(),
+                              customerGroupId: customerGroupId.text.trim(),
+                              payTermNumber: payTermNumber.text.trim(),
+                              payTermType: payTermType,
+                              shippingAddress: shippingAddress.text.trim(),
+                              position: position.text.trim(),
                             );
                           }
                           if (dialogContext.mounted) {
@@ -2844,7 +3403,43 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     name.dispose();
     mobile.dispose();
     email.dispose();
+    businessName.dispose();
+    taxNumber.dispose();
+    registrationNumber.dispose();
+    addressLine1.dispose();
+    addressLine2.dispose();
+    city.dispose();
+    state.dispose();
+    country.dispose();
+    zipCode.dispose();
+    contactId.dispose();
+    prefix.dispose();
+    middleName.dispose();
+    lastName.dispose();
+    alternateNumber.dispose();
+    landline.dispose();
+    dateOfBirth.dispose();
+    customerGroupId.dispose();
+    payTermNumber.dispose();
+    shippingAddress.dispose();
+    position.dispose();
   }
+}
+
+class _CustomerFormSectionTitle extends StatelessWidget {
+  const _CustomerFormSectionTitle({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 20, color: AppColors.primary),
+      const SizedBox(width: 8),
+      Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+    ],
+  );
 }
 
 class SalesScreen extends ConsumerStatefulWidget {

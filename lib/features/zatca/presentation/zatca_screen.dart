@@ -4,154 +4,892 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../domain/zatca_entities.dart';
 import 'zatca_controller.dart';
 
-class ZatcaScreen extends ConsumerWidget {
+class ZatcaScreen extends ConsumerStatefulWidget {
   const ZatcaScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ZatcaScreen> createState() => _ZatcaScreenState();
+}
+
+class _ZatcaScreenState extends ConsumerState<ZatcaScreen> {
+  int tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final status = ref.watch(zatcaControllerProvider);
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: status.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ZatcaError(
-          message: error.toString(),
-          onRetry: () =>
-              ref.read(zatcaControllerProvider.notifier).refreshStatus(),
+      child: Column(
+        children: [
+          _ZatcaNavigation(
+            selected: tab,
+            onSelected: (value) => setState(() => tab = value),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: switch (tab) {
+              1 => const _TransactionsTab(isReturn: false),
+              2 => const _TransactionsTab(isReturn: true),
+              3 => const _SettingsTab(),
+              _ => status.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _ZatcaError(
+                  message: error.toString(),
+                  onRetry: () => ref
+                      .read(zatcaControllerProvider.notifier)
+                      .refreshStatus(),
+                ),
+                data: (data) => RefreshIndicator(
+                  onRefresh: () => ref
+                      .read(zatcaControllerProvider.notifier)
+                      .refreshStatus(),
+                  child: ListView(
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ZATCA e-invoicing',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Manage compliance, EGS devices and invoice submissions.',
+                                  style: TextStyle(color: AppColors.muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton.outlined(
+                            tooltip: 'Refresh status',
+                            onPressed: () => ref
+                                .read(zatcaControllerProvider.notifier)
+                                .refreshStatus(),
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _IntegrationBanner(status: data),
+                      const SizedBox(height: 14),
+                      LayoutBuilder(
+                        builder: (_, constraints) => GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: constraints.maxWidth >= 850 ? 3 : 1,
+                          childAspectRatio: constraints.maxWidth >= 850
+                              ? 2.5
+                              : 3.2,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          children: [
+                            _Metric(
+                              'Pending',
+                              data.totals.pending,
+                              Icons.schedule_outlined,
+                              const Color(0xFFB7791F),
+                            ),
+                            _Metric(
+                              'Successful',
+                              data.totals.success,
+                              Icons.verified_outlined,
+                              const Color(0xFF16885F),
+                            ),
+                            _Metric(
+                              'Failed',
+                              data.totals.failed,
+                              Icons.error_outline,
+                              const Color(0xFFC94B4B),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Surface(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(18, 18, 18, 12),
+                              child: Text(
+                                'EGS devices / business locations',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (data.locations.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(28),
+                                child: EmptyState(
+                                  'No permitted business locations were returned.',
+                                ),
+                              )
+                            else
+                              for (final location in data.locations)
+                                _LocationRow(
+                                  location: location,
+                                  enabled:
+                                      data.installed &&
+                                      data.subscriptionEnabled,
+                                  onConfigure: () => showDialog<void>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (_) =>
+                                        _OnboardingDialog(location: location),
+                                  ),
+                                ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Surface(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.security_outlined,
+                              color: AppColors.primary,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Security: the six-digit Fatoora OTP is sent directly to the backend for onboarding and is never saved by this app. Certificates, private keys and client secrets remain backend-only.',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZatcaNavigation extends StatelessWidget {
+  const _ZatcaNavigation({required this.selected, required this.onSelected});
+  final int selected;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: SegmentedButton<int>(
+      segments: const [
+        ButtonSegment(
+          value: 0,
+          icon: Icon(Icons.dashboard_outlined),
+          label: Text('Overview'),
         ),
-        data: (data) => RefreshIndicator(
-          onRefresh: () =>
-              ref.read(zatcaControllerProvider.notifier).refreshStatus(),
-          child: ListView(
+        ButtonSegment(
+          value: 1,
+          icon: Icon(Icons.receipt_long_outlined),
+          label: Text('Sales invoices'),
+        ),
+        ButtonSegment(
+          value: 2,
+          icon: Icon(Icons.assignment_return_outlined),
+          label: Text('Sale returns'),
+        ),
+        ButtonSegment(
+          value: 3,
+          icon: Icon(Icons.tune_outlined),
+          label: Text('Settings'),
+        ),
+      ],
+      selected: {selected},
+      onSelectionChanged: (value) => onSelected(value.first),
+      showSelectedIcon: false,
+    ),
+  );
+}
+
+class _TransactionsTab extends ConsumerStatefulWidget {
+  const _TransactionsTab({required this.isReturn});
+  final bool isReturn;
+
+  @override
+  ConsumerState<_TransactionsTab> createState() => _TransactionsTabState();
+}
+
+class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
+  final search = TextEditingController();
+  final selected = <String>{};
+  String status = '';
+  int page = 1;
+  bool syncing = false;
+  late Future<ZatcaPage> future;
+
+  @override
+  void initState() {
+    super.initState();
+    future = _load();
+  }
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  Future<ZatcaPage> _load() {
+    final filter = ZatcaListFilter(
+      status: status,
+      search: search.text.trim(),
+      page: page,
+      perPage: 20,
+    );
+    final controller = ref.read(zatcaControllerProvider.notifier);
+    return widget.isReturn
+        ? controller.returns(filter)
+        : controller.invoices(filter);
+  }
+
+  void _reload({bool firstPage = false}) {
+    if (firstPage) page = 1;
+    setState(() => future = _load());
+  }
+
+  Future<void> _syncSelected() async {
+    if (selected.isEmpty || syncing) return;
+    setState(() => syncing = true);
+    try {
+      final controller = ref.read(zatcaControllerProvider.notifier);
+      final result = widget.isReturn
+          ? await controller.syncReturnsBulk(selected.toList())
+          : await controller.syncInvoicesBulk(selected.toList());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.successful} synchronized, ${result.failed} failed.',
+          ),
+        ),
+      );
+      selected.clear();
+      _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => syncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      LayoutBuilder(
+        builder: (_, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final title = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ZATCA e-invoicing',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Manage compliance, EGS devices and invoice submissions.',
-                          style: TextStyle(color: AppColors.muted),
-                        ),
-                      ],
+              Text(
+                widget.isReturn ? 'ZATCA sale returns' : 'ZATCA sales invoices',
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Text(
+                'Review submission status and manually synchronize queued records.',
+                style: TextStyle(color: AppColors.muted),
+              ),
+            ],
+          );
+          final action = FilledButton.icon(
+            onPressed: selected.isEmpty || syncing ? null : _syncSelected,
+            icon: syncing
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: Text('Sync selected (${selected.length})'),
+          );
+          return compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [title, const SizedBox(height: 12), action],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: title),
+                    action,
+                  ],
+                );
+        },
+      ),
+      const SizedBox(height: 14),
+      Surface(
+        child: LayoutBuilder(
+          builder: (_, constraints) => Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              SizedBox(
+                width: constraints.maxWidth < 680 ? constraints.maxWidth : 420,
+                child: TextField(
+                  controller: search,
+                  onSubmitted: (_) => _reload(firstPage: true),
+                  decoration: InputDecoration(
+                    hintText: 'Search invoice, customer or mobile',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      onPressed: () => _reload(firstPage: true),
+                      icon: const Icon(Icons.arrow_forward),
                     ),
                   ),
-                  IconButton.outlined(
-                    tooltip: 'Refresh status',
-                    onPressed: () => ref
-                        .read(zatcaControllerProvider.notifier)
-                        .refreshStatus(),
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _IntegrationBanner(status: data),
-              const SizedBox(height: 14),
-              LayoutBuilder(
-                builder: (_, constraints) => GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: constraints.maxWidth >= 850 ? 3 : 1,
-                  childAspectRatio: constraints.maxWidth >= 850 ? 2.5 : 3.2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  children: [
-                    _Metric(
-                      'Pending',
-                      data.totals.pending,
-                      Icons.schedule_outlined,
-                      const Color(0xFFB7791F),
-                    ),
-                    _Metric(
-                      'Successful',
-                      data.totals.success,
-                      Icons.verified_outlined,
-                      const Color(0xFF16885F),
-                    ),
-                    _Metric(
-                      'Failed',
-                      data.totals.failed,
-                      Icons.error_outline,
-                      const Color(0xFFC94B4B),
-                    ),
-                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Surface(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(18, 18, 18, 12),
-                      child: Text(
-                        'EGS devices / business locations',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+              SizedBox(
+                width: 190,
+                child: DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'ZATCA status'),
+                  items: const [
+                    DropdownMenuItem(value: '', child: Text('All statuses')),
+                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(
+                      value: 'not_synced',
+                      child: Text('Not synced'),
                     ),
-                    if (data.locations.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(28),
-                        child: EmptyState(
-                          'No permitted business locations were returned.',
-                        ),
-                      )
-                    else
-                      for (final location in data.locations)
-                        _LocationRow(
-                          location: location,
-                          enabled: data.installed && data.subscriptionEnabled,
-                          onConfigure: () => showDialog<void>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) =>
-                                _OnboardingDialog(location: location),
-                          ),
-                        ),
+                    DropdownMenuItem(
+                      value: 'success',
+                      child: Text('Successful'),
+                    ),
+                    DropdownMenuItem(value: 'failed', child: Text('Failed')),
                   ],
+                  onChanged: (value) {
+                    status = value ?? '';
+                    _reload(firstPage: true);
+                  },
                 ),
               ),
-              const SizedBox(height: 16),
-              const Surface(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.security_outlined, color: AppColors.primary),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Security: the six-digit Fatoora OTP is sent directly to the backend for onboarding and is never saved by this app. Certificates, private keys and client secrets remain backend-only.',
-                        style: TextStyle(color: AppColors.muted, height: 1.45),
-                      ),
-                    ),
-                  ],
-                ),
+              IconButton.outlined(
+                tooltip: 'Refresh',
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh),
               ),
             ],
           ),
         ),
       ),
+      const SizedBox(height: 12),
+      Expanded(
+        child: FutureBuilder<ZatcaPage>(
+          future: future,
+          builder: (_, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return _ZatcaError(
+                message: snapshot.error.toString(),
+                onRetry: _reload,
+              );
+            }
+            final data = snapshot.requireData;
+            if (data.items.isEmpty) {
+              return const Surface(
+                child: EmptyState('No ZATCA records match these filters.'),
+              );
+            }
+            return Surface(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: data.items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final item = data.items[index];
+                        return CheckboxListTile(
+                          value: selected.contains(item.id),
+                          onChanged: (checked) => setState(() {
+                            checked == true
+                                ? selected.add(item.id)
+                                : selected.remove(item.id);
+                          }),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.invoiceNo,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              StatusBadge(
+                                item.status,
+                                color: _zatcaStatusColor(item.status),
+                              ),
+                            ],
+                          ),
+                          subtitle: Text(
+                            '${item.customerName ?? 'Walk-in Customer'} • ${item.locationName ?? 'Location unavailable'}\n${item.transactionDate} • ${money(toPaise(item.total))}',
+                          ),
+                          secondary: IconButton(
+                            tooltip: 'Open ZATCA record',
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => _TransactionDialog(
+                                item: item,
+                                isReturn: widget.isReturn,
+                                onChanged: _reload,
+                              ),
+                            ),
+                            icon: const Icon(Icons.more_vert),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text('${data.total} records')),
+                        IconButton(
+                          onPressed: page > 1
+                              ? () {
+                                  page--;
+                                  _reload();
+                                }
+                              : null,
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Text('${data.currentPage} / ${data.lastPage}'),
+                        IconButton(
+                          onPressed: page < data.lastPage
+                              ? () {
+                                  page++;
+                                  _reload();
+                                }
+                              : null,
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
+}
+
+Color _zatcaStatusColor(String status) => switch (status.toLowerCase()) {
+  'success' || 'successful' => AppColors.primary,
+  'failed' => const Color(0xFFC94B4B),
+  _ => const Color(0xFFB7791F),
+};
+
+class _TransactionDialog extends ConsumerStatefulWidget {
+  const _TransactionDialog({
+    required this.item,
+    required this.isReturn,
+    required this.onChanged,
+  });
+  final ZatcaTransaction item;
+  final bool isReturn;
+  final VoidCallback onChanged;
+
+  @override
+  ConsumerState<_TransactionDialog> createState() => _TransactionDialogState();
+}
+
+class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
+  bool busy = false;
+
+  Future<void> _run(
+    Future<void> Function(ZatcaController controller) task,
+  ) async {
+    setState(() => busy = true);
+    try {
+      await task(ref.read(zatcaControllerProvider.notifier));
+      widget.onChanged();
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('ZATCA • ${widget.item.invoiceNo}'),
+    content: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 620),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('Submission status')),
+              StatusBadge(
+                widget.item.status,
+                color: _zatcaStatusColor(widget.item.status),
+              ),
+            ],
+          ),
+          const Divider(height: 28),
+          _detail('Customer', widget.item.customerName ?? 'Walk-in Customer'),
+          _detail('Location', widget.item.locationName ?? 'Unavailable'),
+          _detail('Transaction date', widget.item.transactionDate),
+          _detail('Total', money(toPaise(widget.item.total))),
+          if (widget.item.parentInvoiceNo != null)
+            _detail('Parent invoice', widget.item.parentInvoiceNo!),
+        ],
+      ),
+    ),
+    actions: [
+      FilledButton.icon(
+        onPressed: busy
+            ? null
+            : () => _run((controller) async {
+                if (widget.isReturn) {
+                  await controller.syncReturnsBulk([widget.item.id]);
+                } else {
+                  await controller.syncInvoicesBulk([widget.item.id]);
+                }
+              }),
+        icon: const Icon(Icons.sync),
+        label: const Text('Submit / retry'),
+      ),
+      if (widget.isReturn) ...[
+        OutlinedButton(
+          onPressed: busy
+              ? null
+              : () => _run((controller) async {
+                  final qr = await controller.returnQr(widget.item.id);
+                  if (context.mounted)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'QR payload available (${qr.value.length} characters).',
+                        ),
+                      ),
+                    );
+                }),
+          child: const Text('QR payload'),
+        ),
+        OutlinedButton(
+          onPressed: busy
+              ? null
+              : () => _run((controller) async {
+                  final file = await controller.downloadReturnXml(
+                    widget.item.id,
+                  );
+                  await FilePicker.platform.saveFile(
+                    fileName: file.fileName,
+                    bytes: file.bytes,
+                  );
+                }),
+          child: const Text('XML'),
+        ),
+        OutlinedButton(
+          onPressed: busy
+              ? null
+              : () => _run((controller) async {
+                  final file = await controller.downloadReturnPdf(
+                    widget.item.id,
+                  );
+                  await Printing.sharePdf(
+                    bytes: file.bytes,
+                    filename: file.fileName,
+                  );
+                }),
+          child: const Text('PDF/A-3'),
+        ),
+      ],
+      TextButton(
+        onPressed: busy ? null : () => Navigator.pop(context),
+        child: const Text('Close'),
+      ),
+    ],
+  );
+
+  Widget _detail(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+        ),
+        Expanded(child: Text(value)),
+      ],
+    ),
+  );
+}
+
+class _SettingsTab extends ConsumerStatefulWidget {
+  const _SettingsTab();
+  @override
+  ConsumerState<_SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends ConsumerState<_SettingsTab> {
+  late Future<(ZatcaSettings, ZatcaSyncSummary)> future;
+  ZatcaSettings? settings;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    future = _load();
+  }
+
+  Future<(ZatcaSettings, ZatcaSyncSummary)> _load() async {
+    final controller = ref.read(zatcaControllerProvider.notifier);
+    final result = await (controller.settings(), controller.syncSummary()).wait;
+    settings = result.$1;
+    return result;
+  }
+
+  Future<void> _save() async {
+    final value = settings;
+    if (value == null || saving) return;
+    setState(() => saving = true);
+    try {
+      settings = await ref
+          .read(zatcaControllerProvider.notifier)
+          .updateSettings({
+            'sync_frequency': value.syncFrequency,
+            'disable_discount': value.disableDiscount,
+            'disable_order_tax': value.disableOrderTax,
+            'default_sales_discount': value.defaultSalesDiscount,
+          });
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ZATCA settings saved.')));
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  void _update({String? frequency, bool? discount, bool? orderTax}) {
+    final value = settings!;
+    setState(
+      () => settings = ZatcaSettings(
+        syncFrequency: frequency ?? value.syncFrequency,
+        disableDiscount: discount ?? value.disableDiscount,
+        disableOrderTax: orderTax ?? value.disableOrderTax,
+        defaultSalesDiscount: value.defaultSalesDiscount,
+        locations: value.locations,
+      ),
     );
   }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<(ZatcaSettings, ZatcaSyncSummary)>(
+    future: future,
+    builder: (_, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting)
+        return const Center(child: CircularProgressIndicator());
+      if (snapshot.hasError)
+        return _ZatcaError(
+          message: snapshot.error.toString(),
+          onRetry: () => setState(() => future = _load()),
+        );
+      final summary = snapshot.requireData.$2;
+      final value = settings!;
+      return ListView(
+        children: [
+          const Text(
+            'ZATCA settings',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+          ),
+          const Text(
+            'Configure automatic reporting and review synchronization health.',
+            style: TextStyle(color: AppColors.muted),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (_, constraints) => GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: constraints.maxWidth >= 850 ? 4 : 2,
+              childAspectRatio: constraints.maxWidth >= 850 ? 2.2 : 1.7,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              children: [
+                _Metric(
+                  'Total invoices',
+                  summary.totalInvoices,
+                  Icons.receipt_long_outlined,
+                  const Color(0xFF3976C4),
+                ),
+                _Metric(
+                  'Pending',
+                  summary.pending,
+                  Icons.schedule_outlined,
+                  const Color(0xFFB7791F),
+                ),
+                _Metric(
+                  'Successful',
+                  summary.successful,
+                  Icons.verified_outlined,
+                  AppColors.primary,
+                ),
+                _Metric(
+                  'Failed',
+                  summary.failed,
+                  Icons.error_outline,
+                  const Color(0xFFC94B4B),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Surface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Submission policy',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: value.syncFrequency,
+                  decoration: const InputDecoration(
+                    labelText: 'Auto sync frequency',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'disable',
+                      child: Text('Manual only'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'instant',
+                      child: Text('Instant — required for B2B clearance'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'daily',
+                      child: Text('Daily — B2C reporting queue'),
+                    ),
+                  ],
+                  onChanged: (frequency) => _update(frequency: frequency),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Disable invoice discounts'),
+                  subtitle: const Text('Prevent discounts on ZATCA invoices.'),
+                  value: value.disableDiscount,
+                  onChanged: (enabled) => _update(discount: enabled),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Disable order-level tax'),
+                  subtitle: const Text('Use line-level tax calculation only.'),
+                  value: value.disableOrderTax,
+                  onChanged: (enabled) => _update(orderTax: enabled),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: saving ? null : _save,
+                    icon: saving
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: const Text('Save settings'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Surface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Business location sync windows',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                for (final location in value.locations)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.store_outlined),
+                    ),
+                    title: Text(location.name),
+                    subtitle: Text(
+                      location.syncFrom == null
+                          ? 'Sync start not configured'
+                          : 'Sync from ${location.syncFrom}',
+                    ),
+                  ),
+                const Divider(),
+                Text(
+                  'Developer synced: ${summary.developerSynced}  •  Simulation synced: ${summary.simulationSynced}',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
 class _IntegrationBanner extends StatelessWidget {
@@ -720,6 +1458,291 @@ Future<void> showZatcaInvoiceDialog(
   );
 }
 
+Future<void> showZatcaReturnDialog(
+  BuildContext context,
+  WidgetRef ref,
+  SaleReturnRecord record,
+) async {
+  if (record.id.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This return has no server transaction ID.'),
+      ),
+    );
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _ReturnSyncDialog(record: record),
+  );
+}
+
+class _ReturnSyncDialog extends ConsumerStatefulWidget {
+  const _ReturnSyncDialog({required this.record});
+  final SaleReturnRecord record;
+
+  @override
+  ConsumerState<_ReturnSyncDialog> createState() => _ReturnSyncDialogState();
+}
+
+class _ReturnSyncDialogState extends ConsumerState<_ReturnSyncDialog> {
+  bool working = false;
+  ZatcaOperationResult? result;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 620;
+    final successful = result?.success == true;
+    final statusColor = result == null
+        ? const Color(0xFFB7791F)
+        : successful
+        ? AppColors.primary
+        : const Color(0xFFC94B4B);
+    final reference = widget.record.invoiceNo.isEmpty
+        ? 'Return #${widget.record.id}'
+        : widget.record.invoiceNo;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 14 : 28,
+        vertical: compact ? 18 : 28,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 20 : 28,
+                  compact ? 20 : 26,
+                  compact ? 12 : 20,
+                  18,
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: statusColor.withValues(alpha: .10),
+                      child: Icon(
+                        successful
+                            ? Icons.verified_outlined
+                            : Icons.assignment_return_outlined,
+                        color: statusColor,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            reference,
+                            style: TextStyle(
+                              fontSize: compact ? 21 : 24,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const Text(
+                            'ZATCA credit note submission',
+                            style: TextStyle(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: working ? null : () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: EdgeInsets.all(compact ? 20 : 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: .075),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: .18),
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            successful
+                                ? Icons.check_circle_outline
+                                : result == null
+                                ? Icons.info_outline
+                                : Icons.error_outline,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              result?.message ??
+                                  'Submit this sales return to create and send its ZATCA credit note. The backend validates, signs and transmits the document.',
+                              style: const TextStyle(height: 1.4),
+                            ),
+                          ),
+                          if (result != null) ...[
+                            const SizedBox(width: 10),
+                            StatusBadge(result!.status, color: statusColor),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    _returnDetail(
+                      'Original invoice',
+                      widget.record.parentInvoiceNo,
+                    ),
+                    const Divider(height: 1),
+                    _returnDetail('Customer', widget.record.customerName),
+                    const Divider(height: 1),
+                    _returnDetail('Refund total', money(widget.record.total)),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Return status and signed credit-note downloads are not exposed by the current backend API. This screen reports only the result returned by the submit/retry endpoint.',
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 20 : 28,
+                  16,
+                  compact ? 20 : 28,
+                  compact ? 20 : 24,
+                ),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: Color(0xFFE0E7E4))),
+                ),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: working ? null : _sync,
+                            icon: working
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.sync),
+                            label: Text(
+                              result == null
+                                  ? 'Submit credit note'
+                                  : 'Check / resubmit',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: working
+                                ? null
+                                : () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          OutlinedButton(
+                            onPressed: working
+                                ? null
+                                : () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                          const Spacer(),
+                          FilledButton.icon(
+                            onPressed: working ? null : _sync,
+                            icon: working
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.sync),
+                            label: Text(
+                              result == null
+                                  ? 'Submit credit note'
+                                  : 'Check / resubmit',
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _returnDetail(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 11),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+        ),
+        const SizedBox(width: 14),
+        Flexible(
+          child: Text(
+            value.isEmpty ? '—' : value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _sync() async {
+    setState(() => working = true);
+    try {
+      final response = await ref
+          .read(zatcaControllerProvider.notifier)
+          .syncReturn(widget.record.id);
+      if (mounted) setState(() => result = response);
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+}
+
 class _InvoiceDialog extends ConsumerStatefulWidget {
   const _InvoiceDialog({required this.sale});
   final Sale sale;
@@ -744,119 +1767,344 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
         .invoiceStatus(widget.sale.serverId!),
   );
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Row(
-      children: [
-        const Icon(Icons.verified_user_outlined, color: AppColors.primary),
-        const SizedBox(width: 10),
-        Expanded(child: Text('ZATCA • ${widget.sale.invoiceNo}')),
-      ],
-    ),
-    content: SizedBox(
-      width: 560,
-      child: FutureBuilder<ZatcaInvoiceStatus>(
-        future: future,
-        builder: (_, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done)
-            return const SizedBox(
-              height: 180,
-              child: Center(child: CircularProgressIndicator()),
-            );
-          if (snapshot.hasError)
-            return SizedBox(
-              height: 180,
-              child: _ZatcaError(
-                message: snapshot.error.toString(),
-                onRetry: reload,
-              ),
-            );
-          final data = snapshot.data!;
-          final document = data.document;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Submission status',
-                    style: TextStyle(color: AppColors.muted),
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 620;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 14 : 28,
+        vertical: compact ? 18 : 28,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 680,
+          maxHeight: size.height - (compact ? 36 : 56),
+        ),
+        child: FutureBuilder<ZatcaInvoiceStatus>(
+          future: future,
+          builder: (_, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done)
+              return const SizedBox(
+                height: 320,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading ZATCA invoice status…'),
+                    ],
                   ),
-                  const Spacer(),
-                  StatusBadge(
-                    data.status,
-                    color: data.status == 'success'
-                        ? AppColors.primary
-                        : data.status == 'failed'
-                        ? const Color(0xFFC94B4B)
-                        : const Color(0xFFB7791F),
-                  ),
-                ],
-              ),
-              const Divider(height: 28),
-              _detail('ICV', document?.icv ?? 'Not generated'),
-              _detail('UUID', document?.uuid ?? 'Not generated'),
-              _detail('Environment', document?.portalMode ?? '—'),
-              _detail('Signing time', document?.signingTime ?? '—'),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                ),
+              );
+            if (snapshot.hasError)
+              return SizedBox(
+                height: 320,
+                child: _ZatcaError(
+                  message: snapshot.error.toString(),
+                  onRetry: reload,
+                ),
+              );
+            final data = snapshot.data!;
+            final document = data.document;
+            final success = data.status.toLowerCase() == 'success';
+            final statusColor = success
+                ? AppColors.primary
+                : data.status.toLowerCase() == 'failed'
+                ? const Color(0xFFC94B4B)
+                : const Color(0xFFB7791F);
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FilledButton.icon(
-                    onPressed: working ? null : _sync,
-                    icon: const Icon(Icons.sync),
-                    label: Text(
-                      data.status == 'success'
-                          ? 'Check / resubmit'
-                          : 'Submit / retry',
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 20 : 28,
+                      compact ? 20 : 26,
+                      compact ? 12 : 20,
+                      18,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: .10),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            success
+                                ? Icons.verified_outlined
+                                : Icons.receipt_long_outlined,
+                            color: statusColor,
+                            size: 27,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.sale.invoiceNo,
+                                style: TextStyle(
+                                  fontSize: compact ? 22 : 25,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              const Text(
+                                'ZATCA e-invoice details',
+                                style: TextStyle(color: AppColors.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: working
+                              ? null
+                              : () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: document == null || working ? null : _showQr,
-                    icon: const Icon(Icons.qr_code_2),
-                    label: const Text('QR payload'),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: EdgeInsets.all(compact ? 20 : 28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: .075),
+                            border: Border.all(
+                              color: statusColor.withValues(alpha: .16),
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                success
+                                    ? Icons.check_circle_outline
+                                    : Icons.schedule_outlined,
+                                color: statusColor,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      success
+                                          ? 'Invoice submitted successfully'
+                                          : 'Invoice awaiting submission',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      success
+                                          ? 'Signed and accepted in the ${document?.portalMode ?? 'configured'} environment.'
+                                          : 'Submit this invoice to generate its compliance data.',
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              StatusBadge(data.status, color: statusColor),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          'Compliance information',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFE0E7E4)),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Column(
+                            children: [
+                              _detail(
+                                Icons.numbers_outlined,
+                                'Invoice counter value (ICV)',
+                                document?.icv ?? 'Not generated',
+                              ),
+                              const Divider(height: 1),
+                              _detail(
+                                Icons.fingerprint,
+                                'Unique identifier (UUID)',
+                                document?.uuid ?? 'Not generated',
+                              ),
+                              const Divider(height: 1),
+                              _detail(
+                                Icons.cloud_outlined,
+                                'Environment',
+                                document?.portalMode ?? '—',
+                              ),
+                              const Divider(height: 1),
+                              _detail(
+                                Icons.schedule_outlined,
+                                'Signing time',
+                                document?.signingTime ?? '—',
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          'Invoice documents',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _documentButton(
+                              icon: Icons.qr_code_2,
+                              label: 'View QR',
+                              onPressed: document == null || working
+                                  ? null
+                                  : _showQr,
+                            ),
+                            _documentButton(
+                              icon: Icons.code,
+                              label: 'Download XML',
+                              onPressed: document == null || working
+                                  ? null
+                                  : _downloadXml,
+                            ),
+                            _documentButton(
+                              icon: Icons.picture_as_pdf_outlined,
+                              label: 'Download PDF/A-3',
+                              onPressed: document == null || working
+                                  ? null
+                                  : _downloadPdf,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: document == null || working
-                        ? null
-                        : _downloadXml,
-                    icon: const Icon(Icons.code),
-                    label: const Text('XML'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: document == null || working
-                        ? null
-                        : _downloadPdf,
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('PDF/A-3'),
+                  Container(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 20 : 28,
+                      16,
+                      compact ? 20 : 28,
+                      compact ? 20 : 24,
+                    ),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: Color(0xFFE0E7E4))),
+                    ),
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FilledButton.icon(
+                                onPressed: working ? null : _sync,
+                                icon: const Icon(Icons.sync),
+                                label: Text(
+                                  success
+                                      ? 'Check status again'
+                                      : 'Submit invoice',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton(
+                                onPressed: working
+                                    ? null
+                                    : () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              OutlinedButton(
+                                onPressed: working
+                                    ? null
+                                    : () => Navigator.pop(context),
+                                child: const Text('Close'),
+                              ),
+                              const Spacer(),
+                              FilledButton.icon(
+                                onPressed: working ? null : _sync,
+                                icon: const Icon(Icons.sync),
+                                label: Text(
+                                  success
+                                      ? 'Check status again'
+                                      : 'Submit invoice',
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ],
               ),
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: working ? null : () => Navigator.pop(context),
-        child: const Text('Close'),
-      ),
-    ],
-  );
-  Widget _detail(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
+    );
+  }
+
+  Widget _detail(IconData icon, String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 110,
-          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+        Icon(icon, size: 19, color: AppColors.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 4,
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 13),
+          ),
         ),
-        Expanded(child: SelectableText(value)),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 5,
+          child: SelectableText(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     ),
+  );
+
+  Widget _documentButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) => OutlinedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, size: 19),
+    label: Text(label),
   );
   Future<void> _run(Future<void> Function() action) async {
     setState(() => working = true);

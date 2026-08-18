@@ -13,4 +13,21 @@ abstract interface class ZatcaRepository {
   Future<ZatcaQrPayload> qr(String accessToken, String saleId);
   Future<ZatcaDownload> downloadXml(String accessToken, String saleId);
   Future<ZatcaDownload> downloadPdf(String accessToken, String saleId);
+  Future<ZatcaPage> invoices(String accessToken, ZatcaListFilter filter);
+  Future<ZatcaPage> returns(String accessToken, ZatcaListFilter filter);
+  Future<ZatcaInvoiceStatus> returnStatus(String accessToken, String returnId);
+  Future<ZatcaBulkResult> syncInvoicesBulk(
+    String accessToken,
+    List<String> ids,
+  );
+  Future<ZatcaBulkResult> syncReturnsBulk(String accessToken, List<String> ids);
+  Future<ZatcaQrPayload> returnQr(String accessToken, String returnId);
+  Future<ZatcaDownload> downloadReturnXml(String accessToken, String returnId);
+  Future<ZatcaDownload> downloadReturnPdf(String accessToken, String returnId);
+  Future<ZatcaSettings> settings(String accessToken);
+  Future<ZatcaSettings> updateSettings(
+    String accessToken,
+    Map<String, dynamic> changes,
+  );
+  Future<ZatcaSyncSummary> syncSummary(String accessToken);
 }

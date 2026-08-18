@@ -633,6 +633,112 @@ void main() {
     expect(result.status, 'failed');
     expect(result.message, contains('rejected'));
   });
+
+  test('ZATCA sales return submits to the credit-note sync endpoint', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/zatca/returns/71/sync');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        return http.Response(
+          '{"success":true,"message":"Credit note submitted.","data":{"zatca_status":"success"}}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.syncZatcaReturn('token-123', '71');
+
+    expect(result.success, isTrue);
+    expect(result.status, 'success');
+    expect(result.message, contains('Credit note'));
+  });
+
+  test('ZATCA invoice queue maps filters and backend pagination', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/connector/api/zatca/invoices');
+        expect(request.url.queryParameters['status'], 'pending');
+        expect(request.url.queryParameters['search'], 'INV-77');
+        expect(request.url.queryParameters['page'], '2');
+        return http.Response(
+          '''{"data":[{"id":77,"invoice_no":"INV-77","zatca_status":"pending","transaction_date":"2026-08-18 09:30:00","final_total":"150.50","location_name":"Main Store","customer":{"name":"Retail Customer","mobile":"500000000"}}],"meta":{"current_page":2,"last_page":3,"per_page":20,"total":41}}''',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.zatcaInvoices(
+      'token-123',
+      const ZatcaListFilter(status: 'pending', search: 'INV-77', page: 2),
+    );
+
+    expect(result.items.single.invoiceNo, 'INV-77');
+    expect(result.items.single.customerName, 'Retail Customer');
+    expect(result.items.single.total, 150.5);
+    expect(result.currentPage, 2);
+    expect(result.total, 41);
+  });
+
+  test(
+    'ZATCA return bulk sync sends the documented invoice_ids payload',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/connector/api/zatca/returns/syncBulk');
+          expect(jsonDecode(request.body), {
+            'invoice_ids': [71, 72],
+          });
+          return http.Response(
+            '''{"success":true,"summary":{"requested":2,"successful":1,"failed":1},"data":[{"id":71,"success":true,"zatca_status":"success","message":"Submitted"},{"id":72,"success":false,"zatca_status":"failed","message":"Rejected"}]}''',
+            200,
+          );
+        }),
+      );
+
+      final result = await api.syncZatcaReturnsBulk('token-123', ['71', '72']);
+
+      expect(result.requested, 2);
+      expect(result.successful, 1);
+      expect(result.failed, 1);
+      expect(result.results.last.success, isFalse);
+    },
+  );
+
+  test('ZATCA settings update and sync summary map the backend contract', () async {
+    var calls = 0;
+    final api = Api(
+      client: MockClient((request) async {
+        calls++;
+        if (request.method == 'PATCH') {
+          expect(request.url.path, '/connector/api/zatca/settings');
+          expect(jsonDecode(request.body)['sync_frequency'], 'instant');
+          return http.Response(
+            '''{"data":{"sync_frequency":"instant","disable_discount":true,"disable_order_tax":false,"default_sales_discount":"0","locations":[{"location_id":2,"location_name":"Main Store","sync_from_datetime":"2026-08-18 00:00:00"}]}}''',
+            200,
+          );
+        }
+        expect(request.url.path, '/connector/api/zatca/sync-summary');
+        return http.Response(
+          '''{"data":{"total_invoices":10,"pending_not_synced":2,"successful":7,"failed":1,"developer_synced":3,"simulation_synced":4}}''',
+          200,
+        );
+      }),
+    );
+
+    final settings = await api.updateZatcaSettings('token-123', {
+      'sync_frequency': 'instant',
+    });
+    final summary = await api.zatcaSyncSummary('token-123');
+
+    expect(settings.syncFrequency, 'instant');
+    expect(settings.locations.single.name, 'Main Store');
+    expect(summary.pending, 2);
+    expect(summary.simulationSynced, 4);
+    expect(calls, 2);
+  });
 }
 
 const _product = Product(

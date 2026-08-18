@@ -44,4 +44,60 @@ class EazyErpZatcaRepository implements ZatcaRepository {
   @override
   Future<ZatcaDownload> downloadPdf(String accessToken, String saleId) =>
       _api.downloadZatcaPdf(accessToken, saleId);
+
+  @override
+  Future<ZatcaPage> invoices(String accessToken, ZatcaListFilter filter) =>
+      _api.zatcaInvoices(accessToken, filter);
+
+  @override
+  Future<ZatcaPage> returns(String accessToken, ZatcaListFilter filter) =>
+      _api.zatcaReturns(accessToken, filter);
+
+  @override
+  Future<ZatcaInvoiceStatus> returnStatus(
+    String accessToken,
+    String returnId,
+  ) => _api.zatcaReturnStatus(accessToken, returnId);
+
+  @override
+  Future<ZatcaBulkResult> syncInvoicesBulk(
+    String accessToken,
+    List<String> ids,
+  ) => _api.syncZatcaInvoicesBulk(accessToken, ids);
+
+  @override
+  Future<ZatcaBulkResult> syncReturnsBulk(
+    String accessToken,
+    List<String> ids,
+  ) => _api.syncZatcaReturnsBulk(accessToken, ids);
+
+  @override
+  Future<ZatcaQrPayload> returnQr(String accessToken, String returnId) =>
+      _api.zatcaReturnQr(accessToken, returnId);
+
+  @override
+  Future<ZatcaDownload> downloadReturnXml(
+    String accessToken,
+    String returnId,
+  ) => _api.downloadZatcaReturnXml(accessToken, returnId);
+
+  @override
+  Future<ZatcaDownload> downloadReturnPdf(
+    String accessToken,
+    String returnId,
+  ) => _api.downloadZatcaReturnPdf(accessToken, returnId);
+
+  @override
+  Future<ZatcaSettings> settings(String accessToken) =>
+      _api.zatcaSettings(accessToken);
+
+  @override
+  Future<ZatcaSettings> updateSettings(
+    String accessToken,
+    Map<String, dynamic> changes,
+  ) => _api.updateZatcaSettings(accessToken, changes);
+
+  @override
+  Future<ZatcaSyncSummary> syncSummary(String accessToken) =>
+      _api.zatcaSyncSummary(accessToken);
 }

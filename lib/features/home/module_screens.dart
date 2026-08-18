@@ -3329,6 +3329,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             _SaleReturnHistoryRow(
                               record: record,
                               compact: mobile,
+                              onZatca: () =>
+                                  showZatcaReturnDialog(context, ref, record),
                             ),
                       ],
                     ),
@@ -3939,10 +3941,15 @@ class _SalesHistoryTab extends StatelessWidget {
 }
 
 class _SaleReturnHistoryRow extends StatelessWidget {
-  const _SaleReturnHistoryRow({required this.record, required this.compact});
+  const _SaleReturnHistoryRow({
+    required this.record,
+    required this.compact,
+    required this.onZatca,
+  });
 
   final SaleReturnRecord record;
   final bool compact;
+  final VoidCallback onZatca;
 
   @override
   Widget build(BuildContext context) {
@@ -4011,6 +4018,13 @@ class _SaleReturnHistoryRow extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    const SizedBox(height: 6),
+                    IconButton.outlined(
+                      tooltip: 'Submit return to ZATCA',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onZatca,
+                      icon: const Icon(Icons.verified_user_outlined, size: 18),
+                    ),
                   ],
                 ),
               ],
@@ -4059,6 +4073,12 @@ class _SaleReturnHistoryRow extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                ),
+                const SizedBox(width: 14),
+                OutlinedButton.icon(
+                  onPressed: onZatca,
+                  icon: const Icon(Icons.verified_user_outlined, size: 18),
+                  label: const Text('ZATCA'),
                 ),
               ],
             ),

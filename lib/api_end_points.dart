@@ -48,14 +48,31 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/zatca/onboarding/$locationId';
   static String zatcaInvoiceUrl(String saleId) =>
       '${Config.baseUrl}/connector/api/zatca/invoices/$saleId';
+  static const zatcaInvoicesUrl =
+      '${Config.baseUrl}/connector/api/zatca/invoices';
+  static const zatcaInvoicesBulkSyncUrl = '$zatcaInvoicesUrl/syncBulk';
+  static const zatcaReturnsUrl =
+      '${Config.baseUrl}/connector/api/zatca/returns';
+  static const zatcaReturnsBulkSyncUrl = '$zatcaReturnsUrl/syncBulk';
+  static String zatcaReturnUrl(String returnId) => '$zatcaReturnsUrl/$returnId';
   static String zatcaInvoiceSyncUrl(String saleId) =>
       '${zatcaInvoiceUrl(saleId)}/sync';
   static String zatcaReturnSyncUrl(String returnId) =>
-      '${Config.baseUrl}/connector/api/zatca/returns/$returnId/sync';
+      '${zatcaReturnUrl(returnId)}/sync';
+  static String zatcaReturnQrUrl(String returnId) =>
+      '${zatcaReturnUrl(returnId)}/qr';
+  static String zatcaReturnXmlUrl(String returnId) =>
+      '${zatcaReturnUrl(returnId)}/xml';
+  static String zatcaReturnPdfUrl(String returnId) =>
+      '${zatcaReturnUrl(returnId)}/pdf';
   static String zatcaInvoiceQrUrl(String saleId) =>
       '${zatcaInvoiceUrl(saleId)}/qr';
   static String zatcaInvoiceXmlUrl(String saleId) =>
       '${zatcaInvoiceUrl(saleId)}/xml';
   static String zatcaInvoicePdfUrl(String saleId) =>
       '${zatcaInvoiceUrl(saleId)}/pdf';
+  static const zatcaSettingsUrl =
+      '${Config.baseUrl}/connector/api/zatca/settings';
+  static const zatcaSyncSummaryUrl =
+      '${Config.baseUrl}/connector/api/zatca/sync-summary';
 }

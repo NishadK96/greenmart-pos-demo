@@ -141,3 +141,109 @@ class ZatcaDownload {
   final Uint8List bytes;
   final String fileName;
 }
+
+class ZatcaTransaction {
+  const ZatcaTransaction({
+    required this.id,
+    required this.invoiceNo,
+    required this.status,
+    required this.transactionDate,
+    required this.total,
+    this.locationId,
+    this.locationName,
+    this.customerName,
+    this.customerMobile,
+    this.parentSaleId,
+    this.parentInvoiceNo,
+    this.document,
+  });
+  final String id, invoiceNo, status, transactionDate;
+  final double total;
+  final String? locationId, locationName, customerName, customerMobile;
+  final String? parentSaleId, parentInvoiceNo;
+  final ZatcaDocumentInfo? document;
+}
+
+class ZatcaPage {
+  const ZatcaPage({
+    required this.items,
+    required this.currentPage,
+    required this.lastPage,
+    required this.perPage,
+    required this.total,
+  });
+  final List<ZatcaTransaction> items;
+  final int currentPage, lastPage, perPage, total;
+}
+
+class ZatcaListFilter {
+  const ZatcaListFilter({
+    this.status,
+    this.locationId,
+    this.dateFrom,
+    this.dateTo,
+    this.search,
+    this.page = 1,
+    this.perPage = 20,
+  });
+  final String? status, locationId, dateFrom, dateTo, search;
+  final int page, perPage;
+  Map<String, String> toQuery() => {
+    if (status != null && status!.isNotEmpty) 'status': status!,
+    if (locationId != null && locationId!.isNotEmpty)
+      'location_id': locationId!,
+    if (dateFrom != null && dateFrom!.isNotEmpty) 'date_from': dateFrom!,
+    if (dateTo != null && dateTo!.isNotEmpty) 'date_to': dateTo!,
+    if (search != null && search!.isNotEmpty) 'search': search!,
+    'page': '$page',
+    'per_page': '$perPage',
+  };
+}
+
+class ZatcaBulkResult {
+  const ZatcaBulkResult({
+    required this.requested,
+    required this.successful,
+    required this.failed,
+    required this.results,
+  });
+  final int requested, successful, failed;
+  final List<ZatcaOperationResult> results;
+}
+
+class ZatcaSettingLocation {
+  const ZatcaSettingLocation({
+    required this.id,
+    required this.name,
+    this.syncFrom,
+  });
+  final String id, name;
+  final String? syncFrom;
+}
+
+class ZatcaSettings {
+  const ZatcaSettings({
+    required this.syncFrequency,
+    required this.disableDiscount,
+    required this.disableOrderTax,
+    required this.defaultSalesDiscount,
+    required this.locations,
+  });
+  final String syncFrequency;
+  final bool disableDiscount, disableOrderTax;
+  final double defaultSalesDiscount;
+  final List<ZatcaSettingLocation> locations;
+}
+
+class ZatcaSyncSummary {
+  const ZatcaSyncSummary({
+    required this.totalInvoices,
+    required this.pending,
+    required this.successful,
+    required this.failed,
+    required this.developerSynced,
+    required this.simulationSynced,
+  });
+  final int totalInvoices, pending, successful, failed;
+  final int developerSynced, simulationSynced;
+}

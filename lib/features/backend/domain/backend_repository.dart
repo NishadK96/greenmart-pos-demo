@@ -139,6 +139,7 @@ abstract interface class BackendRepository {
   Future<CreatedSale> createSale({
     required String accessToken,
     required String locationId,
+    required String cashRegisterId,
     required Customer customer,
     required List<CartLine> lines,
     required String paymentMethod,

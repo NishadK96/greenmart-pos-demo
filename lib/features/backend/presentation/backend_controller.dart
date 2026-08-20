@@ -3,6 +3,7 @@ import '../../../apis/api.dart';
 import '../../../shared/models/entities.dart';
 import '../../../core/utils/money.dart';
 import '../../auth/auth_controller.dart';
+import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../store/app_store.dart';
 import '../data/eazyerp_backend_repository.dart';
 
@@ -171,11 +172,23 @@ class BackendController extends AsyncNotifier<void> {
         state.locations.isEmpty) {
       throw const ApiException('Sale data is incomplete. Refresh and retry.');
     }
+    final register = await ref.read(cashRegisterControllerProvider.future);
+    if (register == null) {
+      throw const ApiException(
+        'Open a cash register before completing this sale.',
+      );
+    }
+    if (!state.locations.any((item) => item.id == register.locationId)) {
+      throw const ApiException(
+        'The open cash register does not match an available business location.',
+      );
+    }
     final created = await ref
         .read(backendRepositoryProvider)
         .createSale(
           accessToken: token,
-          locationId: state.locations.first.id,
+          locationId: register.locationId,
+          cashRegisterId: register.id,
           customer: state.customer ?? state.customers.first,
           lines: state.cart,
           paymentMethod: paymentMethod,

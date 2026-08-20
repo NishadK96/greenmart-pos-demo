@@ -293,6 +293,7 @@ class EazyErpBackendRepository implements BackendRepository {
   Future<CreatedSale> createSale({
     required String accessToken,
     required String locationId,
+    required String cashRegisterId,
     required Customer customer,
     required List<CartLine> lines,
     required String paymentMethod,
@@ -301,6 +302,7 @@ class EazyErpBackendRepository implements BackendRepository {
     final json = await _api.createSale(
       accessToken: accessToken,
       locationId: locationId,
+      cashRegisterId: cashRegisterId,
       customer: customer,
       lines: lines,
       paymentMethod: paymentMethod,

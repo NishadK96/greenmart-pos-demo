@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
+import '../cash_register/domain/cash_register_entities.dart';
+import '../cash_register/presentation/cash_register_controller.dart';
+import '../cash_register/presentation/cash_register_dialog.dart';
 import '../store/app_store.dart';
 
 const destinations = [
@@ -84,6 +87,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       sidebarInitialized = true;
     }
     final path = GoRouterState.of(context).uri.path;
+    final AsyncValue<CashRegister?> registerState = path == '/pos'
+        ? ref.watch(cashRegisterControllerProvider)
+        : const AsyncData(null);
+    final register = registerState.asData?.value;
+    final registerLabel = registerState.isLoading
+        ? 'Register…'
+        : register == null
+        ? 'Open register'
+        : 'Register ${register.id}';
     if (!desktop) {
       final mobile = [
         destinations[0],
@@ -150,19 +162,23 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                             if (path == '/pos')
                               OutlinedButton(
-                                onPressed: () {},
+                                onPressed: () =>
+                                    showCashRegisterDialog(context, ref),
                                 style: OutlinedButton.styleFrom(
                                   minimumSize: const Size(0, 42),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                   ),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text('Register 01'),
-                                    SizedBox(width: 4),
-                                    Icon(Icons.keyboard_arrow_down, size: 18),
+                                    Text(registerLabel),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.keyboard_arrow_down,
+                                      size: 18,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -486,18 +502,18 @@ class _AppShellState extends ConsumerState<AppShell> {
                     children: [
                       if (path == '/pos') ...[
                         OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => showCashRegisterDialog(context, ref),
                           icon: const Icon(
                             Icons.point_of_sale_rounded,
                             size: 17,
                           ),
-                          label: const Text('Register 01'),
+                          label: Text(registerLabel),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(0, 42),
                           ),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
+                        Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -506,12 +522,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 Icon(
                                   Icons.circle,
                                   size: 8,
-                                  color: Color(0xFF15945B),
+                                  color: register == null
+                                      ? const Color(0xFFB7791F)
+                                      : const Color(0xFF15945B),
                                 ),
-                                SizedBox(width: 6),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Shift Open',
-                                  style: TextStyle(
+                                  register == null
+                                      ? 'Shift closed'
+                                      : 'Shift open',
+                                  style: const TextStyle(
                                     color: AppColors.primary,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
@@ -520,8 +540,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ],
                             ),
                             Text(
-                              '09:00 AM - 09:00 PM',
-                              style: TextStyle(
+                              register == null
+                                  ? 'Open the register to start selling'
+                                  : 'Cash register active',
+                              style: const TextStyle(
                                 color: AppColors.muted,
                                 fontSize: 10,
                               ),

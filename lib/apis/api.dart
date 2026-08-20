@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
 import '../shared/models/entities.dart';
+import '../features/cash_register/domain/cash_register_entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
 import '../features/zatca/domain/zatca_entities.dart';
 
@@ -55,6 +56,100 @@ class Api {
     } catch (_) {
       return const LoginResult.failure(LoginFailure.network);
     }
+  }
+
+  Future<CashRegister?> currentCashRegister(String accessToken) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.cashRegisterCurrentUrl),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode == 404) return null;
+    final payload = _requireObject(response, 'current cash register');
+    final data = _map(payload['data']);
+    return data.isEmpty ? null : CashRegister.fromJson(data);
+  }
+
+  Future<CashRegister> openCashRegister(
+    String accessToken,
+    String locationId,
+    double initialCash,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.cashRegisterOpenUrl),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({
+            'location_id': int.tryParse(locationId) ?? locationId,
+            'initial_cash': initialCash,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'cash register');
+    return CashRegister.fromJson(_map(payload['data']));
+  }
+
+  Future<void> cashRegisterCashIn(
+    String accessToken,
+    String registerId,
+    double amount,
+  ) => _cashRegisterMovement(accessToken, registerId, amount, cashIn: true);
+
+  Future<void> cashRegisterCashOut(
+    String accessToken,
+    String registerId,
+    double amount,
+  ) => _cashRegisterMovement(accessToken, registerId, amount, cashIn: false);
+
+  Future<void> _cashRegisterMovement(
+    String accessToken,
+    String registerId,
+    double amount, {
+    required bool cashIn,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(
+            cashIn
+                ? ApiEndPoints.cashRegisterCashInUrl(registerId)
+                : ApiEndPoints.cashRegisterCashOutUrl(registerId),
+          ),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({'amount': amount}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, cashIn ? 'cash in' : 'cash out');
+  }
+
+  Future<CashRegisterSummary> cashRegisterSummary(
+    String accessToken,
+    String registerId,
+  ) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.cashRegisterSummaryUrl(registerId)),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'cash register summary');
+    return CashRegisterSummary.fromJson(_map(payload['data']));
+  }
+
+  Future<CashRegisterSummary> closeCashRegister(
+    String accessToken,
+    String registerId,
+    Map<String, dynamic> closePayload,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.cashRegisterCloseUrl(registerId)),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode(closePayload),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'cash register reconciliation');
+    return CashRegisterSummary.fromJson(_map(payload['summary']));
   }
 
   Future<List<Product>> products(String accessToken) async {
@@ -978,6 +1073,7 @@ class Api {
   Future<Map<String, dynamic>> createSale({
     required String accessToken,
     required String locationId,
+    required String cashRegisterId,
     required Customer customer,
     required List<CartLine> lines,
     required String paymentMethod,
@@ -987,6 +1083,7 @@ class Api {
       'sells': [
         {
           'location_id': int.parse(locationId),
+          'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
           'status': 'final',
           'discount_type': 'fixed',
@@ -1660,9 +1757,13 @@ class Api {
     return _customerFromJson(_map(payload['data']));
   }
 
-  Map<String, String> _authorizedHeaders(String accessToken) => {
+  Map<String, String> _authorizedHeaders(
+    String accessToken, {
+    bool json = false,
+  }) => {
     'Accept': 'application/json',
     'Authorization': 'Bearer $accessToken',
+    if (json) 'Content-Type': 'application/json',
   };
 
   Product _productFromJson(Map<String, dynamic> json) {

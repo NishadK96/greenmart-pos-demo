@@ -43,6 +43,17 @@ abstract final class ApiEndPoints {
   static const purchasesUrl = '${Config.baseUrl}/connector/api/purchases';
   static const purchaseReturnsUrl =
       '${Config.baseUrl}/connector/api/purchase-returns';
+  static const cashRegisterUrl =
+      '${Config.baseUrl}/connector/api/cash-register';
+  static const cashRegisterOpenUrl = '$cashRegisterUrl/open';
+  static const cashRegisterCurrentUrl = '$cashRegisterUrl/current';
+  static String cashRegisterCashInUrl(String id) =>
+      '$cashRegisterUrl/$id/cash-in';
+  static String cashRegisterCashOutUrl(String id) =>
+      '$cashRegisterUrl/$id/cash-out';
+  static String cashRegisterCloseUrl(String id) => '$cashRegisterUrl/$id/close';
+  static String cashRegisterSummaryUrl(String id) =>
+      '$cashRegisterUrl/$id/summary';
   static const zatcaStatusUrl = '${Config.baseUrl}/connector/api/zatca/status';
   static String zatcaOnboardingUrl(String locationId) =>
       '${Config.baseUrl}/connector/api/zatca/onboarding/$locationId';

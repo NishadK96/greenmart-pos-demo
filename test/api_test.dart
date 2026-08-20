@@ -488,6 +488,7 @@ void main() {
       () => api.createSale(
         accessToken: 'token-123',
         locationId: '1',
+        cashRegisterId: '27',
         customer: const Customer(id: '1', name: 'Walk-in'),
         lines: const [CartLine(product: product)],
         paymentMethod: 'cash',

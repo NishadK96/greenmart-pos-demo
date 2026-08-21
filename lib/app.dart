@@ -10,6 +10,7 @@ import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
+import 'features/printers/presentation/printer_settings_screen.dart';
 import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
 import 'features/zatca/presentation/zatca_screen.dart';
@@ -104,6 +105,11 @@ final _router = GoRouter(
           path: '/settings',
           pageBuilder: (_, state) =>
               _instantPage(state, const SettingsScreen()),
+        ),
+        GoRoute(
+          path: '/settings/printers',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const PrinterSettingsScreen()),
         ),
         GoRoute(
           path: '/zatca',

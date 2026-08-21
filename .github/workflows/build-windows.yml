@@ -1,0 +1,53 @@
+name: Build GreenMart POS for Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Backend API base URL
+        required: true
+        default: https://eazyerp.co
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      API_BASE_URL: ${{ inputs.api_base_url || 'https://eazyerp.co' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows application
+        shell: pwsh
+        run: flutter build windows --release --dart-define="EAZYERP_BASE_URL=$env:API_BASE_URL"
+
+      - name: Package Windows application
+        shell: pwsh
+        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "GreenMart-POS-Windows.zip"
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: GreenMart-POS-Windows
+          path: GreenMart-POS-Windows.zip
+          if-no-files-found: error
+          retention-days: 30

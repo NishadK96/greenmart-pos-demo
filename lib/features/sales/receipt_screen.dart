@@ -7,6 +7,8 @@ import '../../core/utils/money.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
 import '../zatca/presentation/zatca_screen.dart';
+import '../printers/application/printer_controller.dart';
+import '../printers/application/printer_document_service.dart';
 
 class ReceiptScreen extends ConsumerWidget {
   const ReceiptScreen({super.key});
@@ -127,14 +129,36 @@ class ReceiptScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Mock print preview completed.',
+                          onPressed: () async {
+                            final printerState = ref.read(
+                              printerControllerProvider,
+                            );
+                            final profile = sale.customer.isBusiness
+                                ? 'billing-business'
+                                : 'billing-retail';
+                            final selectedUrl =
+                                printerState.settings.selectedPrinters[profile];
+                            final selected = printerState.printers
+                                .where((item) => item.url == selectedUrl)
+                                .firstOrNull;
+                            try {
+                              await PrinterDocumentService.printReceiptTo(
+                                sale,
+                                ref.read(appStoreProvider).business?.name ??
+                                    'GreenMart',
+                                printerState.settings,
+                                printer: selected,
+                              );
+                            } catch (error) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Print failed: $error'),
                                   ),
-                                ),
-                              ),
+                                );
+                              }
+                            }
+                          },
                           icon: const Icon(Icons.print_outlined),
                           label: Text(context.tr('Print')),
                         ),

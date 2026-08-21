@@ -5694,6 +5694,12 @@ class SettingsScreen extends ConsumerWidget {
         Icons.verified_user_outlined,
         '/zatca',
       ),
+      (
+        'Printers & documents',
+        'Billing, quotation, kitchen and barcode printer profiles',
+        Icons.print_outlined,
+        '/settings/printers',
+      ),
     ];
     return PagePad(
       child: ListView(

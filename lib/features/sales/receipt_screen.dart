@@ -133,21 +133,13 @@ class ReceiptScreen extends ConsumerWidget {
                             final printerState = ref.read(
                               printerControllerProvider,
                             );
-                            final profile = sale.customer.isBusiness
-                                ? 'billing-business'
-                                : 'billing-retail';
-                            final selectedUrl =
-                                printerState.settings.selectedPrinters[profile];
-                            final selected = printerState.printers
-                                .where((item) => item.url == selectedUrl)
-                                .firstOrNull;
                             try {
                               await PrinterDocumentService.printReceiptTo(
                                 sale,
                                 ref.read(appStoreProvider).business?.name ??
                                     'GreenMart',
                                 printerState.settings,
-                                printer: selected,
+                                printer: printerState.selectedPrinter,
                               );
                             } catch (error) {
                               if (context.mounted) {

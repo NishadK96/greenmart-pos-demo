@@ -26,14 +26,9 @@ class PrinterSettingsScreen extends ConsumerWidget {
                     _Header(
                       onTest: () async {
                         try {
-                          final selectedUrl =
-                              settings.selectedPrinters[settings.profileKey];
-                          final selected = state.printers
-                              .where((item) => item.url == selectedUrl)
-                              .firstOrNull;
                           await PrinterDocumentService.printSampleTo(
                             settings,
-                            printer: selected,
+                            printer: state.selectedPrinter,
                           );
                         } catch (error) {
                           if (context.mounted)
@@ -439,7 +434,7 @@ class _PrinterList extends StatelessWidget {
   final ValueChanged<Printer> onSelect;
   @override
   Widget build(BuildContext context) {
-    final selectedUrl = settings.selectedPrinters[settings.profileKey];
+    final selectedUrl = settings.defaultPrinterUrl;
     return Surface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

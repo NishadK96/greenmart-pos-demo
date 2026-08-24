@@ -8,6 +8,7 @@ import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../store/app_store.dart';
+import '../../printers/application/printer_controller.dart';
 import '../domain/purchase_entities.dart';
 import 'purchase_controller.dart';
 import 'purchase_document_export.dart';
@@ -2573,7 +2574,7 @@ class PurchaseDetailDialog extends ConsumerWidget {
               child: Row(
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _printDocument(context, document),
+                    onPressed: () => _printDocument(context, ref, document),
                     icon: const Icon(Icons.print_outlined),
                     label: const Text('Print'),
                   ),
@@ -2841,10 +2842,11 @@ Widget _detailTotalRow(String label, int value, {bool strong = false}) =>
 
 Future<void> _printDocument(
   BuildContext context,
+  WidgetRef ref,
   PurchaseDocument document,
 ) async {
   try {
-    await printPurchaseOrder(document);
+    await printPurchaseOrder(document, ref.read(printerControllerProvider));
   } catch (error) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

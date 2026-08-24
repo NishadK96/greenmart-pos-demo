@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:retailflow_pos/app.dart';
 import 'package:retailflow_pos/core/localization/app_localizations.dart';
+import 'package:retailflow_pos/features/auth/auth_controller.dart';
 import 'package:retailflow_pos/features/home/module_screens.dart';
 import 'package:retailflow_pos/features/pos/pos_screen.dart';
 
@@ -12,7 +13,14 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('login opens the application', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: RetailFlowApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedOutAuthController.new),
+        ],
+        child: const RetailFlowApp(),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
@@ -21,7 +29,14 @@ void main() {
   testWidgets('language switch changes the app to Arabic and RTL', (
     tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: RetailFlowApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedOutAuthController.new),
+        ],
+        child: const RetailFlowApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('العربية'));
@@ -191,6 +206,11 @@ void main() {
     expect(find.text('Apply filters'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+class _SignedOutAuthController extends AuthController {
+  @override
+  Future<String?> build() async => null;
 }
 
 class _PosTestApp extends StatelessWidget {

@@ -21,6 +21,7 @@ class PrinterSettings {
       'barcode': 'Compact price label',
     },
     this.selectedPrinters = const {},
+    this.defaultPrinterUrl,
     this.barcodeColumns = 3,
     this.barcodeHeight = 56,
     this.barcodeWidthPercent = 78,
@@ -35,6 +36,7 @@ class PrinterSettings {
   final Map<String, String> paperSizes;
   final Map<String, String> templates;
   final Map<String, String> selectedPrinters;
+  final String? defaultPrinterUrl;
   final int barcodeColumns, barcodeHeight, barcodeWidthPercent, barcodeDpi;
   final bool showStoreName, showPrice, showDate;
 
@@ -48,6 +50,8 @@ class PrinterSettings {
     Map<String, String>? paperSizes,
     Map<String, String>? templates,
     Map<String, String>? selectedPrinters,
+    String? defaultPrinterUrl,
+    bool clearDefaultPrinter = false,
     int? barcodeColumns,
     int? barcodeHeight,
     int? barcodeWidthPercent,
@@ -61,6 +65,9 @@ class PrinterSettings {
     paperSizes: paperSizes ?? this.paperSizes,
     templates: templates ?? this.templates,
     selectedPrinters: selectedPrinters ?? this.selectedPrinters,
+    defaultPrinterUrl: clearDefaultPrinter
+        ? null
+        : defaultPrinterUrl ?? this.defaultPrinterUrl,
     barcodeColumns: barcodeColumns ?? this.barcodeColumns,
     barcodeHeight: barcodeHeight ?? this.barcodeHeight,
     barcodeWidthPercent: barcodeWidthPercent ?? this.barcodeWidthPercent,
@@ -74,6 +81,7 @@ class PrinterSettings {
     'paperSizes': paperSizes,
     'templates': templates,
     'selectedPrinters': selectedPrinters,
+    'defaultPrinterUrl': defaultPrinterUrl,
     'barcodeColumns': barcodeColumns,
     'barcodeHeight': barcodeHeight,
     'barcodeWidthPercent': barcodeWidthPercent,
@@ -97,6 +105,9 @@ class PrinterSettings {
       selectedPrinters: Map<String, String>.from(
         json['selectedPrinters'] as Map? ?? const {},
       ),
+      defaultPrinterUrl:
+          json['defaultPrinterUrl']?.toString() ??
+          _firstSelectedPrinter(json['selectedPrinters']),
       barcodeColumns: json['barcodeColumns'] as int? ?? 3,
       barcodeHeight: json['barcodeHeight'] as int? ?? 56,
       barcodeWidthPercent: json['barcodeWidthPercent'] as int? ?? 78,
@@ -105,5 +116,10 @@ class PrinterSettings {
       showPrice: json['showPrice'] as bool? ?? true,
       showDate: json['showDate'] as bool? ?? true,
     );
+  }
+
+  static String? _firstSelectedPrinter(dynamic raw) {
+    final selected = Map<String, String>.from(raw as Map? ?? const {});
+    return selected.isEmpty ? null : selected.values.first;
   }
 }

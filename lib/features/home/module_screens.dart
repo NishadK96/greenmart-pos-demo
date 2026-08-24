@@ -12,6 +12,8 @@ import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
 import '../backend/presentation/backend_controller.dart';
+import '../printers/application/printer_controller.dart';
+import '../printers/application/printer_document_service.dart';
 import '../zatca/presentation/zatca_screen.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
@@ -4419,9 +4421,23 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           child: Text(context.tr('Close')),
         ),
         FilledButton.icon(
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Print preview is ready.')),
-          ),
+          onPressed: () async {
+            final printerState = ref.read(printerControllerProvider);
+            try {
+              await PrinterDocumentService.printReceiptTo(
+                sale,
+                ref.read(appStoreProvider).business?.name ?? 'GreenMart',
+                printerState.settings,
+                printer: printerState.selectedPrinter,
+              );
+            } catch (error) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Print failed: $error')));
+              }
+            }
+          },
           icon: const Icon(Icons.print_outlined),
           label: Text(context.tr('Print')),
         ),

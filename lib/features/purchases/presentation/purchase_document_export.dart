@@ -2,10 +2,11 @@ import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../../../core/utils/money.dart';
 import '../domain/purchase_entities.dart';
+import '../../printers/application/printer_document_service.dart';
+import '../../printers/application/printer_controller.dart';
 import 'purchase_pdf_download.dart';
 
 Future<Uint8List> buildPurchaseOrderPdf(PurchaseDocument document) async {
@@ -162,11 +163,16 @@ pw.Widget _pdfTotal(String label, int value, {bool strong = false}) =>
       ),
     );
 
-Future<void> printPurchaseOrder(PurchaseDocument document) async {
+Future<void> printPurchaseOrder(
+  PurchaseDocument document,
+  PrinterState printerState,
+) async {
   final bytes = await buildPurchaseOrderPdf(document);
-  await Printing.layoutPdf(
+  await PrinterDocumentService.printPdfBytes(
+    bytes,
     name: '${document.reference}.pdf',
-    onLayout: (_) async => bytes,
+    printer: printerState.selectedPrinter,
+    format: PdfPageFormat.a4,
   );
 }
 

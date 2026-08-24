@@ -135,6 +135,8 @@ class AppStore extends Notifier<AppState> {
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );
   void clearCart() => state = state.copyWith(cart: [], clearCustomer: true);
+  void clearCashierContext() =>
+      state = state.copyWith(cart: [], heldCarts: [], clearCustomer: true);
   void holdCart() {
     if (state.cart.isEmpty) return;
     state = state.copyWith(

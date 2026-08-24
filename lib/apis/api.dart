@@ -20,6 +20,75 @@ class LoginResult {
   bool get isSuccess => accessToken != null;
 }
 
+class SavedAccountProfile {
+  const SavedAccountProfile({
+    required this.id,
+    required this.username,
+    required this.name,
+    required this.businessId,
+  });
+  final String id;
+  final String username;
+  final String name;
+  final String businessId;
+  factory SavedAccountProfile.fromJson(Map<String, dynamic> json) =>
+      SavedAccountProfile(
+        id: json['id']?.toString() ?? '',
+        username: json['username']?.toString() ?? '',
+        name: json['name']?.toString() ?? json['username']?.toString() ?? '',
+        businessId: json['business_id']?.toString() ?? '',
+      );
+}
+
+class SavedAccountSession {
+  const SavedAccountSession({
+    required this.sessionId,
+    required this.profile,
+    required this.active,
+    required this.expired,
+  });
+  final String sessionId;
+  final SavedAccountProfile profile;
+  final bool active;
+  final bool expired;
+  SavedAccountSession copyWith({bool? active}) => SavedAccountSession(
+    sessionId: sessionId,
+    profile: profile,
+    active: active ?? this.active,
+    expired: expired,
+  );
+  factory SavedAccountSession.fromJson(Map<String, dynamic> json) =>
+      SavedAccountSession(
+        sessionId: json['session_id']?.toString() ?? '',
+        profile: SavedAccountProfile.fromJson(
+          Map<String, dynamic>.from(json['profile'] as Map? ?? const {}),
+        ),
+        active: json['active'] == true,
+        expired:
+            json['expired'] == true ||
+            json['signed_out'] == true ||
+            (json['status'] != null && json['status'] != 'active'),
+      );
+}
+
+class SessionLoginResult {
+  const SessionLoginResult({
+    required this.sessionId,
+    required this.profile,
+    required this.accessToken,
+    this.refreshToken,
+  });
+  final String sessionId;
+  final SavedAccountProfile profile;
+  final String accessToken;
+  final String? refreshToken;
+}
+
+class WebAuthBootstrap {
+  const WebAuthBootstrap({required this.csrfToken});
+  final String csrfToken;
+}
+
 class Api {
   Api({http.Client? client, String? loginUrl})
     : _client = client ?? http.Client(),
@@ -56,6 +125,206 @@ class Api {
     } catch (_) {
       return const LoginResult.failure(LoginFailure.network);
     }
+  }
+
+  Future<SessionLoginResult> sessionLogin(
+    String username,
+    String password,
+    Map<String, String> deviceHeaders,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.authLoginUrl),
+          headers: {
+            ...deviceHeaders,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'username': username, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _sessionResult(_requireObject(response, 'saved account login'));
+  }
+
+  Future<List<SavedAccountSession>> savedSessions(
+    Map<String, String> deviceHeaders,
+  ) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.authSessionsUrl),
+          headers: {...deviceHeaders, 'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'saved accounts');
+    final data = payload['data'] as List? ?? const [];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) =>
+              SavedAccountSession.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  Future<SessionLoginResult> activateSession(
+    String sessionId,
+    String refreshToken,
+    Map<String, String> deviceHeaders,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.authSessionActivateUrl(sessionId)),
+          headers: {
+            ...deviceHeaders,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'refresh_token': refreshToken}),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _sessionResult(_requireObject(response, 'account switch'));
+  }
+
+  Future<void> removeSession(
+    String sessionId,
+    Map<String, String> deviceHeaders,
+  ) async {
+    final response = await _client
+        .delete(
+          Uri.parse(ApiEndPoints.authSessionUrl(sessionId)),
+          headers: {...deviceHeaders, 'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'remove saved account');
+  }
+
+  Future<WebAuthBootstrap> webAuthBootstrap() async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.webAuthBootstrapUrl),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'web authentication bootstrap');
+    final csrfToken = payload['csrf_token']?.toString() ?? '';
+    if (csrfToken.isEmpty) {
+      throw const ApiException('Invalid web authentication bootstrap.');
+    }
+    return WebAuthBootstrap(csrfToken: csrfToken);
+  }
+
+  Future<SessionLoginResult> webSessionLogin(
+    String username,
+    String password,
+    String csrfToken,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.webAuthLoginUrl),
+          headers: _webAuthHeaders(csrfToken, json: true),
+          body: jsonEncode({'username': username, 'password': password}),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _webSessionResult(_requireObject(response, 'web account login'));
+  }
+
+  Future<List<SavedAccountSession>> webSavedSessions() async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.webAuthSessionsUrl),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'saved web accounts');
+    final data = payload['data'] as List? ?? const [];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) =>
+              SavedAccountSession.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<SessionLoginResult> activateWebSession(
+    String sessionId,
+    String csrfToken,
+  ) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.webAuthSessionActivateUrl(sessionId)),
+          headers: _webAuthHeaders(csrfToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _webSessionResult(_requireObject(response, 'web account switch'));
+  }
+
+  Future<void> removeWebSession(String sessionId, String csrfToken) async {
+    final response = await _client
+        .delete(
+          Uri.parse(ApiEndPoints.webAuthSessionUrl(sessionId)),
+          headers: _webAuthHeaders(csrfToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'remove saved web account');
+  }
+
+  Future<void> logoutWebSession(String accessToken, String csrfToken) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.webAuthLogoutUrl),
+          headers: {
+            ..._webAuthHeaders(csrfToken),
+            'Authorization': 'Bearer $accessToken',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'web logout');
+  }
+
+  Map<String, String> _webAuthHeaders(String csrfToken, {bool json = false}) =>
+      {
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+        if (json) 'Content-Type': 'application/json',
+      };
+
+  SessionLoginResult _sessionResult(Map<String, dynamic> json) {
+    final data = json['data'] is Map
+        ? Map<String, dynamic>.from(json['data'] as Map)
+        : json;
+    final token = data['access_token']?.toString() ?? '';
+    final refresh = data['refresh_token']?.toString() ?? '';
+    final id = data['session_id']?.toString() ?? '';
+    if (token.isEmpty || refresh.isEmpty || id.isEmpty) {
+      throw const ApiException('Invalid account session response.');
+    }
+    return SessionLoginResult(
+      sessionId: id,
+      profile: SavedAccountProfile.fromJson(
+        Map<String, dynamic>.from(data['profile'] as Map? ?? const {}),
+      ),
+      accessToken: token,
+      refreshToken: refresh,
+    );
+  }
+
+  SessionLoginResult _webSessionResult(Map<String, dynamic> json) {
+    final data = json['data'] is Map
+        ? Map<String, dynamic>.from(json['data'] as Map)
+        : json;
+    final token = data['access_token']?.toString() ?? '';
+    final id = data['session_id']?.toString() ?? '';
+    if (token.isEmpty || id.isEmpty) {
+      throw const ApiException('Invalid web account session response.');
+    }
+    return SessionLoginResult(
+      sessionId: id,
+      profile: SavedAccountProfile.fromJson(
+        Map<String, dynamic>.from(data['profile'] as Map? ?? const {}),
+      ),
+      accessToken: token,
+    );
   }
 
   Future<CashRegister?> currentCashRegister(String accessToken) async {

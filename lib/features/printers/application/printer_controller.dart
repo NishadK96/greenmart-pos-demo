@@ -17,6 +17,15 @@ class PrinterState {
   final bool loading, scanning;
   final String? message;
 
+  Printer? get selectedPrinter {
+    final url = settings.defaultPrinterUrl;
+    if (url == null) return null;
+    for (final printer in printers) {
+      if (printer.url == url) return printer;
+    }
+    return null;
+  }
+
   PrinterState copyWith({
     PrinterSettings? settings,
     List<Printer>? printers,
@@ -105,11 +114,21 @@ class PrinterController extends Notifier<PrinterState> {
   Future<void> selectPrinter(Printer printer) async {
     final selected = Map<String, String>.from(state.settings.selectedPrinters)
       ..[state.settings.profileKey] = printer.url;
-    await update(state.settings.copyWith(selectedPrinters: selected));
+    await update(
+      state.settings.copyWith(
+        selectedPrinters: selected,
+        defaultPrinterUrl: printer.url,
+      ),
+    );
   }
 
   Future<void> clearDefaults() async {
-    await update(state.settings.copyWith(selectedPrinters: const {}));
+    await update(
+      state.settings.copyWith(
+        selectedPrinters: const {},
+        clearDefaultPrinter: true,
+      ),
+    );
   }
 
   Future<void> reset() async {

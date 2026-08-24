@@ -9,6 +9,7 @@ import '../../shared/widgets/ui.dart';
 import '../cash_register/domain/cash_register_entities.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
 import '../cash_register/presentation/cash_register_dialog.dart';
+import '../auth/account_switch_dialog.dart';
 import '../store/app_store.dart';
 
 const destinations = [
@@ -183,6 +184,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 ),
                               ),
                             const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: context.tr('Switch user'),
+                              onPressed: () =>
+                                  showAccountSwitchDialog(context, ref),
+                              icon: const Icon(Icons.switch_account_outlined),
+                            ),
                             IconButton(
                               tooltip: 'Notifications',
                               onPressed: () {},
@@ -422,63 +429,67 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .06),
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: AppColors.accent,
-                            child: Text(
-                              userName.isEmpty
-                                  ? '?'
-                                  : userName
-                                        .split(' ')
-                                        .where((part) => part.isNotEmpty)
-                                        .take(2)
-                                        .map((part) => part[0])
-                                        .join()
-                                        .toUpperCase(),
-                              style: const TextStyle(
-                                color: AppColors.navy,
-                                fontWeight: FontWeight.w900,
+                    child: InkWell(
+                      onTap: () => showAccountSwitchDialog(context, ref),
+                      borderRadius: BorderRadius.circular(13),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .06),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: AppColors.accent,
+                              child: Text(
+                                userName.isEmpty
+                                    ? '?'
+                                    : userName
+                                          .split(' ')
+                                          .where((part) => part.isNotEmpty)
+                                          .take(2)
+                                          .map((part) => part[0])
+                                          .join()
+                                          .toUpperCase(),
+                                style: const TextStyle(
+                                  color: AppColors.navy,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ),
-                          ),
-                          if (expanded) ...[
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    userName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
+                            if (expanded) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      userName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    context.tr('Administrator'),
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 11,
+                                    Text(
+                                      context.tr('Administrator'),
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 11,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            const Icon(
-                              Icons.more_vert,
-                              color: Colors.white38,
-                              size: 18,
-                            ),
+                              const Icon(
+                                Icons.more_vert,
+                                color: Colors.white38,
+                                size: 18,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -670,6 +681,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                         label: Text(context.tr('New sale')),
                       ),
                       const SizedBox(width: 12),
+                      IconButton(
+                        tooltip: context.tr('Switch user'),
+                        onPressed: () => showAccountSwitchDialog(context, ref),
+                        icon: const Icon(Icons.switch_account_outlined),
+                      ),
                       IconButton(
                         onPressed: () {},
                         icon: const Badge(

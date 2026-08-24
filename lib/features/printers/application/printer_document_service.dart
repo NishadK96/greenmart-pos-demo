@@ -6,6 +6,27 @@ import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 
 class PrinterDocumentService {
+  static Future<bool> printPdfBytes(
+    Uint8List bytes, {
+    required String name,
+    Printer? printer,
+    PdfPageFormat format = PdfPageFormat.a4,
+  }) async {
+    if (printer != null && printer.url != 'system-print-dialog') {
+      return Printing.directPrintPdf(
+        printer: printer,
+        name: name,
+        format: format,
+        onLayout: (_) async => bytes,
+      );
+    }
+    return Printing.layoutPdf(
+      name: name,
+      format: format,
+      onLayout: (_) async => bytes,
+    );
+  }
+
   static PdfPageFormat formatFor(String paper) {
     if (paper == '58mm') {
       return PdfPageFormat(58 * PdfPageFormat.mm, 220 * PdfPageFormat.mm);

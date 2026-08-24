@@ -1,12 +1,13 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:printing/printing.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
+import '../../printers/application/printer_controller.dart';
+import '../../printers/application/printer_document_service.dart';
 import '../domain/zatca_entities.dart';
 import 'zatca_controller.dart';
 
@@ -638,12 +639,14 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
                   final file = await controller.downloadReturnPdf(
                     widget.item.id,
                   );
-                  await Printing.sharePdf(
-                    bytes: file.bytes,
-                    filename: file.fileName,
+                  final printerState = ref.read(printerControllerProvider);
+                  await PrinterDocumentService.printPdfBytes(
+                    file.bytes,
+                    name: file.fileName,
+                    printer: printerState.selectedPrinter,
                   );
                 }),
-          child: const Text('PDF/A-3'),
+          child: const Text('Print PDF/A-3'),
         ),
       ],
       TextButton(
@@ -2168,6 +2171,11 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
     final file = await ref
         .read(zatcaControllerProvider.notifier)
         .downloadPdf(widget.sale.serverId!);
-    await Printing.sharePdf(bytes: file.bytes, filename: file.fileName);
+    final printerState = ref.read(printerControllerProvider);
+    await PrinterDocumentService.printPdfBytes(
+      file.bytes,
+      name: file.fileName,
+      printer: printerState.selectedPrinter,
+    );
   });
 }

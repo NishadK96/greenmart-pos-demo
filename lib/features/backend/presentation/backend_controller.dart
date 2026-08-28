@@ -5,6 +5,7 @@ import '../../../core/utils/money.dart';
 import '../../auth/auth_controller.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../store/app_store.dart';
+import '../../offline_pos/presentation/offline_pos_controller.dart';
 import '../data/eazyerp_backend_repository.dart';
 
 final backendControllerProvider =
@@ -38,8 +39,13 @@ class BackendController extends AsyncNotifier<void> {
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
         await ref.read(authControllerProvider.notifier).logout();
+        rethrow;
       }
-      rethrow;
+      final cached = await ref.read(offlinePosControllerProvider.future);
+      if (!cached.catalog.isNotEmpty) rethrow;
+    } catch (_) {
+      final cached = await ref.read(offlinePosControllerProvider.future);
+      if (!cached.catalog.isNotEmpty) rethrow;
     }
   }
 
@@ -165,44 +171,56 @@ class BackendController extends AsyncNotifier<void> {
   }
 
   Future<Sale> checkout(String paymentMethod) async {
-    final token = await _token();
     final state = ref.read(appStoreProvider);
     if (state.cart.isEmpty ||
         state.customers.isEmpty ||
         state.locations.isEmpty) {
       throw const ApiException('Sale data is incomplete. Refresh and retry.');
     }
-    final register = await ref.read(cashRegisterControllerProvider.future);
-    if (register == null) {
-      throw const ApiException(
-        'Open a cash register before completing this sale.',
-      );
-    }
-    if (!state.locations.any((item) => item.id == register.locationId)) {
-      throw const ApiException(
-        'The open cash register does not match an available business location.',
-      );
-    }
-    final created = await ref
-        .read(backendRepositoryProvider)
-        .createSale(
-          accessToken: token,
-          locationId: register.locationId,
-          cashRegisterId: register.id,
-          customer: state.customer ?? state.customers.first,
-          lines: state.cart,
-          paymentMethod: paymentMethod,
-          total: state.cartTotal,
+    try {
+      final token = await _token();
+      final register = await ref.read(cashRegisterControllerProvider.future);
+      if (register == null) {
+        throw const ApiException(
+          'Open a cash register before completing this sale.',
         );
-    final sale = ref
-        .read(appStoreProvider.notifier)
-        .checkout(
-          paymentMethod,
-          serverId: created.id,
-          invoiceNo: created.invoiceNo,
+      }
+      if (!state.locations.any((item) => item.id == register.locationId)) {
+        throw const ApiException(
+          'The open cash register does not match an available business location.',
         );
-    ref.invalidateSelf();
-    return sale;
+      }
+      final created = await ref
+          .read(backendRepositoryProvider)
+          .createSale(
+            accessToken: token,
+            locationId: register.locationId,
+            cashRegisterId: register.id,
+            customer: state.customer ?? state.customers.first,
+            lines: state.cart,
+            paymentMethod: paymentMethod,
+            total: state.cartTotal,
+            grossDiscount: state.cartGrossDiscount,
+          );
+      final sale = ref
+          .read(appStoreProvider.notifier)
+          .checkout(
+            paymentMethod,
+            serverId: created.id,
+            invoiceNo: created.invoiceNo,
+          );
+      ref.invalidateSelf();
+      return sale;
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      if (paymentMethod != 'cash') {
+        throw const ApiException(
+          'Only cash sales can be completed while offline.',
+        );
+      }
+      return ref.read(offlinePosControllerProvider.notifier).queueCurrentSale();
+    }
   }
 
   Future<String> createSaleReturn({
@@ -387,7 +405,14 @@ class BackendController extends AsyncNotifier<void> {
   }
 
   Future<String> _token() async {
-    final token = await ref.read(authControllerProvider.future);
+    var token = await ref.read(authControllerProvider.future);
+    if (token == 'offline-local-session') {
+      ref.invalidate(authControllerProvider);
+      token = await ref.read(authControllerProvider.future);
+    }
+    if (token == 'offline-local-session') {
+      throw StateError('The backend is unavailable; continue in offline mode.');
+    }
     if (token == null || token.isEmpty) {
       throw const ApiException('Your session has expired. Please sign in.');
     }

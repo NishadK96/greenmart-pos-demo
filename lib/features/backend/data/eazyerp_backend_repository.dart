@@ -298,6 +298,7 @@ class EazyErpBackendRepository implements BackendRepository {
     required List<CartLine> lines,
     required String paymentMethod,
     required int total,
+    required int grossDiscount,
   }) async {
     final json = await _api.createSale(
       accessToken: accessToken,
@@ -307,6 +308,7 @@ class EazyErpBackendRepository implements BackendRepository {
       lines: lines,
       paymentMethod: paymentMethod,
       total: total,
+      grossDiscount: grossDiscount,
     );
     return CreatedSale(
       id: json['id']?.toString() ?? '',

@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../apis/api.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../backend/presentation/backend_controller.dart';
@@ -571,12 +572,27 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'ⓘ  Estimated profit per unit: ${state.business?.currencySymbol ?? ''}${((double.tryParse(_selling.text) ?? 0) - (double.tryParse(_purchase.text) ?? 0)).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'ⓘ  Estimated profit per unit: ',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  RiyalAmount(
+                    toPaise(
+                      (double.tryParse(_selling.text) ?? 0) -
+                          (double.tryParse(_purchase.text) ?? 0),
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -813,8 +829,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
-            _previewLine('Purchase cost', _moneyPreview(_purchase.text, state)),
-            _previewLine('Selling price', _moneyPreview(_selling.text, state)),
+            _previewAmountLine('Purchase cost', _purchase.text),
+            _previewAmountLine('Selling price', _selling.text),
             _previewLine('Margin', '${_margin.text}%'),
             const SizedBox(height: 14),
             const Divider(),
@@ -897,8 +913,23 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       ],
     ),
   );
-  String _moneyPreview(String text, AppState state) =>
-      '${state.business?.currencySymbol ?? ''}${(double.tryParse(text) ?? 0).toStringAsFixed(2)}';
+  Widget _previewAmountLine(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+        ),
+        RiyalAmount(
+          toPaise(double.tryParse(value) ?? 0),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+        ),
+      ],
+    ),
+  );
 
   Widget _productActions(bool editing) => Container(
     color: Colors.white,
@@ -1340,8 +1371,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     decoration: InputDecoration(
       labelText: context.tr(label),
-      prefixText:
-          '${ref.read(appStoreProvider).business?.currencySymbol ?? ''} ',
+      prefixIcon: const Padding(
+        padding: EdgeInsets.all(14),
+        child: RiyalSymbol(size: 16),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     ),
     onChanged: changed == null ? null : (_) => changed(),
     validator: (v) => double.tryParse(v ?? '') == null ? 'Required' : null,

@@ -57,3 +57,4 @@ app.*.map.json
 Eazyerp-zatca-test/
 design-qa-*.png
 output/
+/outputs/

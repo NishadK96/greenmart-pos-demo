@@ -2793,7 +2793,7 @@ Widget _detailProductTable(
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: Text(money(line.unitCost.round())),
+                    child: RiyalAmount(line.unitCost.round()),
                   ),
                 ),
                 Expanded(

@@ -144,6 +144,7 @@ abstract interface class BackendRepository {
     required List<CartLine> lines,
     required String paymentMethod,
     required int total,
+    required int grossDiscount,
   });
 
   Future<String> createSaleReturn({

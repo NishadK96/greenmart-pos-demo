@@ -51,10 +51,21 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/business-details';
   static const loggedInUserUrl =
       '${Config.baseUrl}/connector/api/user/loggedin';
+  static const usersUrl = '${Config.baseUrl}/connector/api/user';
+  static const activeSubscriptionUrl =
+      '${Config.baseUrl}/connector/api/active-subscription';
   static const profitLossUrl =
       '${Config.baseUrl}/connector/api/profit-loss-report';
   static const stockReportUrl =
       '${Config.baseUrl}/connector/api/product-stock-report';
+  static const offlineBootstrapUrl =
+      '${Config.baseUrl}/connector/api/pos-sync/bootstrap';
+  static const offlineChangesUrl =
+      '${Config.baseUrl}/connector/api/pos-sync/changes';
+  static const offlineSalesSyncUrl =
+      '${Config.baseUrl}/connector/api/offline-sales/sync';
+  static String reportUrl(String report) =>
+      '${Config.baseUrl}/connector/api/reports/$report';
   static const purchaseOrdersUrl =
       '${Config.baseUrl}/connector/api/purchase-orders';
   static const purchasesUrl = '${Config.baseUrl}/connector/api/purchases';

@@ -224,6 +224,30 @@ class UserProfile {
   final bool isAdmin;
 }
 
+enum SubscriptionTier { lite, basic, standard, advance, unknown }
+
+class SubscriptionSummary {
+  const SubscriptionSummary({
+    required this.name,
+    required this.tier,
+    required this.includedUsers,
+    required this.userLimit,
+    required this.activeUsers,
+    this.endDate,
+  });
+
+  final String name;
+  final SubscriptionTier tier;
+  final int includedUsers, userLimit, activeUsers;
+  final DateTime? endDate;
+
+  int get additionalUsers => (userLimit - includedUsers).clamp(0, userLimit);
+  int get remainingUsers => (userLimit - activeUsers).clamp(0, userLimit);
+  bool get isUnlimited => userLimit == 0;
+  bool get canBuyAdditionalUsers => tier != SubscriptionTier.lite;
+  bool get canAddUser => isUnlimited || activeUsers < userLimit;
+}
+
 class ProfitLoss {
   const ProfitLoss({
     required this.totalSales,
@@ -261,25 +285,43 @@ class CartLine {
     required this.product,
     this.quantity = 1,
     this.discount = 0,
+    this.unitPriceOverride,
     this.sellLineId,
     this.quantityReturned = 0,
   });
   final Product product;
   final int quantity, discount;
+  final int? unitPriceOverride;
   final String? sellLineId;
   final int quantityReturned;
   int get returnableQuantity =>
       (quantity - quantityReturned).clamp(0, quantity);
-  int get subtotal => product.sellingPrice * quantity;
+  int get unitPrice => unitPriceOverride ?? product.sellingPrice;
+  int get subtotal => unitPrice * quantity;
   int get tax => ((subtotal - discount) * product.taxPercent / 100).round();
   int get total => subtotal - discount + tax;
-  CartLine copyWith({int? quantity, int? discount}) => CartLine(
+  CartLine copyWith({
+    int? quantity,
+    int? discount,
+    int? unitPriceOverride,
+    bool clearUnitPriceOverride = false,
+  }) => CartLine(
     product: product,
     quantity: quantity ?? this.quantity,
     discount: discount ?? this.discount,
+    unitPriceOverride: clearUnitPriceOverride
+        ? null
+        : unitPriceOverride ?? this.unitPriceOverride,
     sellLineId: sellLineId,
     quantityReturned: quantityReturned,
   );
+}
+
+class HeldCart {
+  const HeldCart({required this.lines, this.grossDiscount = 0});
+
+  final List<CartLine> lines;
+  final int grossDiscount;
 }
 
 class Sale {
@@ -296,6 +338,7 @@ class Sale {
     required this.tax,
     required this.discount,
     required this.syncStatus,
+    this.zatcaStatus,
   });
   final String localId, invoiceNo;
   final String? serverId;
@@ -305,6 +348,28 @@ class Sale {
   final String paymentMethod;
   final int total, tax, discount;
   final SyncStatus syncStatus;
+  final String? zatcaStatus;
+
+  Sale copyWith({
+    String? serverId,
+    String? invoiceNo,
+    SyncStatus? syncStatus,
+    String? zatcaStatus,
+  }) => Sale(
+    localId: localId,
+    serverId: serverId ?? this.serverId,
+    invoiceNo: invoiceNo ?? this.invoiceNo,
+    createdAt: createdAt,
+    updatedAt: DateTime.now(),
+    customer: customer,
+    items: items,
+    paymentMethod: paymentMethod,
+    total: total,
+    tax: tax,
+    discount: discount,
+    syncStatus: syncStatus ?? this.syncStatus,
+    zatcaStatus: zatcaStatus ?? this.zatcaStatus,
+  );
 }
 
 class SaleReturnRecord {

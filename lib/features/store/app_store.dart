@@ -25,6 +25,7 @@ class AppState {
     this.customer,
     this.lastSale,
     this.heldCarts = const [],
+    this.grossDiscount = 0,
   });
   final List<Product> products;
   final List<Category> categories;
@@ -44,11 +45,23 @@ class AppState {
   final List<CartLine> cart;
   final Customer? customer;
   final Sale? lastSale;
-  final List<List<CartLine>> heldCarts;
-  int get cartSubtotal => cart.fold(0, (v, e) => v + e.subtotal);
-  int get cartTax => cart.fold(0, (v, e) => v + e.tax);
-  int get cartDiscount => cart.fold(0, (v, e) => v + e.discount);
-  int get cartTotal => cart.fold(0, (v, e) => v + e.total);
+  final List<HeldCart> heldCarts;
+  final int grossDiscount;
+  int get cartSubtotal => cart.fold<int>(0, (v, e) => v + e.subtotal);
+  int get cartLineDiscount => cart.fold<int>(0, (v, e) => v + e.discount);
+  int get cartTax => cart.fold<int>(0, (v, e) => v + e.tax);
+  int get maximumGrossDiscount =>
+      cart.fold<int>(0, (value, line) => value + line.total);
+  int get cartGrossDiscount {
+    if (grossDiscount <= 0) return 0;
+    if (grossDiscount >= maximumGrossDiscount) return maximumGrossDiscount;
+    return grossDiscount;
+  }
+
+  int get cartDiscount => cartLineDiscount + cartGrossDiscount;
+  int get cartTotal =>
+      cart.fold<int>(0, (value, line) => value + line.total) -
+      cartGrossDiscount;
   int get itemCount => cart.fold(0, (v, e) => v + e.quantity);
   AppState copyWith({
     List<Product>? products,
@@ -71,7 +84,8 @@ class AppState {
     Customer? customer,
     bool clearCustomer = false,
     Sale? lastSale,
-    List<List<CartLine>>? heldCarts,
+    List<HeldCart>? heldCarts,
+    int? grossDiscount,
   }) => AppState(
     products: products ?? this.products,
     categories: categories ?? this.categories,
@@ -93,6 +107,7 @@ class AppState {
     customer: clearCustomer ? null : customer ?? this.customer,
     lastSale: lastSale ?? this.lastSale,
     heldCarts: heldCarts ?? this.heldCarts,
+    grossDiscount: grossDiscount ?? this.grossDiscount,
   );
 }
 
@@ -131,20 +146,46 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(cart: lines);
   }
 
+  void unitPrice(String id, int? amount) {
+    final lines = [...state.cart];
+    final i = lines.indexWhere((e) => e.product.id == id);
+    if (i < 0) return;
+    final updated = amount == null
+        ? lines[i].copyWith(clearUnitPriceOverride: true)
+        : lines[i].copyWith(unitPriceOverride: amount < 0 ? 0 : amount);
+    lines[i] = updated.copyWith(
+      discount: updated.discount.clamp(0, updated.subtotal),
+    );
+    state = state.copyWith(cart: lines);
+  }
+
+  void setGrossDiscount(int amount) => state = state.copyWith(
+    grossDiscount: amount.clamp(0, state.maximumGrossDiscount),
+  );
+
   void remove(String id) => state = state.copyWith(
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );
-  void clearCart() => state = state.copyWith(cart: [], clearCustomer: true);
-  void clearCashierContext() =>
-      state = state.copyWith(cart: [], heldCarts: [], clearCustomer: true);
+  void clearCart() =>
+      state = state.copyWith(cart: [], clearCustomer: true, grossDiscount: 0);
+  void clearCashierContext() => state = state.copyWith(
+    cart: [],
+    heldCarts: [],
+    clearCustomer: true,
+    grossDiscount: 0,
+  );
   void holdCart() {
     if (state.cart.isEmpty) return;
     state = state.copyWith(
       heldCarts: [
-        [...state.cart],
+        HeldCart(
+          lines: [...state.cart],
+          grossDiscount: state.cartGrossDiscount,
+        ),
         ...state.heldCarts,
       ],
       cart: [],
+      grossDiscount: 0,
       clearCustomer: true,
     );
   }
@@ -152,7 +193,8 @@ class AppStore extends Notifier<AppState> {
   void resumeLastHeldCart() {
     if (state.heldCarts.isEmpty || state.cart.isNotEmpty) return;
     state = state.copyWith(
-      cart: [...state.heldCarts.first],
+      cart: [...state.heldCarts.first.lines],
+      grossDiscount: state.heldCarts.first.grossDiscount,
       heldCarts: state.heldCarts.skip(1).toList(growable: false),
     );
   }
@@ -194,6 +236,22 @@ class AppStore extends Notifier<AppState> {
 
   void replaceCatalog(List<Product> products, List<Category> categories) =>
       state = state.copyWith(products: products, categories: categories);
+
+  void restoreOfflineCatalog({
+    required List<Product> products,
+    required List<Category> categories,
+    required List<Customer> customers,
+    required List<BusinessLocation> locations,
+    required List<PaymentOption> paymentOptions,
+    required List<LookupOption> taxes,
+  }) => state = state.copyWith(
+    products: products,
+    categories: categories,
+    customers: customers,
+    locations: locations,
+    paymentOptions: paymentOptions,
+    taxes: taxes,
+  );
 
   void replaceRemoteData({
     required List<Product> products,
@@ -258,8 +316,37 @@ class AppStore extends Notifier<AppState> {
       cart: [],
       clearCustomer: true,
       lastSale: sale,
+      grossDiscount: 0,
     );
     return sale;
+  }
+
+  void applyOfflineSyncOutcome({
+    required String localSaleId,
+    required SyncStatus status,
+    String? serverId,
+    String? invoiceNo,
+    String? zatcaStatus,
+  }) {
+    Sale? updated;
+    final sales = state.sales
+        .map((sale) {
+          if (sale.localId != localSaleId) return sale;
+          updated = sale.copyWith(
+            serverId: serverId,
+            invoiceNo: invoiceNo,
+            syncStatus: status,
+            zatcaStatus: zatcaStatus,
+          );
+          return updated!;
+        })
+        .toList(growable: false);
+    state = state.copyWith(
+      sales: sales,
+      lastSale: state.lastSale?.localId == localSaleId
+          ? updated
+          : state.lastSale,
+    );
   }
 }
 

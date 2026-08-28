@@ -493,6 +493,7 @@ void main() {
         lines: const [CartLine(product: product)],
         paymentMethod: 'cash',
         total: 4900,
+        grossDiscount: 0,
       ),
       throwsA(
         isA<ApiException>().having(
@@ -502,6 +503,49 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('create sale sends edited unit price and gross discount', () async {
+    late Map<String, dynamic> payload;
+    final api = Api(
+      client: MockClient((request) async {
+        payload = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('[{"id":10,"invoice_no":"INV-10"}]', 200);
+      }),
+    );
+    const product = Product(
+      id: '1',
+      variationId: '2',
+      name: 'Rice',
+      sku: 'SKU-1',
+      barcode: 'SKU-1',
+      categoryId: '3',
+      purchasePrice: 4000,
+      sellingPrice: 4900,
+      stock: 2,
+      minimumStock: 1,
+    );
+
+    await api.createSale(
+      accessToken: 'token-123',
+      locationId: '1',
+      cashRegisterId: '27',
+      customer: const Customer(id: '1', name: 'Walk-in'),
+      lines: const [
+        CartLine(product: product, unitPriceOverride: 4550, discount: 150),
+      ],
+      paymentMethod: 'cash',
+      total: 4200,
+      grossDiscount: 200,
+    );
+
+    final sale = (payload['sells'] as List).single as Map<String, dynamic>;
+    final line = (sale['products'] as List).single as Map<String, dynamic>;
+    expect(sale['discount_type'], 'fixed');
+    expect(sale['discount_amount'], 2);
+    expect(line['unit_price'], 45.5);
+    expect(line['discount_amount'], 1.5);
+    expect((sale['payment'] as List).single['amount'], 42);
   });
 
   test('standard and quick product creation use their API contracts', () async {
@@ -828,6 +872,91 @@ void main() {
     expect(summary.pending, 2);
     expect(summary.simulationSynced, 4);
     expect(calls, 2);
+  });
+
+  test('subscription maps package allowance and active login users', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('/active-subscription')) {
+          return http.Response(
+            '{"data":{"end_date":"2026-12-31","package_details":{"name":"Standard","user_count":5}}}',
+            200,
+          );
+        }
+        expect(request.url.path, endsWith('/connector/api/user'));
+        return http.Response(
+          '{"data":[{"allow_login":1,"status":"active"},{"allow_login":"1","status":"active"},{"allow_login":0,"status":"active"}]}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.activeSubscription('token-123');
+
+    expect(result.tier, SubscriptionTier.standard);
+    expect(result.includedUsers, 3);
+    expect(result.userLimit, 5);
+    expect(result.additionalUsers, 2);
+    expect(result.activeUsers, 2);
+    expect(result.remainingUsers, 3);
+  });
+
+  test(
+    'Lite remains limited to one user even with a higher API limit',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/active-subscription')) {
+            return http.Response(
+              '{"data":{"package_details":{"name":"Lite","user_count":9}}}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"data":[{"allow_login":1,"status":"active"}]}',
+            200,
+          );
+        }),
+      );
+
+      final result = await api.activeSubscription('token-123');
+
+      expect(result.userLimit, 1);
+      expect(result.canBuyAdditionalUsers, isFalse);
+      expect(result.canAddUser, isFalse);
+    },
+  );
+
+  test('report sends filters and returns the paginated contract', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/connector/api/reports/sales');
+        expect(request.url.queryParameters, {
+          'start_date': '2026-08-01',
+          'end_date': '2026-08-25',
+          'location_id': '3',
+          'page': '2',
+          'per_page': '20',
+        });
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        return http.Response(
+          '{"current_page":2,"last_page":3,"total":41,"data":[],"summary":{"row_count":41,"final_total":1200}}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.report('token-123', 'sales', {
+      'start_date': '2026-08-01',
+      'end_date': '2026-08-25',
+      'location_id': '3',
+      'page': '2',
+      'per_page': '20',
+    });
+
+    expect(result['current_page'], 2);
+    expect((result['summary'] as Map)['final_total'], 1200);
   });
 }
 

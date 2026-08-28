@@ -14,6 +14,8 @@ import 'features/printers/presentation/printer_settings_screen.dart';
 import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
 import 'features/zatca/presentation/zatca_screen.dart';
+import 'features/subscription/presentation/subscription_screen.dart';
+import 'features/reports/presentation/reports_screen.dart';
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
     NoTransitionPage<void>(key: state.pageKey, child: child);
@@ -110,6 +112,11 @@ final _router = GoRouter(
           path: '/settings/printers',
           pageBuilder: (_, state) =>
               _instantPage(state, const PrinterSettingsScreen()),
+        ),
+        GoRoute(
+          path: '/settings/subscription',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const SubscriptionScreen()),
         ),
         GoRoute(
           path: '/zatca',

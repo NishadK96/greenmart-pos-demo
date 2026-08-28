@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
+import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
 import '../zatca/presentation/zatca_screen.dart';
@@ -44,14 +45,18 @@ class ReceiptScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    context.tr('Sale complete'),
+                    sale.syncStatus == SyncStatus.pending
+                        ? 'Offline sale saved'
+                        : context.tr('Sale complete'),
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${sale.invoiceNo} • Saved to EazyERP',
+                    sale.syncStatus == SyncStatus.pending
+                        ? '${sale.invoiceNo} • Waiting to synchronize'
+                        : '${sale.invoiceNo} • Saved to EazyERP',
                     style: const TextStyle(color: AppColors.muted),
                   ),
                   const SizedBox(height: 22),
@@ -89,7 +94,7 @@ class ReceiptScreen extends ConsumerWidget {
                                     '${line.quantity} × ${context.tr(line.product.name)}',
                                   ),
                                 ),
-                                Text(money(line.total)),
+                                RiyalAmount(line.total),
                               ],
                             ),
                           ),
@@ -109,8 +114,8 @@ class ReceiptScreen extends ConsumerWidget {
                               style: TextStyle(fontWeight: FontWeight.w900),
                             ),
                             const Spacer(),
-                            Text(
-                              money(sale.total),
+                            RiyalAmount(
+                              sale.total,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 24,
@@ -120,7 +125,28 @@ class ReceiptScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        const StatusBadge('Synchronized'),
+                        StatusBadge(
+                          sale.syncStatus == SyncStatus.pending
+                              ? 'Provisional • Pending sync'
+                              : sale.zatcaStatus == 'success'
+                              ? 'Synchronized • ZATCA accepted'
+                              : 'Synchronized',
+                          color: sale.syncStatus == SyncStatus.pending
+                              ? const Color(0xFFB7791F)
+                              : AppColors.primary,
+                        ),
+                        if (sale.syncStatus == SyncStatus.pending) ...[
+                          const SizedBox(height: 10),
+                          const Text(
+                            'This is a provisional offline receipt, not a final ZATCA invoice. The official invoice number and ZATCA documents become available after synchronization.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 11,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -211,7 +237,7 @@ class ReceiptScreen extends ConsumerWidget {
       children: [
         Text(context.tr(label), style: const TextStyle(color: AppColors.muted)),
         const Spacer(),
-        Text(money(value)),
+        RiyalAmount(value),
       ],
     ),
   );

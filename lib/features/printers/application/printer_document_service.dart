@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
+import '../../offline_pos/domain/provisional_receipt_qr.dart';
 
 class PrinterDocumentService {
   static Future<bool> printPdfBytes(
@@ -165,7 +166,9 @@ class PrinterDocumentService {
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.Text(
-              sale.customer.isBusiness
+              sale.syncStatus == SyncStatus.pending
+                  ? 'PROVISIONAL OFFLINE RECEIPT'
+                  : sale.customer.isBusiness
                   ? 'TAX INVOICE'
                   : 'SIMPLIFIED TAX INVOICE',
               textAlign: pw.TextAlign.center,
@@ -186,6 +189,31 @@ class PrinterDocumentService {
             _line('Tax', _money(sale.tax)),
             _line('Discount', _money(sale.discount)),
             _line('TOTAL', _money(sale.total), bold: true),
+            if (sale.syncStatus == SyncStatus.pending) ...[
+              pw.SizedBox(height: 12),
+              pw.Center(
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: provisionalReceiptQrData(sale, businessName),
+                  width: 92,
+                  height: 92,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'PROVISIONAL — NOT A FINAL ZATCA INVOICE',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                'The official invoice number and ZATCA status are issued after synchronization.',
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(fontSize: 7),
+              ),
+            ],
             pw.SizedBox(height: 14),
             pw.Text('Thank you', textAlign: pw.TextAlign.center),
           ],

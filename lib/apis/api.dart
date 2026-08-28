@@ -446,6 +446,79 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<Map<String, dynamic>> offlineBootstrap({
+    required String accessToken,
+    required String locationId,
+    required String cashRegisterId,
+    String? contextId,
+    int productCursor = 0,
+    int customerCursor = 0,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.offlineBootstrapUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken, json: true),
+            if (contextId != null) 'X-Offline-Context': contextId,
+          },
+          body: jsonEncode({
+            if (contextId == null) ...{
+              'location_id': int.parse(locationId),
+              'cash_register_id': int.parse(cashRegisterId),
+            } else ...{
+              'context_id': contextId,
+              'product_cursor': productCursor,
+              'customer_cursor': customerCursor,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    return _map(_requireObject(response, 'offline POS bootstrap')['data']);
+  }
+
+  Future<Map<String, dynamic>> syncOfflineSales({
+    required String accessToken,
+    required String contextId,
+    required List<Map<String, dynamic>> batch,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.offlineSalesSyncUrl),
+          headers: {
+            ..._authorizedHeaders(accessToken, json: true),
+            'X-Offline-Context': contextId,
+          },
+          body: jsonEncode({'context_id': contextId, 'batch': batch}),
+        )
+        .timeout(const Duration(seconds: 30));
+    return _requireObject(response, 'offline POS synchronization');
+  }
+
+  Future<Map<String, dynamic>> offlineChanges({
+    required String accessToken,
+    required String contextId,
+    required int cursor,
+    int limit = 500,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.offlineChangesUrl).replace(
+      queryParameters: {
+        'context_id': contextId,
+        'cursor': '$cursor',
+        'limit': '$limit',
+      },
+    );
+    final response = await _client
+        .get(
+          uri,
+          headers: {
+            ..._authorizedHeaders(accessToken),
+            'X-Offline-Context': contextId,
+          },
+        )
+        .timeout(const Duration(seconds: 30));
+    return _map(_requireObject(response, 'offline POS changes')['data']);
+  }
+
   Future<List<LookupOption>> units(String accessToken) =>
       _lookupOptions(ApiEndPoints.unitsUrl, accessToken, 'units');
 
@@ -1248,6 +1321,58 @@ class Api {
     );
   }
 
+  Future<SubscriptionSummary> activeSubscription(String accessToken) async {
+    final subscription = await _getDataObject(
+      Uri.parse(ApiEndPoints.activeSubscriptionUrl),
+      accessToken,
+      'active subscription',
+    );
+    final details = _map(subscription['package_details']);
+    final name = details['name']?.toString().trim() ?? 'Current plan';
+    final normalized = name.toLowerCase();
+    final tier = normalized.contains('lite')
+        ? SubscriptionTier.lite
+        : normalized.contains('basic')
+        ? SubscriptionTier.basic
+        : normalized.contains('standard')
+        ? SubscriptionTier.standard
+        : normalized.contains('advance')
+        ? SubscriptionTier.advance
+        : SubscriptionTier.unknown;
+    final includedUsers = switch (tier) {
+      SubscriptionTier.lite || SubscriptionTier.basic => 1,
+      SubscriptionTier.standard => 3,
+      SubscriptionTier.advance => 5,
+      SubscriptionTier.unknown => _number(details['user_count']).floor(),
+    };
+    final configuredLimit = _number(details['user_count']).floor();
+    final userLimit = tier == SubscriptionTier.lite
+        ? 1
+        : configuredLimit > 0
+        ? configuredLimit
+        : includedUsers;
+    final users = await _getDataList(
+      Uri.parse(ApiEndPoints.usersUrl),
+      accessToken,
+      'users',
+    );
+    final activeUsers = users.where((user) {
+      final login = user['allow_login'];
+      final status = user['status']?.toString().toLowerCase();
+      return (login == true || login == 1 || login?.toString() == '1') &&
+          status != 'inactive' &&
+          status != 'terminated';
+    }).length;
+    return SubscriptionSummary(
+      name: name,
+      tier: tier,
+      includedUsers: includedUsers,
+      userLimit: userLimit,
+      activeUsers: activeUsers,
+      endDate: DateTime.tryParse(subscription['end_date']?.toString() ?? ''),
+    );
+  }
+
   Future<ProfitLoss> profitLoss(String accessToken) async {
     final json = await _getDataObject(
       Uri.parse(ApiEndPoints.profitLossUrl),
@@ -1284,6 +1409,20 @@ class Api {
           ),
         )
         .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> report(
+    String accessToken,
+    String report,
+    Map<String, String> parameters,
+  ) async {
+    final uri = Uri.parse(
+      ApiEndPoints.reportUrl(report),
+    ).replace(queryParameters: parameters);
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 30));
+    return _requireObject(response, '$report report');
   }
 
   Future<List<Sale>> sales(
@@ -1347,6 +1486,7 @@ class Api {
     required List<CartLine> lines,
     required String paymentMethod,
     required int total,
+    required int grossDiscount,
   }) async {
     final body = {
       'sells': [
@@ -1356,14 +1496,14 @@ class Api {
           'contact_id': int.parse(customer.id),
           'status': 'final',
           'discount_type': 'fixed',
-          'discount_amount': 0,
+          'discount_amount': grossDiscount / 100,
           'products': [
             for (final line in lines)
               {
                 'product_id': int.parse(line.product.id),
                 'variation_id': int.parse(line.product.variationId),
                 'quantity': line.quantity,
-                'unit_price': line.product.sellingPrice / 100,
+                'unit_price': line.unitPrice / 100,
                 'discount_type': 'fixed',
                 'discount_amount': line.discount / 100,
               },

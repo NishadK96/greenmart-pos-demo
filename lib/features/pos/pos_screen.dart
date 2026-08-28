@@ -134,8 +134,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(
-                                      money(state.cartTotal),
+                                    RiyalAmount(
+                                      state.cartTotal,
                                       style: const TextStyle(
                                         color: AppColors.primary,
                                         fontSize: 16,
@@ -376,155 +376,150 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   Widget _categoryBar(AppState state) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final visibleCount = constraints.maxWidth >= 800 ? 5 : 3;
-        final visibleCategories = state.categories.take(visibleCount).toList();
-        final moreCategories = state.categories.skip(visibleCount).toList();
-        if (constraints.maxWidth < 700) {
-          final mobileFilters = <Widget>[
-            _filterChip(
-              'Favorites',
-              _mode == 'favorites',
-              () => setState(() => _mode = 'favorites'),
-              Icons.star_border_rounded,
-            ),
-            _filterChip(
-              'Recent',
-              _mode == 'recent',
-              () => setState(() => _mode = 'recent'),
-              Icons.history_rounded,
-            ),
-            _filterChip(
-              context.tr('All'),
-              _mode == 'all' && _category == 'all',
-              () => setState(() {
+        final compact = constraints.maxWidth < 700;
+        final cardWidth = compact ? 74.0 : 88.0;
+        final filters = <Widget>[
+          _categoryCard(
+            label: context.tr('All'),
+            icon: Icons.grid_view_rounded,
+            selected: _mode == 'all' && _category == 'all',
+            width: cardWidth,
+            onTap: () => setState(() {
+              _mode = 'all';
+              _category = 'all';
+            }),
+          ),
+          for (final category in state.categories)
+            _categoryCard(
+              label: context.tr(category.name),
+              icon: _categoryIcon(category.name),
+              selected: _mode == 'all' && _category == category.id,
+              width: cardWidth,
+              onTap: () => setState(() {
                 _mode = 'all';
-                _category = 'all';
+                _category = category.id;
               }),
             ),
-            for (final category in state.categories)
-              _filterChip(
-                context.tr(category.name),
-                _mode == 'all' && _category == category.id,
-                () => setState(() {
-                  _mode = 'all';
-                  _category = category.id;
-                }),
-              ),
-          ];
-          return SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: mobileFilters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, index) => mobileFilters[index],
-            ),
-          );
-        }
+          _categoryCard(
+            label: context.tr('Favorites'),
+            icon: Icons.star_border_rounded,
+            selected: _mode == 'favorites',
+            width: cardWidth,
+            accentIcon: true,
+            onTap: () => setState(() => _mode = 'favorites'),
+          ),
+          _categoryCard(
+            label: context.tr('Recent'),
+            icon: Icons.history_rounded,
+            selected: _mode == 'recent',
+            width: cardWidth,
+            onTap: () => setState(() => _mode = 'recent'),
+          ),
+        ];
         return SizedBox(
-          height: 40,
-          child: Row(
-            children: [
-              _filterChip(
-                'Favorites',
-                _mode == 'favorites',
-                () => setState(() => _mode = 'favorites'),
-                Icons.star_border_rounded,
-              ),
-              const SizedBox(width: 6),
-              _filterChip(
-                'Recent',
-                _mode == 'recent',
-                () => setState(() => _mode = 'recent'),
-                Icons.history_rounded,
-              ),
-              const SizedBox(width: 6),
-              _filterChip(
-                context.tr('All'),
-                _mode == 'all' && _category == 'all',
-                () => setState(() {
-                  _mode = 'all';
-                  _category = 'all';
-                }),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: visibleCategories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 6),
-                  itemBuilder: (_, index) {
-                    final category = visibleCategories[index];
-                    return _filterChip(
-                      context.tr(category.name),
-                      _mode == 'all' && _category == category.id,
-                      () => setState(() {
-                        _mode = 'all';
-                        _category = category.id;
-                      }),
-                    );
-                  },
-                ),
-              ),
-              if (moreCategories.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                PopupMenuButton<String>(
-                  tooltip: 'More categories',
-                  onSelected: (categoryId) => setState(() {
-                    _mode = 'all';
-                    _category = categoryId;
-                  }),
-                  itemBuilder: (_) => [
-                    for (final category in moreCategories)
-                      PopupMenuItem(
-                        value: category.id,
-                        child: Text(context.tr(category.name)),
-                      ),
-                  ],
-                  child: Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAF9),
-                      border: Border.all(color: const Color(0xFFDCE4E1)),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: const Row(
-                      children: [
-                        Text(
-                          'More',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          height: compact ? 76 : 84,
+          child: ListView.separated(
+            key: const ValueKey('pos-category-switcher'),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+            physics: const BouncingScrollPhysics(),
+            itemCount: filters.length,
+            separatorBuilder: (_, __) => SizedBox(width: compact ? 6 : 8),
+            itemBuilder: (_, index) => filters[index],
           ),
         );
       },
     );
   }
 
-  Widget _filterChip(
-    String label,
-    bool selected,
-    VoidCallback onTap, [
-    IconData? icon,
-  ]) => FilterChip(
+  Widget _categoryCard({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required double width,
+    required VoidCallback onTap,
+    bool accentIcon = false,
+  }) => Semantics(
+    button: true,
     selected: selected,
-    showCheckmark: false,
-    avatar: icon == null ? null : Icon(icon, size: 17),
-    label: Text(
-      label,
-      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+    label: '$label category',
+    child: Material(
+      color: selected ? const Color(0xFFEAF6F2) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? AppColors.primary : const Color(0xFFE1E7E4),
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: width,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(7, 9, 7, 7),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 25,
+                  color: accentIcon && !selected
+                      ? AppColors.accent
+                      : selected
+                      ? AppColors.primary
+                      : const Color(0xFF53615C),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.primary
+                        : const Color(0xFF303B37),
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     ),
-    onSelected: (_) => onTap(),
-    padding: const EdgeInsets.symmetric(horizontal: 6),
   );
+
+  IconData _categoryIcon(String categoryName) {
+    final name = categoryName.toLowerCase();
+    if (name.contains('grocer') || name.contains('food')) {
+      return Icons.local_grocery_store_outlined;
+    }
+    if (name.contains('beverage') ||
+        name.contains('drink') ||
+        name.contains('juice')) {
+      return Icons.local_drink_outlined;
+    }
+    if (name.contains('snack')) return Icons.cookie_outlined;
+    if (name.contains('dairy') || name.contains('milk')) {
+      return Icons.breakfast_dining_outlined;
+    }
+    if (name.contains('bakery') || name.contains('bread')) {
+      return Icons.bakery_dining_outlined;
+    }
+    if (name.contains('house') || name.contains('clean')) {
+      return Icons.cleaning_services_outlined;
+    }
+    if (name.contains('fruit') || name.contains('vegetable')) {
+      return Icons.eco_outlined;
+    }
+    if (name.contains('meat')) return Icons.kebab_dining_outlined;
+    if (name.contains('electronic')) return Icons.devices_other_outlined;
+    return Icons.category_outlined;
+  }
 
   Widget _productCard(Product product) => InkWell(
     borderRadius: BorderRadius.circular(12),
@@ -593,8 +588,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            money(product.sellingPrice),
+          RiyalAmount(
+            product.sellingPrice,
             style: const TextStyle(
               color: AppColors.primary,
               fontWeight: FontWeight.w900,
@@ -681,8 +676,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                money(product.sellingPrice),
+              RiyalAmount(
+                product.sellingPrice,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               const SizedBox(width: 8),
@@ -1344,7 +1339,7 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
                       Expanded(
                         child: Text('${line.quantity} × ${line.product.name}'),
                       ),
-                      Text(money(line.total)),
+                      RiyalAmount(line.total),
                     ],
                   ),
                 ),
@@ -1356,8 +1351,8 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                   const Spacer(),
-                  Text(
-                    money(sale.total),
+                  RiyalAmount(
+                    sale.total,
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontSize: 20,
@@ -1460,7 +1455,7 @@ class _CurrentOrder extends ConsumerWidget {
               const Divider(height: 10),
               _cartActions(context, ref, state),
               const SizedBox(height: 9),
-              _totals(context, state),
+              _totals(context, ref, state),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -1563,9 +1558,24 @@ class _CurrentOrder extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 1),
-              Text(
-                money(line.product.sellingPrice),
-                style: const TextStyle(fontSize: 11),
+              InkWell(
+                onTap: () => _editPrice(context, ref, line),
+                borderRadius: BorderRadius.circular(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RiyalAmount(
+                      line.unitPrice,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(
+                      Icons.edit_outlined,
+                      size: 12,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
               ),
               InkWell(
                 onTap: () => _discount(context, ref, line),
@@ -1691,54 +1701,82 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       );
 
-  Widget _totals(BuildContext context, AppState state) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF7F9F8),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE5EAE8)),
-    ),
-    child: Column(
-      children: [
-        _sum(context, 'Subtotal', state.cartSubtotal),
-        _sum(context, 'Discount', -state.cartDiscount, color: AppColors.danger),
-        _sum(context, 'Tax', state.cartTax),
-        const Divider(height: 16),
-        Row(
+  Widget _totals(BuildContext context, WidgetRef ref, AppState state) =>
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F9F8),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5EAE8)),
+        ),
+        child: Column(
           children: [
-            Text(
-              context.tr('Grand Total'),
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            _sum(context, 'Subtotal', state.cartSubtotal),
+            _sum(
+              context,
+              'Line discounts',
+              -state.cartLineDiscount,
+              color: AppColors.danger,
             ),
-            const Spacer(),
-            Text(
-              money(state.cartTotal),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w900,
-                fontSize: 22,
+            _sum(
+              context,
+              'Gross discount',
+              -state.cartGrossDiscount,
+              color: AppColors.danger,
+              onTap: () => _grossDiscount(context, ref, state),
+              editable: true,
+            ),
+            _sum(context, 'Tax', state.cartTax),
+            const Divider(height: 16),
+            Row(
+              children: [
+                Text(
+                  context.tr('Grand Total'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                RiyalAmount(
+                  state.cartTotal,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                  ),
+                ),
+              ],
+            ),
+            if (state.cartDiscount > 0)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'You save ${money(state.cartDiscount)}',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
-        if (state.cartDiscount > 0)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'You save ${money(state.cartDiscount)}',
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
+      );
 
-  Widget _sum(BuildContext context, String label, int value, {Color? color}) =>
-      Padding(
+  Widget _sum(
+    BuildContext context,
+    String label,
+    int value, {
+    Color? color,
+    VoidCallback? onTap,
+    bool editable = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           children: [
@@ -1746,11 +1784,21 @@ class _CurrentOrder extends ConsumerWidget {
               context.tr(label),
               style: const TextStyle(color: AppColors.muted, fontSize: 12),
             ),
+            if (editable) ...[
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.edit_outlined,
+                size: 12,
+                color: AppColors.primary,
+              ),
+            ],
             const Spacer(),
-            Text(money(value), style: TextStyle(color: color, fontSize: 12)),
+            RiyalAmount(value, style: TextStyle(color: color, fontSize: 12)),
           ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _paymentShortcuts(
     BuildContext context,
@@ -1805,6 +1853,149 @@ class _CurrentOrder extends ConsumerWidget {
       state.customers.isNotEmpty &&
       state.paymentOptions.isNotEmpty;
 
+  Future<void> _editPrice(
+    BuildContext context,
+    WidgetRef ref,
+    CartLine line,
+  ) async {
+    final controller = TextEditingController(
+      text: (line.unitPrice / 100).toStringAsFixed(2),
+    );
+    final formKey = GlobalKey<FormState>();
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('Edit unit price')),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Unit price',
+              prefixIcon: Padding(
+                padding: EdgeInsets.all(14),
+                child: RiyalSymbol(size: 16),
+              ),
+              prefixIconConstraints: BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
+            ),
+            validator: (value) {
+              final parsed = double.tryParse(value?.trim() ?? '');
+              return parsed == null || parsed < 0
+                  ? context.tr('Enter a valid amount')
+                  : null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          if (line.unitPriceOverride != null)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, -1),
+              child: const Text('Use default price'),
+            ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                dialogContext,
+                (double.parse(controller.text.trim()) * 100).round(),
+              );
+            },
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+    if (amount == null) return;
+    ref
+        .read(appStoreProvider.notifier)
+        .unitPrice(line.product.id, amount < 0 ? null : amount);
+  }
+
+  Future<void> _grossDiscount(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+  ) async {
+    final controller = TextEditingController(
+      text: state.cartGrossDiscount == 0
+          ? ''
+          : (state.cartGrossDiscount / 100).toStringAsFixed(2),
+    );
+    final formKey = GlobalKey<FormState>();
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('Gross discount')),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: context.tr('Discount amount'),
+              prefixIcon: const Padding(
+                padding: EdgeInsets.all(14),
+                child: RiyalSymbol(size: 16),
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
+              helperText:
+                  '${context.tr('Maximum')} ${money(state.maximumGrossDiscount)}',
+            ),
+            validator: (value) {
+              final parsed = double.tryParse(value?.trim() ?? '');
+              if (parsed == null || parsed < 0) {
+                return context.tr('Enter a valid amount');
+              }
+              if ((parsed * 100).round() > state.maximumGrossDiscount) {
+                return context.tr('Discount cannot exceed subtotal');
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          if (state.cartGrossDiscount > 0)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 0),
+              child: Text(context.tr('Remove discount')),
+            ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                dialogContext,
+                (double.parse(controller.text.trim()) * 100).round(),
+              );
+            },
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+    if (amount != null) {
+      ref.read(appStoreProvider.notifier).setGrossDiscount(amount);
+    }
+  }
+
   Future<void> _discount(
     BuildContext context,
     WidgetRef ref,
@@ -1826,7 +2017,14 @@ class _CurrentOrder extends ConsumerWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: context.tr('Discount amount'),
-              prefixText: '₹ ',
+              prefixIcon: const Padding(
+                padding: EdgeInsets.all(14),
+                child: RiyalSymbol(size: 16),
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
               helperText: '${context.tr('Maximum')} ${money(line.subtotal)}',
             ),
             validator: (value) {
@@ -1862,7 +2060,7 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       ),
     );
-    controller.dispose();
+    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
     if (amount != null)
       ref.read(appStoreProvider.notifier).discount(line.product.id, amount);
   }
@@ -1891,7 +2089,12 @@ class _CurrentOrder extends ConsumerWidget {
           ),
         ],
       ),
-    ).whenComplete(controller.dispose);
+    ).whenComplete(
+      () => Future<void>.delayed(
+        const Duration(milliseconds: 400),
+        controller.dispose,
+      ),
+    );
   }
 
   void _payment(

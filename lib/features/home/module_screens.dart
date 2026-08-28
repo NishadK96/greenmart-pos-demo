@@ -5,6 +5,7 @@ import '../../core/localization/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../apis/api.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
@@ -15,6 +16,8 @@ import '../backend/presentation/backend_controller.dart';
 import '../printers/application/printer_controller.dart';
 import '../printers/application/printer_document_service.dart';
 import '../zatca/presentation/zatca_screen.dart';
+import '../cash_register/presentation/cash_register_controller.dart';
+import '../offline_pos/presentation/offline_pos_controller.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
@@ -65,7 +68,7 @@ class DashboardScreen extends ConsumerWidget {
               children: [
                 _DashboardMetric(
                   label: "Today's sales",
-                  value: money(todaySales),
+                  amount: todaySales,
                   detail: 'Today',
                   icon: Icons.trending_up_rounded,
                   tint: const Color(0xFF16885F),
@@ -79,7 +82,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 _DashboardMetric(
                   label: 'Gross profit',
-                  value: money(state.profitLoss?.grossProfit ?? 0),
+                  amount: state.profitLoss?.grossProfit ?? 0,
                   detail: 'Current period',
                   icon: Icons.savings_outlined,
                   tint: AppColors.primary,
@@ -94,7 +97,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 _DashboardMetric(
                   label: 'Expenses',
-                  value: money(state.profitLoss?.totalExpenses ?? 0),
+                  amount: state.profitLoss?.totalExpenses ?? 0,
                   detail: 'View details',
                   icon: Icons.payments_outlined,
                   tint: AppColors.primary,
@@ -102,7 +105,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 _DashboardMetric(
                   label: 'Total purchases',
-                  value: money(state.profitLoss?.totalPurchases ?? 0),
+                  amount: state.profitLoss?.totalPurchases ?? 0,
                   detail: 'View details',
                   icon: Icons.local_shipping_outlined,
                   tint: const Color(0xFF7650C8),
@@ -372,13 +375,16 @@ class _HeroAction extends StatelessWidget {
 class _DashboardMetric extends StatelessWidget {
   const _DashboardMetric({
     required this.label,
-    required this.value,
     required this.detail,
     required this.icon,
     required this.tint,
     this.onTap,
+    this.value,
+    this.amount,
   });
-  final String label, value, detail;
+  final String label, detail;
+  final String? value;
+  final int? amount;
   final IconData icon;
   final Color tint;
   final VoidCallback? onTap;
@@ -413,15 +419,24 @@ class _DashboardMetric extends StatelessWidget {
                   style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
+                if (amount != null)
+                  RiyalAmount(
+                    amount!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  )
+                else
+                  Text(
+                    value ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
                 Text(
                   context.tr(detail),
                   maxLines: 1,
@@ -547,8 +562,8 @@ class _SaleRow extends StatelessWidget {
           const SizedBox(width: 20),
           SizedBox(
             width: 78,
-            child: Text(
-              money(sale.total),
+            child: RiyalAmount(
+              sale.total,
               textAlign: TextAlign.end,
               style: const TextStyle(
                 color: AppColors.primary,
@@ -1495,8 +1510,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      money(product.sellingPrice),
+                    child: RiyalAmount(
+                      product.sellingPrice,
                       style: const TextStyle(
                         color: AppColors.primary,
                         fontSize: 14,
@@ -4366,7 +4381,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         '${line.quantity} × ${context.tr(line.product.name)}',
                       ),
                     ),
-                    Text(money(line.total)),
+                    RiyalAmount(line.total),
                   ],
                 ),
               ),
@@ -5459,8 +5474,8 @@ class _SalesPagination extends StatelessWidget {
   );
 }
 
-class ReportsScreen extends ConsumerWidget {
-  const ReportsScreen({super.key});
+class LegacyReportsScreen extends ConsumerWidget {
+  const LegacyReportsScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStoreProvider);
@@ -5596,6 +5611,9 @@ class SyncScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(appStoreProvider);
+    final offline = ref.watch(offlinePosControllerProvider);
+    final register = ref.watch(cashRegisterControllerProvider).value;
+    final offlineState = offline.value;
     return PagePad(
       child: ListView(
         children: [
@@ -5627,6 +5645,138 @@ class SyncScreen extends ConsumerWidget {
                   label: 'Customers',
                   value: '${s.customers.length}',
                   icon: Icons.people_outline,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Surface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Offline POS readiness',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    StatusBadge(
+                      offlineState?.ready == true ? 'Ready' : 'Not prepared',
+                      color: offlineState?.ready == true
+                          ? AppColors.primary
+                          : AppColors.danger,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  offlineState?.ready == true
+                      ? '${offlineState!.pendingCount} sale(s) waiting to synchronize. ${offlineState.catalog.products.length} products cached. Authorization expires ${DateFormat('dd MMM yyyy, HH:mm').format(offlineState.context!.authorizedUntil.toLocal())}.'
+                      : 'Connect once with an open register to authorize this device for offline cash sales.',
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed:
+                          offline.isLoading ||
+                              register == null ||
+                              s.locations.isEmpty
+                          ? null
+                          : () async {
+                              try {
+                                await ref
+                                    .read(offlinePosControllerProvider.notifier)
+                                    .prepare(
+                                      locationId: register.locationId,
+                                      cashRegisterId: register.id,
+                                    );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Offline POS is ready on this device.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error.toString())),
+                                  );
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.offline_bolt_outlined),
+                      label: const Text('Prepare offline mode'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed:
+                          offlineState?.pendingCount == 0 ||
+                              offlineState?.syncing == true
+                          ? null
+                          : () async {
+                              try {
+                                await ref
+                                    .read(offlinePosControllerProvider.notifier)
+                                    .syncNow();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error.toString())),
+                                  );
+                                }
+                              }
+                            },
+                      icon: offlineState?.syncing == true
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.cloud_sync_outlined),
+                      label: Text(
+                        'Sync queued sales (${offlineState?.pendingCount ?? 0})',
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed:
+                          offlineState?.ready != true || offline.isLoading
+                          ? null
+                          : () async {
+                              try {
+                                await ref
+                                    .read(offlinePosControllerProvider.notifier)
+                                    .refreshCatalogChanges();
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Offline catalog is up to date.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error.toString())),
+                                  );
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.inventory_2_outlined),
+                      label: const Text('Update offline catalog'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -5703,6 +5853,12 @@ class SettingsScreen extends ConsumerWidget {
         '${user?.name ?? ''} • ${user?.isAdmin == true ? 'Administrator' : user?.username ?? ''}',
         Icons.person_outline,
         null,
+      ),
+      (
+        'Subscription & users',
+        'View your package, included users and available seats',
+        Icons.workspace_premium_outlined,
+        '/settings/subscription',
       ),
       (
         'ZATCA e-invoicing',

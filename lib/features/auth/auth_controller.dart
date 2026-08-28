@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../apis/api.dart';
 import '../../core/network/api_provider.dart';
 import 'device_session_storage.dart';
+import '../offline_pos/data/offline_pos_storage.dart';
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
   AuthController.new,
@@ -27,7 +28,9 @@ class AuthController extends AsyncNotifier<String?> {
         _activeSessionId = session.sessionId;
         return session.accessToken;
       } catch (_) {
-        return null;
+        return await OfflinePosStorage().canResumeOffline()
+            ? 'offline-local-session'
+            : null;
       }
     }
     final id = await _sessions.activeSessionId();
@@ -41,7 +44,9 @@ class AuthController extends AsyncNotifier<String?> {
       await _sessions.saveSession(result.sessionId, result.refreshToken!);
       return result.accessToken;
     } catch (_) {
-      return null;
+      return await OfflinePosStorage().canResumeOffline()
+          ? 'offline-local-session'
+          : null;
     }
   }
 
@@ -136,6 +141,7 @@ class AuthController extends AsyncNotifier<String?> {
   }
 
   Future<void> logout() async {
+    await OfflinePosStorage().disableOfflineResume();
     if (kIsWeb) {
       final token = state.asData?.value;
       if (token != null) {

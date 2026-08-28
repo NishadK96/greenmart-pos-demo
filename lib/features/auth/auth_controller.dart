@@ -127,6 +127,40 @@ class AuthController extends AsyncNotifier<String?> {
     state = AsyncData(result.accessToken);
   }
 
+  Future<String> refreshAccessToken() async {
+    final SessionLoginResult result;
+    if (kIsWeb) {
+      await _bootstrapWeb();
+      var sessionId = _activeSessionId;
+      if (sessionId == null) {
+        final accounts = await ref.read(apiProvider).webSavedSessions();
+        final resumable = accounts.where((account) => !account.expired);
+        if (resumable.isEmpty) {
+          throw const ApiException('Your saved session has expired.');
+        }
+        sessionId = resumable.first.sessionId;
+      }
+      result = await ref
+          .read(apiProvider)
+          .activateWebSession(sessionId, _webCsrfToken!);
+      _activeSessionId = result.sessionId;
+    } else {
+      final sessionId = await _sessions.activeSessionId();
+      final refresh = sessionId == null
+          ? null
+          : await _sessions.refreshToken(sessionId);
+      if (sessionId == null || refresh == null) {
+        throw const ApiException('Your saved session has expired.');
+      }
+      result = await ref
+          .read(apiProvider)
+          .activateSession(sessionId, refresh, await _sessions.deviceHeaders());
+      await _sessions.saveSession(result.sessionId, result.refreshToken!);
+    }
+    state = AsyncData(result.accessToken);
+    return result.accessToken;
+  }
+
   Future<void> removeAccount(String sessionId) async {
     if (kIsWeb) {
       await _bootstrapWeb();

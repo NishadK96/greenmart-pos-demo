@@ -170,7 +170,13 @@ class BackendController extends AsyncNotifier<void> {
     return updated;
   }
 
-  Future<Sale> checkout(String paymentMethod) async {
+  Future<Sale> checkout(String paymentMethod) =>
+      _checkout(paymentMethod, allowTokenRefresh: true);
+
+  Future<Sale> _checkout(
+    String paymentMethod, {
+    required bool allowTokenRefresh,
+  }) async {
     final state = ref.read(appStoreProvider);
     if (state.cart.isEmpty ||
         state.customers.isEmpty ||
@@ -211,16 +217,28 @@ class BackendController extends AsyncNotifier<void> {
           );
       ref.invalidateSelf();
       return sale;
-    } on ApiException {
+    } on ApiException catch (error) {
+      if (error.statusCode == 401 && allowTokenRefresh) {
+        try {
+          await ref.read(authControllerProvider.notifier).refreshAccessToken();
+          return _checkout(paymentMethod, allowTokenRefresh: false);
+        } catch (_) {
+          return _queueOfflineCashSale(paymentMethod);
+        }
+      }
       rethrow;
     } catch (_) {
-      if (paymentMethod != 'cash') {
-        throw const ApiException(
-          'Only cash sales can be completed while offline.',
-        );
-      }
-      return ref.read(offlinePosControllerProvider.notifier).queueCurrentSale();
+      return _queueOfflineCashSale(paymentMethod);
     }
+  }
+
+  Future<Sale> _queueOfflineCashSale(String paymentMethod) {
+    if (paymentMethod != 'cash') {
+      throw const ApiException(
+        'Only cash sales can be completed while offline.',
+      );
+    }
+    return ref.read(offlinePosControllerProvider.notifier).queueCurrentSale();
   }
 
   Future<String> createSaleReturn({

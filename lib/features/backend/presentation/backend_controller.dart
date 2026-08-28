@@ -221,14 +221,14 @@ class BackendController extends AsyncNotifier<void> {
       if (error.statusCode == 401 && allowTokenRefresh) {
         try {
           await ref.read(authControllerProvider.notifier).refreshAccessToken();
-          return _checkout(paymentMethod, allowTokenRefresh: false);
+          return await _checkout(paymentMethod, allowTokenRefresh: false);
         } catch (_) {
-          return _queueOfflineCashSale(paymentMethod);
+          return await _queueOfflineCashSale(paymentMethod);
         }
       }
       rethrow;
     } catch (_) {
-      return _queueOfflineCashSale(paymentMethod);
+      return await _queueOfflineCashSale(paymentMethod);
     }
   }
 

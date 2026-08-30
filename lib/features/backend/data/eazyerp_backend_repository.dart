@@ -299,6 +299,8 @@ class EazyErpBackendRepository implements BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    String grossDiscountType = 'fixed',
+    double grossDiscountRate = 0,
   }) async {
     final json = await _api.createSale(
       accessToken: accessToken,
@@ -309,6 +311,8 @@ class EazyErpBackendRepository implements BackendRepository {
       paymentMethod: paymentMethod,
       total: total,
       grossDiscount: grossDiscount,
+      grossDiscountType: grossDiscountType,
+      grossDiscountRate: grossDiscountRate,
     );
     return CreatedSale(
       id: json['id']?.toString() ?? '',

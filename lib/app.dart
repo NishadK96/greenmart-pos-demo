@@ -135,7 +135,7 @@ class RetailFlowApp extends ConsumerWidget {
   const RetailFlowApp({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'RetailFlow POS',
+    title: 'Eazy POS',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(),
     locale: ref.watch(localeProvider),

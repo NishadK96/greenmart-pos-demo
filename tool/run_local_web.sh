@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-backend_url="${EAZYERP_BASE_URL:-https://eazyerp.co}"
-frontend_port="${GREENMART_WEB_PORT:-5050}"
+frontend_port="${GREENMART_WEB_PORT:-8081}"
+backend_port="${EAZYERP_BACKEND_PORT:-8080}"
 
-flutter run -d web-server \
-  --web-hostname 127.0.0.1 \
-  --web-port "$frontend_port" \
-  --dart-define="EAZYERP_BASE_URL=$backend_url"
+flutter build web --dart-define="EAZYERP_BASE_URL="
+python3 tool/local_same_origin_proxy.py \
+  --port "$frontend_port" \
+  --backend-port "$backend_port"

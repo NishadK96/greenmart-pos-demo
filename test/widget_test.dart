@@ -22,8 +22,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Start your shift'), findsOneWidget);
+    expect(find.text('Continue to Eazy POS'), findsOneWidget);
   });
 
   testWidgets('language switch changes the app to Arabic and RTL', (
@@ -42,7 +42,7 @@ void main() {
     await tester.tap(find.text('العربية'));
     await tester.pumpAndSettle();
 
-    expect(find.text('مرحباً بعودتك'), findsOneWidget);
+    expect(find.text('ابدأ ورديتك'), findsOneWidget);
     expect(
       tester
           .widget<Directionality>(find.byType(Directionality).first)
@@ -87,7 +87,25 @@ void main() {
 
     expect(find.text('Select customer'), findsOneWidget);
     expect(find.text('Walk-in Customer'), findsWidgets);
+    expect(find.text('New customer'), findsOneWidget);
     expect(find.byType(PosScreen), findsOneWidget);
+  });
+
+  testWidgets('POS customer selector opens quick customer creation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ProviderScope(child: _PosTestApp()));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f4);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New customer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customer name'), findsOneWidget);
+    expect(find.text('Mobile number'), findsOneWidget);
+    expect(find.text('Email (optional)'), findsOneWidget);
+    expect(find.text('Create'), findsOneWidget);
   });
 
   testWidgets('mobile POS hides desktop shortcut labels', (tester) async {

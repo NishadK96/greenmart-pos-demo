@@ -4,6 +4,69 @@ import 'package:retailflow_pos/features/store/app_store.dart';
 import 'package:retailflow_pos/shared/models/entities.dart';
 
 void main() {
+  test('checkout payment options exclude custom payment slots', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container
+        .read(appStoreProvider.notifier)
+        .restoreOfflineCatalog(
+          products: const [],
+          categories: const [],
+          customers: const [],
+          locations: const [],
+          paymentOptions: const [
+            PaymentOption(code: 'cash', label: 'Cash'),
+            PaymentOption(code: 'card', label: 'Card'),
+            PaymentOption(code: 'custom_pay_1', label: 'Custom Payment 1'),
+            PaymentOption(code: 'custom_pay_2', label: 'Voucher'),
+          ],
+          taxes: const [],
+        );
+
+    expect(
+      container
+          .read(appStoreProvider)
+          .checkoutPaymentOptions
+          .map((option) => option.code),
+      ['cash', 'card'],
+    );
+  });
+
+  test('overselling follows the business setting', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final store = container.read(appStoreProvider.notifier);
+    const product = Product(
+      id: 'sold-out',
+      variationId: 'sold-out-v1',
+      name: 'Sold out product',
+      sku: 'SOLD-OUT',
+      barcode: 'SOLD-OUT',
+      categoryId: '1',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 0,
+      minimumStock: 1,
+    );
+
+    store.addToCart(product);
+    expect(container.read(appStoreProvider).cart, isEmpty);
+
+    store.restoreOfflineCatalog(
+      products: const [product],
+      categories: const [],
+      customers: const [],
+      locations: const [],
+      paymentOptions: const [],
+      taxes: const [],
+      allowOverselling: true,
+    );
+    store.addToCart(product);
+    store.quantity(product.id, 2);
+
+    expect(container.read(appStoreProvider).cart.single.quantity, 3);
+  });
+
   test('cart total matches the two checkout prices shown in the POS', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -151,5 +214,43 @@ void main() {
     expect(state.cart.single.unitPrice, 1200);
     expect(state.cartGrossDiscount, 300);
     expect(state.cartTotal, 2010);
+  });
+
+  test('percentage gross discount updates totals and survives held sale', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final store = container.read(appStoreProvider.notifier);
+    const product = Product(
+      id: 'percentage-1',
+      variationId: 'percentage-v1',
+      name: 'Percentage product',
+      sku: 'PERCENT-1',
+      barcode: 'PERCENT-1',
+      categoryId: '1',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 5,
+      minimumStock: 1,
+      taxPercent: 0,
+    );
+
+    store.addToCart(product);
+    store.quantity(product.id, 1);
+    store.setGrossDiscountPercentage(10);
+
+    var state = container.read(appStoreProvider);
+    expect(state.grossDiscountType, 'percentage');
+    expect(state.grossDiscountRate, 10);
+    expect(state.cartGrossDiscount, 200);
+    expect(state.cartTotal, 1800);
+
+    store.holdCart();
+    store.resumeLastHeldCart();
+    state = container.read(appStoreProvider);
+
+    expect(state.grossDiscountType, 'percentage');
+    expect(state.grossDiscountRate, 10);
+    expect(state.cartGrossDiscount, 200);
+    expect(state.cartTotal, 1800);
   });
 }

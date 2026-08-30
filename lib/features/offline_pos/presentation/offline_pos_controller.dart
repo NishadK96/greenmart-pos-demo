@@ -254,8 +254,10 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       'location_id': int.parse(context.locationId),
       'contact_id': int.parse(sale.customer.id),
       'transaction_date': sale.createdAt.toIso8601String(),
-      'discount_type': 'fixed',
-      'discount_amount': grossDiscount / 100,
+      'discount_type': sale.grossDiscountType,
+      'discount_amount': sale.grossDiscountType == 'percentage'
+          ? sale.grossDiscountRate
+          : grossDiscount / 100,
       'products': [
         for (final line in sale.items)
           {
@@ -352,6 +354,9 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       taxes: taxes,
       changesCursor: changesCursor,
       cachedAt: DateTime.now(),
+      allowOverselling:
+          ref.read(appStoreProvider).business?.allowOverselling ??
+          ref.read(appStoreProvider).allowOverselling,
     );
   }
 
@@ -445,6 +450,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
           locations: catalog.locations,
           paymentOptions: catalog.paymentOptions,
           taxes: catalog.taxes,
+          allowOverselling: catalog.allowOverselling,
         );
   }
 

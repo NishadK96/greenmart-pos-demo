@@ -228,6 +228,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       return product.active &&
           (_category == 'all' || product.categoryId == _category) &&
           (product.name.toLowerCase().contains(search) ||
+              product.nameEn.toLowerCase().contains(search) ||
+              product.nameAr.toLowerCase().contains(search) ||
               product.sku.toLowerCase().contains(search) ||
               product.barcode.toLowerCase().contains(search));
     }).toList();
@@ -307,14 +309,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           focusNode: _searchFocus,
           onChanged: (value) => setState(() => _query = value),
           onSubmitted: (_) {
-            if (products.length == 1 && products.first.stock > 0) {
+            if (products.length == 1 && _canSell(products.first)) {
               _addProduct(products.first);
               _searchController.clear();
               setState(() => _query = '');
             }
           },
           decoration: InputDecoration(
-            hintText: 'Scan barcode or search product (Name, SKU, Barcode)',
+            hintText: context.tr(
+              'Scan barcode or search product (Name, SKU, Barcode)',
+            ),
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: MediaQuery.sizeOf(context).width < 700
                 ? null
@@ -340,7 +344,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
           label: MediaQuery.sizeOf(context).width < 700
               ? const SizedBox.shrink()
-              : const Text('Scan'),
+              : Text(context.tr('Scan')),
           style: MediaQuery.sizeOf(context).width < 700
               ? FilledButton.styleFrom(
                   minimumSize: const Size(48, 48),
@@ -523,7 +527,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Widget _productCard(Product product) => InkWell(
     borderRadius: BorderRadius.circular(12),
-    onTap: product.stock > 0 ? () => _addProduct(product) : null,
+    onTap: _canSell(product) ? () => _addProduct(product) : null,
     child: Surface(
       padding: const EdgeInsets.all(9),
       child: Column(
@@ -569,8 +573,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   onSelected: (value) {
                     if (value == 'add') _addProduct(product);
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'add', child: Text('Add to order')),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'add',
+                      child: Text(context.tr('Add to order')),
+                    ),
                   ],
                   icon: const Icon(Icons.more_vert_rounded, size: 17),
                 ),
@@ -578,7 +585,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             ),
           ),
           Text(
-            context.tr(product.name),
+            product.displayName(context.isArabic),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -624,8 +631,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               Expanded(
                 child: Text(
                   product.stock == 0
-                      ? 'Out of stock'
-                      : '${product.stock} in stock',
+                      ? context.tr('Out of stock')
+                      : '${product.stock} ${context.tr('in stock')}',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 10,
@@ -640,7 +647,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 dimension: 29,
                 child: IconButton.filled(
                   padding: EdgeInsets.zero,
-                  onPressed: product.stock > 0
+                  onPressed: _canSell(product)
                       ? () => _addProduct(product)
                       : null,
                   icon: const Icon(Icons.add_rounded, size: 18),
@@ -666,13 +673,15 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         ),
         child: ListTile(
           dense: true,
-          onTap: product.stock > 0 ? () => _addProduct(product) : null,
+          onTap: _canSell(product) ? () => _addProduct(product) : null,
           leading: ProductImage(product.imageUrl, width: 44, height: 44),
           title: Text(
-            context.tr(product.name),
+            product.displayName(context.isArabic),
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
-          subtitle: Text('${product.sku} • ${product.stock} in stock'),
+          subtitle: Text(
+            '${product.sku} • ${product.stock} ${context.tr('in stock')}',
+          ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -695,7 +704,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: product.stock > 0
+                  onPressed: _canSell(product)
                       ? () => _addProduct(product)
                       : null,
                   icon: const Icon(Icons.add_rounded, size: 18),
@@ -844,6 +853,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       if (_recent.length > 12) _recent.removeLast();
     });
   }
+
+  bool _canSell(Product product) =>
+      product.stock > 0 || ref.read(appStoreProvider).allowOverselling;
 
   void _openCartSheet(BuildContext context) => showModalBottomSheet<void>(
     context: context,
@@ -1283,14 +1295,14 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
       onSelected: (value) {
         if (value == 'view') _showSaleDetails(sale);
       },
-      itemBuilder: (_) => const [
+      itemBuilder: (_) => [
         PopupMenuItem(
           value: 'view',
           child: ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.visibility_outlined),
-            title: Text('View sale'),
+            title: Text(context.tr('View sale')),
           ),
         ),
         PopupMenuItem(
@@ -1299,7 +1311,7 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
             dense: true,
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.print_outlined),
-            title: Text('Reprint (available in F7)'),
+            title: Text(context.tr('Reprint (available in F7)')),
           ),
         ),
         PopupMenuItem(
@@ -1308,7 +1320,7 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
             dense: true,
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.assignment_return_outlined),
-            title: Text('Return (available in F5)'),
+            title: Text(context.tr('Return (available in F5)')),
           ),
         ),
       ],
@@ -1337,7 +1349,9 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text('${line.quantity} × ${line.product.name}'),
+                        child: Text(
+                          '${line.quantity} × ${line.product.displayName(context.isArabic)}',
+                        ),
                       ),
                       RiyalAmount(line.total),
                     ],
@@ -1346,8 +1360,8 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
               const Divider(height: 24),
               Row(
                 children: [
-                  const Text(
-                    'Total',
+                  Text(
+                    context.tr('Total'),
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                   const Spacer(),
@@ -1368,7 +1382,7 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
       actions: [
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Close'),
+          child: Text(context.tr('Close')),
         ),
       ],
     ),
@@ -1525,7 +1539,7 @@ class _CurrentOrder extends ConsumerWidget {
           TextButton.icon(
             onPressed: () => _note(context),
             icon: const Icon(Icons.note_alt_outlined, size: 16),
-            label: const Text('Add Note'),
+            label: Text(context.tr('Add Note')),
           ),
         ],
       ),
@@ -1549,7 +1563,7 @@ class _CurrentOrder extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                context.tr(line.product.name),
+                line.product.displayName(context.isArabic),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1676,7 +1690,7 @@ class _CurrentOrder extends ConsumerWidget {
                 );
               },
               icon: const Icon(Icons.pause_rounded, size: 17),
-              label: const Text('Hold Sale'),
+              label: Text(context.tr('Hold Sale')),
             ),
           ),
           const SizedBox(width: 7),
@@ -1688,7 +1702,7 @@ class _CurrentOrder extends ConsumerWidget {
                 size: 17,
                 color: AppColors.danger,
               ),
-              label: const Text('Clear Cart'),
+              label: Text(context.tr('Clear Cart')),
             ),
           ),
           if (MediaQuery.sizeOf(context).width >= 700) ...[
@@ -1701,68 +1715,70 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       );
 
-  Widget _totals(BuildContext context, WidgetRef ref, AppState state) =>
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F9F8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5EAE8)),
+  Widget _totals(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+  ) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF7F9F8),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFE5EAE8)),
+    ),
+    child: Column(
+      children: [
+        _sum(context, 'Subtotal', state.cartSubtotal),
+        _sum(
+          context,
+          'Line discounts',
+          -state.cartLineDiscount,
+          color: AppColors.danger,
         ),
-        child: Column(
+        _sum(
+          context,
+          state.grossDiscountType == 'percentage' && state.grossDiscountRate > 0
+              ? 'Gross discount (${state.grossDiscountRate.toStringAsFixed(state.grossDiscountRate % 1 == 0 ? 0 : 2)}%)'
+              : 'Gross discount',
+          -state.cartGrossDiscount,
+          color: AppColors.danger,
+          onTap: () => _grossDiscount(context, ref, state),
+          editable: true,
+        ),
+        _sum(context, 'Tax', state.cartTax),
+        const Divider(height: 16),
+        Row(
           children: [
-            _sum(context, 'Subtotal', state.cartSubtotal),
-            _sum(
-              context,
-              'Line discounts',
-              -state.cartLineDiscount,
-              color: AppColors.danger,
+            Text(
+              context.tr('Grand Total'),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
             ),
-            _sum(
-              context,
-              'Gross discount',
-              -state.cartGrossDiscount,
-              color: AppColors.danger,
-              onTap: () => _grossDiscount(context, ref, state),
-              editable: true,
-            ),
-            _sum(context, 'Tax', state.cartTax),
-            const Divider(height: 16),
-            Row(
-              children: [
-                Text(
-                  context.tr('Grand Total'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-                const Spacer(),
-                RiyalAmount(
-                  state.cartTotal,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                  ),
-                ),
-              ],
-            ),
-            if (state.cartDiscount > 0)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'You save ${money(state.cartDiscount)}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
-                ),
+            const Spacer(),
+            RiyalAmount(
+              state.cartTotal,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
               ),
+            ),
           ],
         ),
-      );
+        if (state.cartDiscount > 0)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'You save ${money(state.cartDiscount)}',
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 
   Widget _sum(
     BuildContext context,
@@ -1805,13 +1821,7 @@ class _CurrentOrder extends ConsumerWidget {
     WidgetRef ref,
     AppState state,
   ) {
-    const shortcuts = [
-      ('cash', 'Cash', Icons.payments_outlined),
-      ('upi', 'UPI', Icons.qr_code_rounded),
-      ('card', 'Card', Icons.credit_card_rounded),
-      ('split', 'Split', Icons.call_split_rounded),
-      ('credit', 'Credit', Icons.person_outline_rounded),
-    ];
+    final shortcuts = state.checkoutPaymentOptions.take(5).toList();
     return Row(
       children: [
         for (var index = 0; index < shortcuts.length; index++) ...[
@@ -1823,7 +1833,7 @@ class _CurrentOrder extends ConsumerWidget {
                       context,
                       ref,
                       state,
-                      preferredCode: shortcuts[index].$1,
+                      preferredCode: shortcuts[index].code,
                     )
                   : null,
               style: OutlinedButton.styleFrom(
@@ -1833,9 +1843,11 @@ class _CurrentOrder extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(shortcuts[index].$3, size: 16),
+                  Icon(_paymentIcon(shortcuts[index].code), size: 16),
                   Text(
-                    shortcuts[index].$2,
+                    context.tr(shortcuts[index].label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 10),
                   ),
                 ],
@@ -1851,7 +1863,7 @@ class _CurrentOrder extends ConsumerWidget {
       state.cart.isNotEmpty &&
       state.locations.isNotEmpty &&
       state.customers.isNotEmpty &&
-      state.paymentOptions.isNotEmpty;
+      state.checkoutPaymentOptions.isNotEmpty;
 
   Future<void> _editPrice(
     BuildContext context,
@@ -1872,8 +1884,8 @@ class _CurrentOrder extends ConsumerWidget {
             controller: controller,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Unit price',
+            decoration: InputDecoration(
+              labelText: context.tr('Unit price'),
               prefixIcon: Padding(
                 padding: EdgeInsets.all(14),
                 child: RiyalSymbol(size: 16),
@@ -1899,7 +1911,7 @@ class _CurrentOrder extends ConsumerWidget {
           if (line.unitPriceOverride != null)
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, -1),
-              child: const Text('Use default price'),
+              child: Text(context.tr('Use default price')),
             ),
           FilledButton(
             onPressed: () {
@@ -1926,73 +1938,124 @@ class _CurrentOrder extends ConsumerWidget {
     WidgetRef ref,
     AppState state,
   ) async {
+    var discountType = state.grossDiscountType;
     final controller = TextEditingController(
-      text: state.cartGrossDiscount == 0
-          ? ''
-          : (state.cartGrossDiscount / 100).toStringAsFixed(2),
+      text: discountType == 'percentage'
+          ? (state.grossDiscountRate == 0
+                ? ''
+                : state.grossDiscountRate.toStringAsFixed(2))
+          : (state.cartGrossDiscount == 0
+                ? ''
+                : (state.cartGrossDiscount / 100).toStringAsFixed(2)),
     );
     final formKey = GlobalKey<FormState>();
-    final amount = await showDialog<int>(
+    final result = await showDialog<(String, double)>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('Gross discount')),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: context.tr('Discount amount'),
-              prefixIcon: const Padding(
-                padding: EdgeInsets.all(14),
-                child: RiyalSymbol(size: 16),
-              ),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 44,
-                minHeight: 44,
-              ),
-              helperText:
-                  '${context.tr('Maximum')} ${money(state.maximumGrossDiscount)}',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(context.tr('Gross discount')),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<String>(
+                  segments: [
+                    ButtonSegment(
+                      value: 'fixed',
+                      label: Text(context.tr('Amount')),
+                      icon: RiyalSymbol(size: 15),
+                    ),
+                    ButtonSegment(
+                      value: 'percentage',
+                      label: Text(context.tr('Rate')),
+                      icon: Icon(Icons.percent_rounded, size: 16),
+                    ),
+                  ],
+                  selected: {discountType},
+                  onSelectionChanged: (selection) {
+                    setDialogState(() {
+                      discountType = selection.first;
+                      controller.clear();
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: discountType == 'percentage'
+                        ? context.tr('Discount rate')
+                        : context.tr('Discount amount'),
+                    prefixIcon: discountType == 'percentage'
+                        ? const Icon(Icons.percent_rounded, size: 18)
+                        : const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: RiyalSymbol(size: 16),
+                          ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    helperText: discountType == 'percentage'
+                        ? context.tr('Maximum 100%')
+                        : '${context.tr('Maximum')} ${money(state.maximumGrossDiscount)}',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value?.trim() ?? '');
+                    if (parsed == null || parsed < 0) {
+                      return context.tr('Enter a valid amount');
+                    }
+                    if (discountType == 'percentage' && parsed > 100) {
+                      return context.tr('Discount rate cannot exceed 100%');
+                    }
+                    if (discountType == 'fixed' &&
+                        (parsed * 100).round() > state.maximumGrossDiscount) {
+                      return context.tr('Discount cannot exceed subtotal');
+                    }
+                    return null;
+                  },
+                ),
+              ],
             ),
-            validator: (value) {
-              final parsed = double.tryParse(value?.trim() ?? '');
-              if (parsed == null || parsed < 0) {
-                return context.tr('Enter a valid amount');
-              }
-              if ((parsed * 100).round() > state.maximumGrossDiscount) {
-                return context.tr('Discount cannot exceed subtotal');
-              }
-              return null;
-            },
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.tr('Cancel')),
-          ),
-          if (state.cartGrossDiscount > 0)
+          actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, 0),
-              child: Text(context.tr('Remove discount')),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.tr('Cancel')),
             ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              Navigator.pop(
-                dialogContext,
-                (double.parse(controller.text.trim()) * 100).round(),
-              );
-            },
-            child: Text(context.tr('Apply')),
-          ),
-        ],
+            if (state.cartGrossDiscount > 0)
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, const ('fixed', 0)),
+                child: Text(context.tr('Remove discount')),
+              ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(dialogContext, (
+                  discountType,
+                  double.parse(controller.text.trim()),
+                ));
+              },
+              child: Text(context.tr('Apply')),
+            ),
+          ],
+        ),
       ),
     );
     Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
-    if (amount != null) {
-      ref.read(appStoreProvider.notifier).setGrossDiscount(amount);
+    if (result != null) {
+      final store = ref.read(appStoreProvider.notifier);
+      if (result.$1 == 'percentage') {
+        store.setGrossDiscountPercentage(result.$2);
+      } else {
+        store.setGrossDiscount((result.$2 * 100).round());
+      }
     }
   }
 
@@ -2070,22 +2133,22 @@ class _CurrentOrder extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Order note'),
+        title: Text(context.tr('Order note')),
         content: TextField(
           controller: controller,
           maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'Add a note for this sale...',
+          decoration: InputDecoration(
+            hintText: context.tr('Add a note for this sale...'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Save note'),
+            child: Text(context.tr('Save note')),
           ),
         ],
       ),
@@ -2173,9 +2236,9 @@ class _CurrentOrder extends ConsumerWidget {
                             mainAxisSpacing: 10,
                             crossAxisSpacing: 10,
                           ),
-                      itemCount: state.paymentOptions.length,
+                      itemCount: state.checkoutPaymentOptions.length,
                       itemBuilder: (_, index) {
-                        final option = state.paymentOptions[index];
+                        final option = state.checkoutPaymentOptions[index];
                         final highlighted =
                             preferredCode != null &&
                             _paymentMatches(option.code, preferredCode);
@@ -2234,10 +2297,15 @@ class _CurrentOrder extends ConsumerWidget {
   ) async {
     submitting(true);
     try {
-      await ref.read(backendControllerProvider.notifier).checkout(code);
+      final sale = await ref
+          .read(backendControllerProvider.notifier)
+          .checkout(code);
       if (!sheetContext.mounted) return;
+      final successMessage =
+          '${sheetContext.tr('Sale complete')} • ${sale.invoiceNo} • ${sheetContext.tr('New sale ready')}';
       Navigator.pop(sheetContext);
-      router.go('/receipt');
+      router.go('/pos');
+      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
     } catch (error) {
       if (!sheetContext.mounted) return;
       submitting(false);
@@ -2273,6 +2341,9 @@ Future<void> _selectCustomer(
     onSelected: (customer) {
       ref.read(appStoreProvider.notifier).selectCustomer(customer);
     },
+    onCreate: ({required name, required mobile, required email}) => ref
+        .read(backendControllerProvider.notifier)
+        .createCustomer(name: name, mobile: mobile, email: email),
   ),
 );
 
@@ -2281,11 +2352,18 @@ class _CustomerSelectorDialog extends StatefulWidget {
     required this.customers,
     required this.selectedCustomer,
     required this.onSelected,
+    required this.onCreate,
   });
 
   final List<Customer> customers;
   final Customer? selectedCustomer;
   final ValueChanged<Customer> onSelected;
+  final Future<Customer> Function({
+    required String name,
+    required String mobile,
+    required String email,
+  })
+  onCreate;
 
   @override
   State<_CustomerSelectorDialog> createState() =>
@@ -2294,7 +2372,14 @@ class _CustomerSelectorDialog extends StatefulWidget {
 
 class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
   final _searchController = TextEditingController();
+  late final List<Customer> _customers;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _customers = [...widget.customers];
+  }
 
   @override
   void dispose() {
@@ -2305,7 +2390,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
-    final customers = widget.customers
+    final customers = _customers
         .where((customer) {
           if (query.isEmpty) return true;
           return customer.name.toLowerCase().contains(query) ||
@@ -2407,7 +2492,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                   autofocus: true,
                   onChanged: (value) => setState(() => _query = value),
                   decoration: InputDecoration(
-                    hintText: 'Search name, phone or email',
+                    hintText: context.tr('Search name, phone or email'),
                     prefixIcon: const Icon(Icons.search_rounded, size: 21),
                     suffixIcon: _query.isEmpty
                         ? null
@@ -2427,7 +2512,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
             Expanded(
               child: customers.isEmpty
                   ? EmptyState(
-                      widget.customers.isEmpty
+                      _customers.isEmpty
                           ? 'No customers are available'
                           : 'No customers match this search',
                     )
@@ -2449,8 +2534,8 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                 children: [
                   Text(
                     query.isEmpty
-                        ? '${widget.customers.length} ${widget.customers.length == 1 ? 'customer' : 'customers'}'
-                        : 'Showing ${customers.length} of ${widget.customers.length}',
+                        ? '${_customers.length} ${_customers.length == 1 ? 'customer' : 'customers'}'
+                        : 'Showing ${customers.length} of ${_customers.length}',
                     style: const TextStyle(
                       color: AppColors.muted,
                       fontSize: 11,
@@ -2458,10 +2543,18 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                     ),
                   ),
                   const Spacer(),
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                  FilledButton.icon(
+                    onPressed: _createCustomer,
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: Text(context.tr(mobile ? 'New' : 'New customer')),
                   ),
+                  if (!mobile) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(context.tr('Cancel')),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2469,6 +2562,144 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _createCustomer() async {
+    final formKey = GlobalKey<FormState>();
+    final name = TextEditingController();
+    final mobile = TextEditingController();
+    final email = TextEditingController();
+    var saving = false;
+    String? error;
+    final customer = await showDialog<Customer>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(context.tr('New customer')),
+          content: SizedBox(
+            width: 440,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: name,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: context.tr('Customer name'),
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: (value) => value?.trim().isEmpty ?? true
+                        ? context.tr('Customer name is required')
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: mobile,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: context.tr('Mobile number'),
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                    ),
+                    validator: (value) => value?.trim().isEmpty ?? true
+                        ? context.tr('Mobile number is required')
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: context.tr('Email (optional)'),
+                      prefixIcon: const Icon(Icons.email_outlined),
+                    ),
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (text.isNotEmpty &&
+                          !RegExp(
+                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                          ).hasMatch(text)) {
+                        return context.tr('Enter a valid email address');
+                      }
+                      return null;
+                    },
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        error!,
+                        style: const TextStyle(color: AppColors.danger),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: Text(context.tr('Cancel')),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() {
+                        saving = true;
+                        error = null;
+                      });
+                      try {
+                        final created = await widget.onCreate(
+                          name: name.text.trim(),
+                          mobile: mobile.text.trim(),
+                          email: email.text.trim(),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, created);
+                        }
+                      } on ApiException catch (exception) {
+                        setDialogState(() {
+                          saving = false;
+                          error = exception.message;
+                        });
+                      } catch (_) {
+                        setDialogState(() {
+                          saving = false;
+                          error = context.tr(
+                            'Unable to create customer. Please try again.',
+                          );
+                        });
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded, size: 18),
+              label: Text(
+                saving ? context.tr('Saving...') : context.tr('Create'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    mobile.dispose();
+    email.dispose();
+    if (customer == null || !mounted) return;
+    setState(() => _customers.add(customer));
+    widget.onSelected(customer);
+    Navigator.pop(context);
   }
 
   Widget _customerRow(Customer customer) {

@@ -601,7 +601,7 @@ class Api {
       request.fields['opening_stock[$location][quantity]'] =
           '${draft.openingStock}';
       request.fields['opening_stock[$location][purchase_price]'] =
-          '${draft.purchasePrice / 100}';
+          '${(draft.purchasePrice ?? draft.purchasePriceIncTax ?? 0) / 100}';
     }
     _attachImage(request, draft);
     return _productFromWriteResponse(
@@ -715,13 +715,15 @@ class Api {
     'barcode_type': draft.barcodeType,
     'tax_type': draft.taxType,
     'alert_quantity': '${draft.minimumStock}',
-    'single_dpp': '${draft.purchasePrice / 100}',
-    'single_dpp_inc_tax':
-        '${(draft.purchasePriceIncTax ?? draft.purchasePrice) / 100}',
+    if (draft.purchasePrice != null)
+      'single_dpp': '${draft.purchasePrice! / 100}',
+    if (draft.purchasePriceIncTax != null)
+      'single_dpp_inc_tax': '${draft.purchasePriceIncTax! / 100}',
     'profit_percent': '${draft.profitPercent}',
-    'single_dsp': '${draft.sellingPrice / 100}',
-    'single_dsp_inc_tax':
-        '${(draft.sellingPriceIncTax ?? draft.sellingPrice) / 100}',
+    if (draft.sellingPrice != null)
+      'single_dsp': '${draft.sellingPrice! / 100}',
+    if (draft.sellingPriceIncTax != null)
+      'single_dsp_inc_tax': '${draft.sellingPriceIncTax! / 100}',
     if (draft.categoryId.isNotEmpty) 'category_id': draft.categoryId,
     if (draft.subCategoryId.isNotEmpty) 'sub_category_id': draft.subCategoryId,
     if (draft.brandId.isNotEmpty) 'brand_id': draft.brandId,
@@ -1295,12 +1297,24 @@ class Api {
       'business details',
     );
     final currency = _map(json['currency']);
+    final rawPosSettings = json['pos_settings'];
+    final posSettings = rawPosSettings is String
+        ? _map(jsonDecode(rawPosSettings))
+        : _map(rawPosSettings);
+    final overselling = posSettings['allow_overselling'];
     return BusinessProfile(
       name: json['name']?.toString() ?? '',
+      nameEn: json['name_en']?.toString() ?? '',
+      nameAr: json['name_ar']?.toString() ?? '',
       currencyCode: currency['code']?.toString() ?? '',
       currencySymbol: currency['symbol']?.toString() ?? '',
       timeZone: json['time_zone']?.toString() ?? '',
       taxLabel: json['tax_label_1']?.toString() ?? '',
+      allowOverselling:
+          overselling == true ||
+          overselling == 1 ||
+          overselling?.toString().toLowerCase() == 'true' ||
+          overselling?.toString() == '1',
     );
   }
 
@@ -1487,6 +1501,8 @@ class Api {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    String grossDiscountType = 'fixed',
+    double grossDiscountRate = 0,
   }) async {
     final body = {
       'sells': [
@@ -1495,8 +1511,10 @@ class Api {
           'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
           'status': 'final',
-          'discount_type': 'fixed',
-          'discount_amount': grossDiscount / 100,
+          'discount_type': grossDiscountType,
+          'discount_amount': grossDiscountType == 'percentage'
+              ? grossDiscountRate
+              : grossDiscount / 100,
           'products': [
             for (final line in lines)
               {
@@ -2200,6 +2218,8 @@ class Api {
     return Product(
       id: json['id'].toString(),
       name: json['name']?.toString() ?? '',
+      nameEn: json['name_en']?.toString() ?? '',
+      nameAr: json['name_ar']?.toString() ?? '',
       sku: sku,
       barcode: sku,
       categoryId: categoryId,

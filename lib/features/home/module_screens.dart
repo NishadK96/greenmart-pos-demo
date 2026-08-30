@@ -599,7 +599,7 @@ class _LowStockRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                context.tr(product.name),
+                product.displayName(context.isArabic),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w800),
@@ -773,7 +773,7 @@ class _TopProductsCard extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      context.tr(row.product.name),
+                                      row.product.displayName(context.isArabic),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -973,7 +973,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       final matchesQuery =
           normalizedQuery.isEmpty ||
           product.name.toLowerCase().contains(normalizedQuery) ||
-          context.tr(product.name).toLowerCase().contains(normalizedQuery) ||
+          product.nameEn.toLowerCase().contains(normalizedQuery) ||
+          product.nameAr.toLowerCase().contains(normalizedQuery) ||
           product.sku.toLowerCase().contains(normalizedQuery) ||
           product.barcode.toLowerCase().contains(normalizedQuery);
       final matchesCategory =
@@ -1003,10 +1004,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       'price_high' => (a, b) => b.sellingPrice.compareTo(a.sellingPrice),
       'stock_low' => (a, b) => a.stock.compareTo(b.stock),
       _ =>
-        (a, b) => context
-            .tr(a.name)
+        (a, b) => a
+            .displayName(context.isArabic)
             .toLowerCase()
-            .compareTo(context.tr(b.name).toLowerCase()),
+            .compareTo(b.displayName(context.isArabic).toLowerCase()),
     });
     final totalPages = rows.isEmpty ? 1 : (rows.length / pageSize).ceil();
     final safePage = page.clamp(0, totalPages - 1);
@@ -1491,7 +1492,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 ],
               ),
               Text(
-                context.tr(product.name),
+                product.displayName(context.isArabic),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -1874,7 +1875,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          context.tr(product.name),
+                          product.displayName(context.isArabic),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -4378,7 +4379,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        '${line.quantity} × ${context.tr(line.product.name)}',
+                        '${line.quantity} × ${line.product.displayName(context.isArabic)}',
                       ),
                     ),
                     RiyalAmount(line.total),
@@ -4441,9 +4442,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             try {
               await PrinterDocumentService.printReceiptTo(
                 sale,
-                ref.read(appStoreProvider).business?.name ?? 'GreenMart',
+                ref
+                        .read(appStoreProvider)
+                        .business
+                        ?.displayName(context.isArabic) ??
+                    'GreenMart',
                 printerState.settings,
                 printer: printerState.selectedPrinter,
+                arabic: ref.read(localeProvider).languageCode == 'ar',
               );
             } catch (error) {
               if (context.mounted) {
@@ -4840,7 +4846,7 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.tr(line.product.name),
+                              line.product.displayName(context.isArabic),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -5490,7 +5496,7 @@ class LegacyReportsScreen extends ConsumerWidget {
     for (final sale in s.sales) {
       for (final item in sale.items) {
         units.update(
-          context.tr(item.product.name),
+          item.product.displayName(context.isArabic),
           (v) => v + item.quantity,
           ifAbsent: () => item.quantity,
         );

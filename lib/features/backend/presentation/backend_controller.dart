@@ -207,6 +207,8 @@ class BackendController extends AsyncNotifier<void> {
             paymentMethod: paymentMethod,
             total: state.cartTotal,
             grossDiscount: state.cartGrossDiscount,
+            grossDiscountType: state.grossDiscountType,
+            grossDiscountRate: state.grossDiscountRate,
           );
       final sale = ref
           .read(appStoreProvider.notifier)

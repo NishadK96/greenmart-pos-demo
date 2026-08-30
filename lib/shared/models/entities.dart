@@ -35,6 +35,8 @@ class Product {
     this.imageUrl = '',
     this.unitId = '',
     this.taxId = '',
+    this.nameEn = '',
+    this.nameAr = '',
   });
   final String id,
       name,
@@ -45,6 +47,7 @@ class Product {
       variationId,
       unitId,
       taxId;
+  final String nameEn, nameAr;
   final String imageUrl;
   final int purchasePrice, sellingPrice, stock, minimumStock;
   final double taxPercent;
@@ -62,6 +65,8 @@ class Product {
     int? minimumStock,
     String? imageUrl,
     bool? active,
+    String? nameEn,
+    String? nameAr,
   }) => Product(
     id: id,
     name: name ?? this.name,
@@ -79,7 +84,15 @@ class Product {
     taxId: taxId ?? this.taxId,
     active: active ?? this.active,
     imageUrl: imageUrl ?? this.imageUrl,
+    nameEn: nameEn ?? this.nameEn,
+    nameAr: nameAr ?? this.nameAr,
   );
+
+  String displayName(bool arabic) {
+    if (arabic && nameAr.trim().isNotEmpty) return nameAr.trim();
+    if (!arabic && nameEn.trim().isNotEmpty) return nameEn.trim();
+    return name;
+  }
 }
 
 class LookupOption {
@@ -125,7 +138,8 @@ class ProductDraft {
       taxType,
       description,
       weight;
-  final int purchasePrice, sellingPrice, minimumStock, openingStock;
+  final int? purchasePrice, sellingPrice;
+  final int minimumStock, openingStock;
   final bool manageStock;
   final List<String> locationIds;
   final List<int>? imageBytes;
@@ -201,6 +215,8 @@ class BusinessLocation {
 class PaymentOption {
   const PaymentOption({required this.code, required this.label});
   final String code, label;
+
+  bool get isCustom => code.toLowerCase().startsWith('custom_pay_');
 }
 
 class BusinessProfile {
@@ -210,8 +226,19 @@ class BusinessProfile {
     required this.currencySymbol,
     required this.timeZone,
     required this.taxLabel,
+    this.allowOverselling = false,
+    this.nameEn = '',
+    this.nameAr = '',
   });
   final String name, currencyCode, currencySymbol, timeZone, taxLabel;
+  final String nameEn, nameAr;
+  final bool allowOverselling;
+
+  String displayName(bool arabic) {
+    if (arabic && nameAr.trim().isNotEmpty) return nameAr.trim();
+    if (!arabic && nameEn.trim().isNotEmpty) return nameEn.trim();
+    return name;
+  }
 }
 
 class UserProfile {
@@ -318,10 +345,17 @@ class CartLine {
 }
 
 class HeldCart {
-  const HeldCart({required this.lines, this.grossDiscount = 0});
+  const HeldCart({
+    required this.lines,
+    this.grossDiscount = 0,
+    this.grossDiscountType = 'fixed',
+    this.grossDiscountRate = 0,
+  });
 
   final List<CartLine> lines;
   final int grossDiscount;
+  final String grossDiscountType;
+  final double grossDiscountRate;
 }
 
 class Sale {
@@ -337,6 +371,8 @@ class Sale {
     required this.total,
     required this.tax,
     required this.discount,
+    this.grossDiscountType = 'fixed',
+    this.grossDiscountRate = 0,
     required this.syncStatus,
     this.zatcaStatus,
   });
@@ -347,6 +383,8 @@ class Sale {
   final List<CartLine> items;
   final String paymentMethod;
   final int total, tax, discount;
+  final String grossDiscountType;
+  final double grossDiscountRate;
   final SyncStatus syncStatus;
   final String? zatcaStatus;
 
@@ -367,6 +405,8 @@ class Sale {
     total: total,
     tax: tax,
     discount: discount,
+    grossDiscountType: grossDiscountType,
+    grossDiscountRate: grossDiscountRate,
     syncStatus: syncStatus ?? this.syncStatus,
     zatcaStatus: zatcaStatus ?? this.zatcaStatus,
   );

@@ -76,7 +76,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStoreProvider);
-    final businessName = appState.business?.name ?? '';
+    final businessName = appState.business?.displayName(context.isArabic) ?? '';
     final userName = appState.user?.name ?? '';
     final locationName = appState.locations.isEmpty
         ? ''
@@ -124,19 +124,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       children: [
                         Row(
                           children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(11),
-                              ),
-                              child: const Icon(
-                                Icons.storefront_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
+                            const _EazyPosIcon(size: 42, radius: 11),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -238,8 +226,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               )
             : AppBar(
+                leading: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: _EazyPosIcon(size: 40, radius: 10),
+                ),
                 title: Text(
-                  context.tr('RetailFlow'),
+                  context.tr('Eazy POS'),
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 actions: [
@@ -289,18 +281,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 12, 18),
                     child: Row(
                       children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: AppColors.accent,
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: const Icon(
-                            Icons.storefront_rounded,
-                            color: AppColors.navy,
-                          ),
-                        ),
+                        const _EazyPosIcon(size: 42, radius: 13),
                         if (expanded) ...[
                           const SizedBox(width: 12),
                           Expanded(
@@ -704,4 +685,30 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+}
+
+class _EazyPosIcon extends StatelessWidget {
+  const _EazyPosIcon({required this.size, required this.radius});
+
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(radius - 2),
+      child: Image.asset(
+        'assets/branding/eazy_pos_icon.png',
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
+    ),
+  );
 }

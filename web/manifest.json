@@ -1,11 +1,11 @@
 {
-    "name": "retailflow_pos",
-    "short_name": "retailflow_pos",
+    "name": "Eazy POS",
+    "short_name": "Eazy POS",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7F9F8",
+    "theme_color": "#087769",
+    "description": "Eazy POS retail point of sale application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

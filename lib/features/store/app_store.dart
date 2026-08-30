@@ -26,6 +26,9 @@ class AppState {
     this.lastSale,
     this.heldCarts = const [],
     this.grossDiscount = 0,
+    this.grossDiscountType = 'fixed',
+    this.grossDiscountRate = 0,
+    this.allowOverselling = false,
   });
   final List<Product> products;
   final List<Category> categories;
@@ -36,6 +39,9 @@ class AppState {
   final List<SyncQueueItem> syncQueue;
   final List<BusinessLocation> locations;
   final List<PaymentOption> paymentOptions;
+  List<PaymentOption> get checkoutPaymentOptions => paymentOptions
+      .where((option) => !option.isCustom)
+      .toList(growable: false);
   final List<StockItem> stockItems;
   final List<LookupOption> units, taxes;
   final List<LookupOption> brands;
@@ -47,12 +53,22 @@ class AppState {
   final Sale? lastSale;
   final List<HeldCart> heldCarts;
   final int grossDiscount;
+  final String grossDiscountType;
+  final double grossDiscountRate;
+  final bool allowOverselling;
   int get cartSubtotal => cart.fold<int>(0, (v, e) => v + e.subtotal);
   int get cartLineDiscount => cart.fold<int>(0, (v, e) => v + e.discount);
   int get cartTax => cart.fold<int>(0, (v, e) => v + e.tax);
   int get maximumGrossDiscount =>
       cart.fold<int>(0, (value, line) => value + line.total);
   int get cartGrossDiscount {
+    if (grossDiscountType == 'percentage') {
+      if (grossDiscountRate <= 0) return 0;
+      return (maximumGrossDiscount * grossDiscountRate / 100).round().clamp(
+        0,
+        maximumGrossDiscount,
+      );
+    }
     if (grossDiscount <= 0) return 0;
     if (grossDiscount >= maximumGrossDiscount) return maximumGrossDiscount;
     return grossDiscount;
@@ -86,6 +102,9 @@ class AppState {
     Sale? lastSale,
     List<HeldCart>? heldCarts,
     int? grossDiscount,
+    String? grossDiscountType,
+    double? grossDiscountRate,
+    bool? allowOverselling,
   }) => AppState(
     products: products ?? this.products,
     categories: categories ?? this.categories,
@@ -108,6 +127,9 @@ class AppState {
     lastSale: lastSale ?? this.lastSale,
     heldCarts: heldCarts ?? this.heldCarts,
     grossDiscount: grossDiscount ?? this.grossDiscount,
+    grossDiscountType: grossDiscountType ?? this.grossDiscountType,
+    grossDiscountRate: grossDiscountRate ?? this.grossDiscountRate,
+    allowOverselling: allowOverselling ?? this.allowOverselling,
   );
 }
 
@@ -117,9 +139,10 @@ class AppStore extends Notifier<AppState> {
   void addToCart(Product product) {
     final i = state.cart.indexWhere((e) => e.product.id == product.id);
     final lines = [...state.cart];
-    if (i < 0) {
+    if (i < 0 && (state.allowOverselling || product.stock > 0)) {
       lines.add(CartLine(product: product));
-    } else if (lines[i].quantity < product.stock) {
+    } else if (i >= 0 &&
+        (state.allowOverselling || lines[i].quantity < product.stock)) {
       lines[i] = lines[i].copyWith(quantity: lines[i].quantity + 1);
     }
     state = state.copyWith(cart: lines);
@@ -132,7 +155,7 @@ class AppStore extends Notifier<AppState> {
     final q = lines[i].quantity + delta;
     if (q <= 0)
       lines.removeAt(i);
-    else if (q <= lines[i].product.stock)
+    else if (state.allowOverselling || q <= lines[i].product.stock)
       lines[i] = lines[i].copyWith(quantity: q);
     state = state.copyWith(cart: lines);
   }
@@ -161,18 +184,33 @@ class AppStore extends Notifier<AppState> {
 
   void setGrossDiscount(int amount) => state = state.copyWith(
     grossDiscount: amount.clamp(0, state.maximumGrossDiscount),
+    grossDiscountType: 'fixed',
+    grossDiscountRate: 0,
+  );
+
+  void setGrossDiscountPercentage(double rate) => state = state.copyWith(
+    grossDiscount: 0,
+    grossDiscountType: 'percentage',
+    grossDiscountRate: rate.clamp(0, 100),
   );
 
   void remove(String id) => state = state.copyWith(
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );
-  void clearCart() =>
-      state = state.copyWith(cart: [], clearCustomer: true, grossDiscount: 0);
+  void clearCart() => state = state.copyWith(
+    cart: [],
+    clearCustomer: true,
+    grossDiscount: 0,
+    grossDiscountType: 'fixed',
+    grossDiscountRate: 0,
+  );
   void clearCashierContext() => state = state.copyWith(
     cart: [],
     heldCarts: [],
     clearCustomer: true,
     grossDiscount: 0,
+    grossDiscountType: 'fixed',
+    grossDiscountRate: 0,
   );
   void holdCart() {
     if (state.cart.isEmpty) return;
@@ -181,11 +219,15 @@ class AppStore extends Notifier<AppState> {
         HeldCart(
           lines: [...state.cart],
           grossDiscount: state.cartGrossDiscount,
+          grossDiscountType: state.grossDiscountType,
+          grossDiscountRate: state.grossDiscountRate,
         ),
         ...state.heldCarts,
       ],
       cart: [],
       grossDiscount: 0,
+      grossDiscountType: 'fixed',
+      grossDiscountRate: 0,
       clearCustomer: true,
     );
   }
@@ -195,6 +237,8 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(
       cart: [...state.heldCarts.first.lines],
       grossDiscount: state.heldCarts.first.grossDiscount,
+      grossDiscountType: state.heldCarts.first.grossDiscountType,
+      grossDiscountRate: state.heldCarts.first.grossDiscountRate,
       heldCarts: state.heldCarts.skip(1).toList(growable: false),
     );
   }
@@ -244,6 +288,7 @@ class AppStore extends Notifier<AppState> {
     required List<BusinessLocation> locations,
     required List<PaymentOption> paymentOptions,
     required List<LookupOption> taxes,
+    bool allowOverselling = false,
   }) => state = state.copyWith(
     products: products,
     categories: categories,
@@ -251,6 +296,7 @@ class AppStore extends Notifier<AppState> {
     locations: locations,
     paymentOptions: paymentOptions,
     taxes: taxes,
+    allowOverselling: allowOverselling,
   );
 
   void replaceRemoteData({
@@ -276,6 +322,7 @@ class AppStore extends Notifier<AppState> {
     paymentOptions: paymentOptions,
     stockItems: stockItems,
     business: business,
+    allowOverselling: business.allowOverselling,
     user: user,
     profitLoss: profitLoss,
     units: units,
@@ -298,6 +345,8 @@ class AppStore extends Notifier<AppState> {
       total: state.cartTotal,
       tax: state.cartTax,
       discount: state.cartDiscount,
+      grossDiscountType: state.grossDiscountType,
+      grossDiscountRate: state.grossDiscountRate,
       syncStatus: serverId == null ? SyncStatus.pending : SyncStatus.synced,
     );
     var products = [...state.products];
@@ -317,6 +366,8 @@ class AppStore extends Notifier<AppState> {
       clearCustomer: true,
       lastSale: sale,
       grossDiscount: 0,
+      grossDiscountType: 'fixed',
+      grossDiscountRate: 0,
     );
     return sale;
   }

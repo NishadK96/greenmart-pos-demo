@@ -4,7 +4,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 
 const saudiRiyalAsset = 'assets/icons/saudi_riyal_symbol.svg';
 
-// Kept for compatibility with the business-context bootstrap. RetailFlow uses
+// Kept for compatibility with the business-context bootstrap. Eazy POS uses
 // the official Saudi riyal mark in the UI and SAR in text-only output.
 void configureCurrency(String symbol) {}
 

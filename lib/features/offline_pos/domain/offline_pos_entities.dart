@@ -9,6 +9,7 @@ class OfflineCatalog {
     this.paymentOptions = const [],
     this.taxes = const [],
     this.changesCursor = 0,
+    this.allowOverselling = false,
     this.cachedAt,
   });
 
@@ -19,6 +20,7 @@ class OfflineCatalog {
   final List<PaymentOption> paymentOptions;
   final List<LookupOption> taxes;
   final int changesCursor;
+  final bool allowOverselling;
   final DateTime? cachedAt;
   bool get isNotEmpty => products.isNotEmpty && customers.isNotEmpty;
 
@@ -30,6 +32,7 @@ class OfflineCatalog {
     List<PaymentOption>? paymentOptions,
     List<LookupOption>? taxes,
     int? changesCursor,
+    bool? allowOverselling,
     DateTime? cachedAt,
   }) => OfflineCatalog(
     products: products ?? this.products,
@@ -39,6 +42,7 @@ class OfflineCatalog {
     paymentOptions: paymentOptions ?? this.paymentOptions,
     taxes: taxes ?? this.taxes,
     changesCursor: changesCursor ?? this.changesCursor,
+    allowOverselling: allowOverselling ?? this.allowOverselling,
     cachedAt: cachedAt ?? this.cachedAt,
   );
 }

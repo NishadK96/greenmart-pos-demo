@@ -1,10 +1,11 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
+import '../../../core/utils/pdf_fonts.dart';
 
 class PrinterDocumentService {
   static Future<bool> printPdfBytes(
@@ -49,10 +50,12 @@ class PrinterDocumentService {
     final paper = settings.paperSizes[profile] ?? '80mm';
     final format = formatFor(paper);
     final doc = pw.Document();
+    final theme = await PdfFonts.arabicTheme();
     if (settings.section == PrinterSection.barcode) {
       doc.addPage(
         pw.Page(
           pageFormat: format,
+          theme: theme,
           margin: const pw.EdgeInsets.all(8),
           build: (_) => pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
@@ -95,6 +98,7 @@ class PrinterDocumentService {
     doc.addPage(
       pw.Page(
         pageFormat: format,
+        theme: theme,
         margin: pw.EdgeInsets.all(
           format.width < PdfPageFormat.a4.width ? 12 : 36,
         ),
@@ -112,6 +116,14 @@ class PrinterDocumentService {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
             ),
+            if (settings.section == PrinterSection.billing)
+              PdfFonts.text(
+                settings.billingAudience == BillingAudience.business
+                    ? 'فاتورة ضريبية'
+                    : 'فاتورة ضريبية مبسطة',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
             pw.Divider(),
             pw.Text('Document: TEST-0001'),
             pw.Text(
@@ -144,16 +156,19 @@ class PrinterDocumentService {
     Sale sale,
     String businessName,
     PrinterSettings settings,
-    PdfPageFormat requested,
-  ) async {
+    PdfPageFormat requested, {
+    bool arabic = false,
+  }) async {
     final profile = sale.customer.isBusiness
         ? 'billing-business'
         : 'billing-retail';
     final format = formatFor(settings.paperSizes[profile] ?? '80mm');
     final doc = pw.Document();
+    final theme = await PdfFonts.arabicTheme();
     doc.addPage(
       pw.Page(
         pageFormat: format,
+        theme: theme,
         margin: pw.EdgeInsets.all(
           format.width < PdfPageFormat.a4.width ? 12 : 36,
         ),
@@ -167,28 +182,50 @@ class PrinterDocumentService {
             ),
             pw.Text(
               sale.syncStatus == SyncStatus.pending
-                  ? 'PROVISIONAL OFFLINE RECEIPT'
+                  ? arabic
+                        ? 'إيصال مؤقت غير متصل'
+                        : 'PROVISIONAL OFFLINE RECEIPT'
                   : sale.customer.isBusiness
-                  ? 'TAX INVOICE'
+                  ? arabic
+                        ? 'فاتورة ضريبية'
+                        : 'TAX INVOICE'
+                  : arabic
+                  ? 'فاتورة ضريبية مبسطة'
                   : 'SIMPLIFIED TAX INVOICE',
               textAlign: pw.TextAlign.center,
+              textDirection: arabic
+                  ? pw.TextDirection.rtl
+                  : pw.TextDirection.ltr,
             ),
-            pw.Divider(),
-            pw.Text('Invoice: ${sale.invoiceNo}'),
-            pw.Text('Customer: ${sale.customer.name}'),
-            if (sale.customer.taxNumber?.isNotEmpty == true)
-              pw.Text('VAT: ${sale.customer.taxNumber}'),
-            pw.Text('Payment: ${sale.paymentMethod.toUpperCase()}'),
-            pw.Divider(),
-            for (final item in sale.items)
-              _line(
-                '${item.quantity} x ${item.product.name}',
-                _money(item.total),
+            if (!arabic && sale.syncStatus != SyncStatus.pending)
+              PdfFonts.text(
+                sale.customer.isBusiness
+                    ? 'فاتورة ضريبية'
+                    : 'فاتورة ضريبية مبسطة',
+                textAlign: pw.TextAlign.center,
               ),
             pw.Divider(),
-            _line('Tax', _money(sale.tax)),
-            _line('Discount', _money(sale.discount)),
-            _line('TOTAL', _money(sale.total), bold: true),
+            _documentFact(arabic ? 'الفاتورة' : 'Invoice', sale.invoiceNo),
+            _documentFact(arabic ? 'العميل' : 'Customer', sale.customer.name),
+            if (sale.customer.taxNumber?.isNotEmpty == true)
+              _documentFact(
+                arabic ? 'الرقم الضريبي' : 'VAT',
+                sale.customer.taxNumber!,
+              ),
+            _documentFact(
+              arabic ? 'الدفع' : 'Payment',
+              _paymentLabel(sale.paymentMethod, arabic),
+            ),
+            pw.Divider(),
+            for (final item in sale.items) _receiptItem(item, arabic),
+            pw.Divider(),
+            _line(arabic ? 'الضريبة' : 'Tax', _money(sale.tax)),
+            _line(arabic ? 'الخصم' : 'Discount', _money(sale.discount)),
+            _line(
+              arabic ? 'الإجمالي' : 'TOTAL',
+              _money(sale.total),
+              bold: true,
+            ),
             if (sale.syncStatus == SyncStatus.pending) ...[
               pw.SizedBox(height: 12),
               pw.Center(
@@ -215,7 +252,9 @@ class PrinterDocumentService {
               ),
             ],
             pw.SizedBox(height: 14),
-            pw.Text('Thank you', textAlign: pw.TextAlign.center),
+            if (!arabic) pw.Text('Thank you', textAlign: pw.TextAlign.center),
+            if (arabic)
+              PdfFonts.text('شكراً لكم', textAlign: pw.TextAlign.center),
           ],
         ),
       ),
@@ -229,7 +268,7 @@ class PrinterDocumentService {
         child: pw.Row(
           children: [
             pw.Expanded(
-              child: pw.Text(
+              child: PdfFonts.bilingual(
                 label,
                 style: bold
                     ? pw.TextStyle(fontWeight: pw.FontWeight.bold)
@@ -244,8 +283,40 @@ class PrinterDocumentService {
         ),
       );
 
+  static pw.Widget _receiptItem(CartLine item, bool arabic) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(vertical: 2),
+    child: pw.Row(
+      children: [
+        pw.Expanded(child: PdfFonts.text(item.product.displayName(arabic))),
+        pw.Text('${item.quantity} x ${_money(item.unitPrice)}'),
+      ],
+    ),
+  );
+
   static String _money(int minorUnits) =>
       'SAR ${(minorUnits / 100).toStringAsFixed(2)}';
+
+  static String _paymentLabel(String method, bool arabic) {
+    if (!arabic) return method.toUpperCase();
+    return switch (method.toLowerCase()) {
+      'cash' => 'نقدي',
+      'card' => 'بطاقة',
+      'credit' => 'آجل',
+      'bank' || 'bank transfer' => 'تحويل بنكي',
+      _ => method,
+    };
+  }
+
+  static pw.Widget _documentFact(String label, String value) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(vertical: 1),
+    child: pw.Row(
+      children: [
+        PdfFonts.bilingual(label),
+        pw.SizedBox(width: 5),
+        pw.Expanded(child: PdfFonts.text(value, textAlign: pw.TextAlign.right)),
+      ],
+    ),
+  );
 
   static Future<bool> printSample(PrinterSettings settings) =>
       Printing.layoutPdf(
@@ -275,24 +346,45 @@ class PrinterDocumentService {
   static Future<bool> printReceipt(
     Sale sale,
     String businessName,
-    PrinterSettings settings,
-  ) => Printing.layoutPdf(
-    name: 'Invoice ${sale.invoiceNo}',
-    format: formatFor(
+    PrinterSettings settings, {
+    bool arabic = false,
+  }) async {
+    final format = formatFor(
       settings.paperSizes[sale.customer.isBusiness
               ? 'billing-business'
               : 'billing-retail'] ??
           '80mm',
-    ),
-    onLayout: (format) => receipt(sale, businessName, settings, format),
-  );
+    );
+    if (kIsWeb) {
+      return Printing.sharePdf(
+        bytes: await receipt(
+          sale,
+          businessName,
+          settings,
+          format,
+          arabic: arabic,
+        ),
+        filename: 'invoice-${sale.invoiceNo}.pdf',
+      );
+    }
+    return Printing.layoutPdf(
+      name: 'Invoice ${sale.invoiceNo}',
+      format: format,
+      onLayout: (requested) =>
+          receipt(sale, businessName, settings, requested, arabic: arabic),
+    );
+  }
 
   static Future<bool> printReceiptTo(
     Sale sale,
     String businessName,
     PrinterSettings settings, {
     Printer? printer,
+    bool arabic = false,
   }) async {
+    if (kIsWeb) {
+      return printReceipt(sale, businessName, settings, arabic: arabic);
+    }
     if (printer != null && printer.url != 'system-print-dialog') {
       final profile = sale.customer.isBusiness
           ? 'billing-business'
@@ -301,9 +393,10 @@ class PrinterDocumentService {
         printer: printer,
         name: 'Invoice ${sale.invoiceNo}',
         format: formatFor(settings.paperSizes[profile] ?? '80mm'),
-        onLayout: (format) => receipt(sale, businessName, settings, format),
+        onLayout: (format) =>
+            receipt(sale, businessName, settings, format, arabic: arabic),
       );
     }
-    return await printReceipt(sale, businessName, settings);
+    return await printReceipt(sale, businessName, settings, arabic: arabic);
   }
 }

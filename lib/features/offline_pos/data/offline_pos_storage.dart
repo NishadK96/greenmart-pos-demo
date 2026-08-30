@@ -79,12 +79,15 @@ class OfflinePosStorage {
 
   Map<String, dynamic> _catalogToJson(OfflineCatalog catalog) => {
     'changes_cursor': catalog.changesCursor,
+    'allow_overselling': catalog.allowOverselling,
     'cached_at': catalog.cachedAt?.toIso8601String(),
     'products': catalog.products
         .map(
           (product) => {
             'id': product.id,
             'name': product.name,
+            'name_en': product.nameEn,
+            'name_ar': product.nameAr,
             'sku': product.sku,
             'barcode': product.barcode,
             'category_id': product.categoryId,
@@ -132,6 +135,7 @@ class OfflinePosStorage {
 
   OfflineCatalog _catalogFromJson(Map<String, dynamic> json) => OfflineCatalog(
     changesCursor: (json['changes_cursor'] as num?)?.toInt() ?? 0,
+    allowOverselling: json['allow_overselling'] == true,
     cachedAt: DateTime.tryParse('${json['cached_at'] ?? ''}'),
     products: (json['products'] as List? ?? const [])
         .whereType<Map>()
@@ -140,6 +144,8 @@ class OfflinePosStorage {
           return Product(
             id: '${item['id'] ?? ''}',
             name: '${item['name'] ?? ''}',
+            nameEn: '${item['name_en'] ?? ''}',
+            nameAr: '${item['name_ar'] ?? ''}',
             sku: '${item['sku'] ?? ''}',
             barcode: '${item['barcode'] ?? ''}',
             categoryId: '${item['category_id'] ?? ''}',

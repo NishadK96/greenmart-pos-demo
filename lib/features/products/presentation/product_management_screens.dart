@@ -525,12 +525,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         _purchase,
                         'Purchase cost excluding tax',
                         () => _recalculatePrices(state),
+                        required: false,
                       ),
                       const SizedBox(height: 10),
                       _priceField(
                         _purchaseInc,
                         'Purchase cost including tax',
                         null,
+                        required: false,
                       ),
                     ],
                   ),
@@ -557,6 +559,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         _selling,
                         'Selling price excluding tax',
                         () => _recalculateSellingInc(state),
+                        required: false,
                       ),
                       const SizedBox(height: 10),
                       _priceField(
@@ -1365,8 +1368,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   Widget _priceField(
     TextEditingController controller,
     String label,
-    VoidCallback? changed,
-  ) => TextFormField(
+    VoidCallback? changed, {
+    bool required = true,
+  }) => TextFormField(
     controller: controller,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     decoration: InputDecoration(
@@ -1378,7 +1382,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
     ),
     onChanged: changed == null ? null : (_) => changed(),
-    validator: (v) => double.tryParse(v ?? '') == null ? 'Required' : null,
+    validator: (value) {
+      final text = value?.trim() ?? '';
+      if (text.isEmpty) return required ? context.tr('Required') : null;
+      return double.tryParse(text) == null
+          ? context.tr('Enter a valid number')
+          : null;
+    },
   );
 
   Widget _dropdown(
@@ -1527,7 +1537,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   void _recalculatePrices(AppState state) {
-    final purchase = double.tryParse(_purchase.text) ?? 0;
+    final purchase = double.tryParse(_purchase.text);
+    if (purchase == null) return;
     final margin = double.tryParse(_margin.text) ?? 0;
     final tax = _taxPercent(state) / 100;
     _purchaseInc.text = (purchase * (1 + tax)).toStringAsFixed(2);
@@ -1537,12 +1548,18 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   void _recalculateSellingInc(AppState state) {
-    final selling = double.tryParse(_selling.text) ?? 0;
+    final selling = double.tryParse(_selling.text);
+    if (selling == null) return;
     _sellingInc.text = (selling * (1 + _taxPercent(state) / 100))
         .toStringAsFixed(2);
   }
 
   int _cents(String value) => ((double.tryParse(value) ?? 0) * 100).round();
+
+  int? _optionalCents(String value) {
+    final amount = double.tryParse(value.trim());
+    return amount == null ? null : (amount * 100).round();
+  }
 
   Future<void> _save(_SaveMode mode) async {
     if (!_formKey.currentState!.validate() || _unitId == null) return;
@@ -1588,9 +1605,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         taxId: _taxId ?? '',
         barcodeType: _barcodeType,
         taxType: _taxType,
-        purchasePrice: _cents(_purchase.text),
-        purchasePriceIncTax: _cents(_purchaseInc.text),
-        sellingPrice: _cents(_selling.text),
+        purchasePrice: _optionalCents(_purchase.text),
+        purchasePriceIncTax: _optionalCents(_purchaseInc.text),
+        sellingPrice: _optionalCents(_selling.text),
         sellingPriceIncTax: _cents(_sellingInc.text),
         profitPercent: double.tryParse(_margin.text) ?? 0,
         minimumStock: int.tryParse(_minimum.text) ?? 0,

@@ -145,6 +145,8 @@ abstract interface class BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    String grossDiscountType = 'fixed',
+    double grossDiscountRate = 0,
   });
 
   Future<String> createSaleReturn({

@@ -64,7 +64,11 @@ class ReceiptScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         Text(
-                          (ref.watch(appStoreProvider).business?.name ?? '')
+                          (ref
+                                      .watch(appStoreProvider)
+                                      .business
+                                      ?.displayName(context.isArabic) ??
+                                  '')
                               .toUpperCase(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
@@ -91,7 +95,7 @@ class ReceiptScreen extends ConsumerWidget {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${line.quantity} × ${context.tr(line.product.name)}',
+                                    '${line.quantity} × ${line.product.displayName(context.isArabic)}',
                                   ),
                                 ),
                                 RiyalAmount(line.total),
@@ -162,10 +166,16 @@ class ReceiptScreen extends ConsumerWidget {
                             try {
                               await PrinterDocumentService.printReceiptTo(
                                 sale,
-                                ref.read(appStoreProvider).business?.name ??
+                                ref
+                                        .read(appStoreProvider)
+                                        .business
+                                        ?.displayName(context.isArabic) ??
                                     'GreenMart',
                                 printerState.settings,
                                 printer: printerState.selectedPrinter,
+                                arabic:
+                                    ref.read(localeProvider).languageCode ==
+                                    'ar',
                               );
                             } catch (error) {
                               if (context.mounted) {

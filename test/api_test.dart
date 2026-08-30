@@ -9,6 +9,21 @@ import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart'
 import 'package:retailflow_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
+  test('business details maps the POS overselling setting', () async {
+    final api = Api(
+      client: MockClient(
+        (_) async => http.Response(
+          '{"data":{"name":"Shop","currency":{"code":"SAR","symbol":"SAR"},"time_zone":"Asia/Riyadh","tax_label_1":"VAT","pos_settings":{"allow_overselling":1}}}',
+          200,
+        ),
+      ),
+    );
+
+    final business = await api.businessDetails('token');
+
+    expect(business.allowOverselling, isTrue);
+  });
+
   test('login sends credentials to the backend-managed endpoint', () async {
     final api = Api(
       loginUrl: 'https://example.test/connector/api/login',
@@ -202,7 +217,8 @@ void main() {
       client: MockClient((request) async {
         expect(request.method, 'GET');
         expect(request.url.path, '/connector/api/purchase-orders');
-        return http.Response('''
+        return http.Response(
+          '''
           {"data":[{
             "id":41,"ref_no":"PO-0041","contact_id":7,
             "contact":{"id":7,"name":"Fresh Foods Ltd"},
@@ -217,7 +233,10 @@ void main() {
               "variation":{"id":4,"sub_sku":"RICE-5KG"}
             }]
           }]}
-        ''', 200);
+        ''',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
       }),
     );
 
@@ -353,9 +372,10 @@ void main() {
         expect(request.method, 'GET');
         expect(request.headers['Authorization'], 'Bearer token-123');
         expect(request.url.queryParameters['per_page'], '-1');
-        return http.Response('''
+        return http.Response(
+          '''
           {"data":[{
-            "id":1,"name":"Whole Wheat Flour","sku":"SKU-1001",
+            "id":1,"name":"Whole Wheat Flour","name_en":"Whole Wheat Flour","name_ar":"دقيق القمح الكامل","sku":"SKU-1001",
             "category":{"id":7,"name":"Grocery"},
             "unit":{"short_name":"pc"},
             "image_url":"http://localhost:8080/uploads/img/flour.jpg",
@@ -365,7 +385,10 @@ void main() {
               "variation_location_details":[{"qty_available":"19.0000"}]
             }]}]
           }]}
-        ''', 200);
+        ''',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
       }),
     );
 
@@ -373,6 +396,8 @@ void main() {
 
     expect(products, hasLength(1));
     expect(products.single.name, 'Whole Wheat Flour');
+    expect(products.single.displayName(false), 'Whole Wheat Flour');
+    expect(products.single.displayName(true), 'دقيق القمح الكامل');
     expect(products.single.sellingPrice, 5125);
     expect(products.single.stock, 19);
     expect(products.single.categoryId, '7');
@@ -548,6 +573,45 @@ void main() {
     expect((sale['payment'] as List).single['amount'], 42);
   });
 
+  test('create sale sends percentage gross discount', () async {
+    Map<String, dynamic>? payload;
+    final api = Api(
+      client: MockClient((request) async {
+        payload = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('[{"id":10,"invoice_no":"INV-10"}]', 200);
+      }),
+    );
+    const product = Product(
+      id: '1',
+      variationId: '2',
+      name: 'Rice',
+      sku: 'SKU-1',
+      barcode: 'SKU-1',
+      categoryId: '3',
+      purchasePrice: 4000,
+      sellingPrice: 4900,
+      stock: 2,
+      minimumStock: 1,
+    );
+
+    await api.createSale(
+      accessToken: 'token-123',
+      locationId: '1',
+      cashRegisterId: '27',
+      customer: const Customer(id: '1', name: 'Walk-in'),
+      lines: const [CartLine(product: product)],
+      paymentMethod: 'cash',
+      total: 4655,
+      grossDiscount: 245,
+      grossDiscountType: 'percentage',
+      grossDiscountRate: 5,
+    );
+
+    final sale = (payload!['sells'] as List).single as Map<String, dynamic>;
+    expect(sale['discount_type'], 'percentage');
+    expect(sale['discount_amount'], 5);
+  });
+
   test('standard and quick product creation use their API contracts', () async {
     final seen = <Uri>[];
     final api = Api(
@@ -582,6 +646,34 @@ void main() {
 
     expect(seen[0].path, '/connector/api/products');
     expect(seen[1].path, '/connector/api/products/save_quick_product');
+  });
+
+  test('optional product price fields are omitted when blank', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.body, isNot(contains('name="single_dpp"')));
+        expect(request.body, isNot(contains('name="single_dpp_inc_tax"')));
+        expect(request.body, isNot(contains('name="single_dsp"')));
+        expect(request.body, contains('name="single_dsp_inc_tax"'));
+        return http.Response(
+          _productResponse,
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await api.createProduct(
+      accessToken: 'token-123',
+      draft: const ProductDraft(
+        name: 'Optional price product',
+        unitId: '1',
+        purchasePrice: null,
+        purchasePriceIncTax: null,
+        sellingPrice: null,
+        sellingPriceIncTax: 1250,
+      ),
+    );
   });
 
   test(

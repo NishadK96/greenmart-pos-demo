@@ -43,6 +43,7 @@ void main() {
         paymentOptions: const [PaymentOption(code: 'cash', label: 'Cash')],
         taxes: const [LookupOption(id: '4', name: 'VAT', value: 15)],
         changesCursor: 1402,
+        allowOverselling: true,
         cachedAt: DateTime(2026, 8, 27),
       ),
       queue: [
@@ -66,6 +67,7 @@ void main() {
     expect(restored.catalog.products.single.sellingPrice, 1150);
     expect(restored.catalog.customers.single.id, '25');
     expect(restored.catalog.changesCursor, 1402);
+    expect(restored.catalog.allowOverselling, isTrue);
     expect(restored.queue.single.provisionalInvoiceRef, 'OFF-000001');
     expect(restored.pendingCount, 1);
 

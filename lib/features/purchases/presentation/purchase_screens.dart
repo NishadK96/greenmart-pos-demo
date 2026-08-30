@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/localization/app_localizations.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
@@ -511,7 +512,9 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
     paymentNote = TextEditingController(text: payment?.note ?? '');
     paymentMethod =
         payment?.method ??
-        (app.paymentOptions.isEmpty ? 'cash' : app.paymentOptions.first.code);
+        (app.checkoutPaymentOptions.isEmpty
+            ? 'cash'
+            : app.checkoutPaymentOptions.first.code);
     paymentAccountId = payment?.accountId;
     for (var i = 0; i < (doc?.expenses.length ?? 0) && i < 4; i++) {
       expenseNames[i].text = doc!.expenses[i].name;
@@ -1027,7 +1030,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         decoration: const InputDecoration(
                           labelText: 'Payment method',
                         ),
-                        items: app.paymentOptions
+                        items: app.checkoutPaymentOptions
                             .map(
                               (option) => DropdownMenuItem(
                                 value: option.code,
@@ -1774,7 +1777,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                     final product = app.products[index];
                     return ListTile(
                       leading: const Icon(Icons.inventory_2_outlined),
-                      title: Text(product.name),
+                      title: Text(product.displayName(context.isArabic)),
                       subtitle: Text(product.sku),
                       trailing: const Icon(Icons.add_circle_outline_rounded),
                       onTap: () => Navigator.pop(dialogContext, product),
@@ -1946,7 +1949,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           PurchaseLineRecord(
             productId: product.id,
             variationId: product.variationId,
-            name: product.name,
+            name: product.displayName(context.isArabic),
             sku: product.sku,
             quantity: 1,
             unitCost: product.purchasePrice.toDouble(),

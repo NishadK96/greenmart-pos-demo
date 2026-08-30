@@ -30,6 +30,19 @@ void main() {
           .map((option) => option.code),
       ['cash', 'card'],
     );
+    expect(
+      container
+          .read(appStoreProvider)
+          .posPaymentOptions
+          .map((option) => option.code),
+      ['cash', 'card', 'credit'],
+    );
+  });
+
+  test('walk-in customer detection does not block named customers', () {
+    expect(const Customer(id: '1', name: 'Walk-In Customer').isWalkIn, isTrue);
+    expect(const Customer(id: '2', name: 'Walk in').isWalkIn, isTrue);
+    expect(const Customer(id: '3', name: 'Riyadh Retail').isWalkIn, isFalse);
   });
 
   test('overselling follows the business setting', () {

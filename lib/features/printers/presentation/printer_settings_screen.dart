@@ -211,6 +211,10 @@ class _DocumentSettings extends StatelessWidget {
     final currentPaper = papers.contains(settings.paperSizes[key])
         ? settings.paperSizes[key]!
         : papers.first;
+    final templates = PrinterTemplate.optionsFor(settings.section);
+    final currentTemplate = templates.contains(settings.templates[key])
+        ? settings.templates[key]!
+        : templates.first;
     return Surface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,25 +253,80 @@ class _DocumentSettings extends StatelessWidget {
               SizedBox(
                 width: 340,
                 child: DropdownButtonFormField<String>(
-                  initialValue: settings.templates[key],
+                  key: ValueKey('$key-$currentTemplate'),
+                  initialValue: currentTemplate,
                   decoration: const InputDecoration(
-                    labelText: 'Document theme',
+                    labelText: 'Default print template',
+                    helperText: 'Used automatically for this document type',
                   ),
-                  items: [settings.templates[key] ?? 'Default']
+                  items: templates
                       .map(
-                        (item) =>
-                            DropdownMenuItem(value: item, child: Text(item)),
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Row(
+                            children: [
+                              if (item == PrinterTemplate.erp) ...[
+                                const Icon(Icons.cloud_done_outlined, size: 17),
+                                const SizedBox(width: 8),
+                              ],
+                              Text(item),
+                            ],
+                          ),
+                        ),
                       )
                       .toList(),
-                  onChanged: (_) {},
+                  onChanged: (value) {
+                    if (value == null) return;
+                    final map = Map<String, String>.from(settings.templates)
+                      ..[key] = value;
+                    onChanged(settings.copyWith(templates: map));
+                  },
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF6F2),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: const Color(0xFFB8D9CF)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$currentTemplate is the default for ${_profileLabel(settings)}.',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  String _profileLabel(PrinterSettings settings) => switch (settings.section) {
+    PrinterSection.billing =>
+      settings.billingAudience == BillingAudience.retail
+          ? 'B2C billing'
+          : 'B2B billing',
+    PrinterSection.quotation => 'quotations',
+    PrinterSection.kitchen => 'kitchen tickets',
+    PrinterSection.barcode => 'barcode labels',
+  };
 }
 
 class _BarcodeSettings extends StatelessWidget {

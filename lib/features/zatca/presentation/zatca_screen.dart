@@ -271,8 +271,22 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
   }
 
   void _reload({bool firstPage = false}) {
-    if (firstPage) page = 1;
+    if (firstPage) {
+      page = 1;
+      selected.clear();
+    }
     setState(() => future = _load());
+  }
+
+  void _togglePageSelection(List<ZatcaTransaction> items, bool selectedAll) {
+    setState(() {
+      final ids = items.map((item) => item.id);
+      if (selectedAll) {
+        selected.addAll(ids);
+      } else {
+        selected.removeAll(ids);
+      }
+    });
   }
 
   Future<void> _syncSelected() async {
@@ -321,8 +335,10 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const Text(
-                'Review submission status and manually synchronize queued records.',
+              Text(
+                widget.isReturn
+                    ? 'Select one or more returns and send them to ZATCA together.'
+                    : 'Select one or more invoices and send them to ZATCA together.',
                 style: TextStyle(color: AppColors.muted),
               ),
             ],
@@ -335,7 +351,7 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.sync),
-            label: Text('Sync selected (${selected.length})'),
+            label: Text('Send selected to ZATCA (${selected.length})'),
           );
           return compact
               ? Column(
@@ -425,10 +441,52 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                 child: EmptyState('No ZATCA records match these filters.'),
               );
             }
+            final pageIds = data.items.map((item) => item.id).toSet();
+            final selectedOnPage = pageIds.intersection(selected).length;
+            final allOnPageSelected =
+                pageIds.isNotEmpty && selectedOnPage == pageIds.length;
             return Surface(
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: allOnPageSelected,
+                          tristate: selectedOnPage > 0 && !allOnPageSelected,
+                          onChanged: (checked) =>
+                              _togglePageSelection(data.items, checked == true),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => _togglePageSelection(
+                              data.items,
+                              !allOnPageSelected,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Text(
+                                allOnPageSelected
+                                    ? 'All ${data.items.length} ${widget.isReturn ? 'returns' : 'invoices'} on this page selected'
+                                    : 'Select all ${data.items.length} ${widget.isReturn ? 'returns' : 'invoices'} on this page',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (selected.isNotEmpty)
+                          TextButton(
+                            onPressed: () => setState(selected.clear),
+                            child: const Text('Clear selection'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
                   Expanded(
                     child: ListView.separated(
                       itemCount: data.items.length,

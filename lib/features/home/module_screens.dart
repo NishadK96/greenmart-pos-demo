@@ -4370,7 +4370,16 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${sale.customer.name} • ${sale.paymentMethod}'),
+            Text(
+              context.tr('Customer'),
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            Text(
+              sale.customer.name,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            _SalePaymentSummary(sale: sale),
             const Divider(),
             for (final line in sale.items)
               Padding(
@@ -5189,7 +5198,7 @@ class _SalesTableHeader extends StatelessWidget {
         Expanded(flex: 16, child: Text('Date & time')),
         Expanded(flex: 9, child: Text('Items')),
         Expanded(flex: 13, child: Text('Total amount')),
-        Expanded(flex: 12, child: Text('Status')),
+        Expanded(flex: 15, child: Text('Payment / sync')),
         SizedBox(width: 64, child: Text('Actions')),
       ],
     ),
@@ -5250,7 +5259,7 @@ class _SalesTransactionRow extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 5,
                       children: [
-                        StatusBadge(sale.paymentMethod),
+                        _SalePaymentBadge(sale: sale),
                         StatusBadge(
                           synced ? 'Synced' : 'Pending',
                           color: synced ? AppColors.primary : AppColors.accent,
@@ -5306,18 +5315,22 @@ class _SalesTransactionRow extends StatelessWidget {
             Expanded(
               flex: 13,
               child: Text(
-                '${money(sale.total)}\n${sale.paymentMethod}',
+                money(sale.total),
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
             Expanded(
-              flex: 12,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: StatusBadge(
-                  synced ? 'Synced' : 'Pending',
-                  color: synced ? AppColors.primary : AppColors.accent,
-                ),
+              flex: 15,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 5,
+                children: [
+                  _SalePaymentBadge(sale: sale),
+                  StatusBadge(
+                    synced ? 'Synced' : 'Pending sync',
+                    color: synced ? AppColors.primary : AppColors.accent,
+                  ),
+                ],
               ),
             ),
             SizedBox(
@@ -5351,6 +5364,84 @@ class _SalesTransactionRow extends StatelessWidget {
 
   Widget _customer() =>
       Text(sale.customer.name, maxLines: 2, overflow: TextOverflow.ellipsis);
+}
+
+bool _isCreditSale(Sale sale) {
+  final method = sale.paymentMethod.trim().toLowerCase();
+  return method == 'due' || method == 'credit';
+}
+
+String _salePaymentLabel(BuildContext context, Sale sale) {
+  if (_isCreditSale(sale)) return context.tr('Payment due');
+  final method = sale.paymentMethod.trim();
+  if (method.isEmpty) return context.tr('Paid');
+  return '${context.tr('Paid')} • ${context.tr(method)}';
+}
+
+class _SalePaymentBadge extends StatelessWidget {
+  const _SalePaymentBadge({required this.sale});
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context) {
+    final credit = _isCreditSale(sale);
+    return StatusBadge(
+      _salePaymentLabel(context, sale),
+      color: credit ? const Color(0xFFB7791F) : AppColors.primary,
+    );
+  }
+}
+
+class _SalePaymentSummary extends StatelessWidget {
+  const _SalePaymentSummary({required this.sale});
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context) {
+    final credit = _isCreditSale(sale);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: credit ? const Color(0xFFFFF7E8) : const Color(0xFFE9F6EF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: credit ? const Color(0xFFE5B45B) : const Color(0xFF9DCEBA),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            credit
+                ? Icons.schedule_rounded
+                : Icons.check_circle_outline_rounded,
+            color: credit ? const Color(0xFF9A5B00) : AppColors.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  credit ? context.tr('Credit sale') : context.tr('Paid sale'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                Text(
+                  credit
+                      ? '${context.tr('Outstanding')}: ${money(sale.total)}'
+                      : _salePaymentLabel(context, sale),
+                  style: TextStyle(
+                    color: credit ? const Color(0xFF7A4A00) : AppColors.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _SalePaymentBadge(sale: sale),
+        ],
+      ),
+    );
+  }
 }
 
 class _SalesMobileSectionHeader extends StatelessWidget {

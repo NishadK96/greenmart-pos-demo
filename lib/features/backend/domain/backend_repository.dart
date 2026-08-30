@@ -145,6 +145,7 @@ abstract interface class BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   });

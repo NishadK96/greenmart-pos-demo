@@ -1,41 +1,61 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:printing/printing.dart';
-import 'package:retailflow_pos/features/printers/application/printer_controller.dart';
+import 'package:pdf/pdf.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:retailflow_pos/features/printers/application/printer_document_service.dart';
 import 'package:retailflow_pos/features/printers/data/printer_settings_repository.dart';
 import 'package:retailflow_pos/features/printers/domain/printer_settings.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('selecting a printer saves it as the device-wide default', () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final controller = container.read(printerControllerProvider.notifier);
-    await Future<void>.delayed(Duration.zero);
+  test('ERP is available for every printer document type', () {
+    for (final section in PrinterSection.values) {
+      expect(
+        PrinterTemplate.optionsFor(section),
+        contains(PrinterTemplate.erp),
+      );
+    }
+  });
 
-    const printer = Printer(
-      url: 'printer://receipt-1',
-      name: 'Receipt printer',
-    );
-    await controller.selectPrinter(printer);
+  test('selected ERP template persists as the profile default', () async {
+    final repository = PrinterSettingsRepository();
+    const initial = PrinterSettings();
+    final templates = Map<String, String>.from(initial.templates)
+      ..['billing-retail'] = PrinterTemplate.erp;
 
+    await repository.save(initial.copyWith(templates: templates));
+    final restored = await repository.load();
+
+    expect(restored.templateFor('billing-retail'), PrinterTemplate.erp);
+    expect(restored.usesErpTemplate('billing-retail'), isTrue);
     expect(
-      container.read(printerControllerProvider).settings.defaultPrinterUrl,
-      printer.url,
-    );
-    expect(
-      (await PrinterSettingsRepository().load()).defaultPrinterUrl,
-      printer.url,
+      restored.templateFor('billing-business'),
+      PrinterTemplate.detailedTaxInvoice,
     );
   });
 
-  test('existing profile selection migrates to the global default', () {
-    final settings = PrinterSettings.fromJson({
-      'selectedPrinters': {'billing-retail': 'printer://legacy'},
-    });
+  test('billing templates generate distinct print layouts', () async {
+    Future<List<int>> build(String template) {
+      const defaults = PrinterSettings();
+      final templates = Map<String, String>.from(defaults.templates)
+        ..['billing-retail'] = template;
+      return PrinterDocumentService.sample(
+        defaults.copyWith(templates: templates),
+        PdfPageFormat.a4,
+      );
+    }
 
-    expect(settings.defaultPrinterUrl, 'printer://legacy');
+    final erp = await build(PrinterTemplate.erp);
+    final bilingual = await build(PrinterTemplate.bilingualReceipt);
+    final detailed = await build(PrinterTemplate.detailedTaxInvoice);
+
+    expect(erp.length, greaterThan(500));
+    expect(bilingual.length, greaterThan(500));
+    expect(detailed.length, greaterThan(500));
+    expect(listEquals(erp, bilingual), isFalse);
+    expect(listEquals(erp, detailed), isFalse);
+    expect(listEquals(bilingual, detailed), isFalse);
   });
 }

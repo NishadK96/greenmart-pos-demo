@@ -205,6 +205,15 @@ class Customer {
 
   bool get isBusiness =>
       businessName.trim().isNotEmpty || (taxNumber?.trim().isNotEmpty ?? false);
+
+  bool get isWalkIn {
+    final normalized = name
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[-_]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    return normalized == 'walk in' || normalized == 'walk in customer';
+  }
 }
 
 class BusinessLocation {

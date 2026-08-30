@@ -207,13 +207,14 @@ class BackendController extends AsyncNotifier<void> {
             paymentMethod: paymentMethod,
             total: state.cartTotal,
             grossDiscount: state.cartGrossDiscount,
+            isCreditSale: paymentMethod == 'credit',
             grossDiscountType: state.grossDiscountType,
             grossDiscountRate: state.grossDiscountRate,
           );
       final sale = ref
           .read(appStoreProvider.notifier)
           .checkout(
-            paymentMethod,
+            paymentMethod == 'credit' ? 'due' : paymentMethod,
             serverId: created.id,
             invoiceNo: created.invoiceNo,
           );

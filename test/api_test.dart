@@ -612,6 +612,50 @@ void main() {
     expect(sale['discount_amount'], 5);
   });
 
+  test('credit sale is paymentless and sends customer payment terms', () async {
+    Map<String, dynamic>? payload;
+    final api = Api(
+      client: MockClient((request) async {
+        payload = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('[{"id":11,"invoice_no":"INV-11"}]', 200);
+      }),
+    );
+    const product = Product(
+      id: '1',
+      variationId: '2',
+      name: 'Rice',
+      sku: 'SKU-1',
+      barcode: 'SKU-1',
+      categoryId: '3',
+      purchasePrice: 4000,
+      sellingPrice: 4900,
+      stock: 2,
+      minimumStock: 1,
+    );
+
+    await api.createSale(
+      accessToken: 'token-123',
+      locationId: '1',
+      cashRegisterId: '27',
+      customer: const Customer(
+        id: '15',
+        name: 'Riyadh Retail',
+        payTermNumber: '30',
+        payTermType: 'days',
+      ),
+      lines: const [CartLine(product: product)],
+      paymentMethod: 'credit',
+      total: 4900,
+      grossDiscount: 0,
+      isCreditSale: true,
+    );
+
+    final sale = (payload!['sells'] as List).single as Map<String, dynamic>;
+    expect(sale.containsKey('payment'), isFalse);
+    expect(sale['pay_term_number'], 30);
+    expect(sale['pay_term_type'], 'days');
+  });
+
   test('standard and quick product creation use their API contracts', () async {
     final seen = <Uri>[];
     final api = Api(

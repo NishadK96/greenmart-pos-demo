@@ -2,12 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:retailflow_pos/app.dart';
 import 'package:retailflow_pos/core/localization/app_localizations.dart';
 import 'package:retailflow_pos/features/auth/auth_controller.dart';
 import 'package:retailflow_pos/features/home/module_screens.dart';
 import 'package:retailflow_pos/features/pos/pos_screen.dart';
+import 'package:retailflow_pos/features/store/app_store.dart';
+import 'package:retailflow_pos/shared/models/entities.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -91,6 +94,73 @@ void main() {
     expect(find.byType(PosScreen), findsOneWidget);
   });
 
+  testWidgets('F6 opens price editor for the latest cart item', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    const product = Product(
+      id: 'price-shortcut-product',
+      name: 'Shortcut product',
+      sku: 'SHORTCUT-1',
+      barcode: 'SHORTCUT-1',
+      categoryId: 'test',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 5,
+      minimumStock: 0,
+      variationId: 'price-shortcut-variation',
+    );
+    container.read(appStoreProvider.notifier).addToCart(product);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f6);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit unit price'), findsOneWidget);
+    expect(find.text('Unit price'), findsOneWidget);
+  });
+
+  testWidgets('F8 opens gross discount editor for the current cart', (
+    tester,
+  ) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    const product = Product(
+      id: 'discount-shortcut-product',
+      name: 'Discount shortcut product',
+      sku: 'DISCOUNT-1',
+      barcode: 'DISCOUNT-1',
+      categoryId: 'test',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 5,
+      minimumStock: 0,
+      variationId: 'discount-shortcut-variation',
+    );
+    container.read(appStoreProvider.notifier).addToCart(product);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Gross discount'), findsOneWidget);
+    expect(find.text('Amount'), findsOneWidget);
+    expect(find.text('Rate'), findsOneWidget);
+  });
+
   testWidgets('POS customer selector opens quick customer creation', (
     tester,
   ) async {
@@ -106,6 +176,69 @@ void main() {
     expect(find.text('Mobile number'), findsOneWidget);
     expect(find.text('Email (optional)'), findsOneWidget);
     expect(find.text('Create'), findsOneWidget);
+  });
+
+  testWidgets('credit sale requires a selected non-walk-in customer', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(2048, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _creditSaleContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Credit sale').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Credit sale').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select a customer first'), findsOneWidget);
+    expect(find.text('Select customer'), findsOneWidget);
+    expect(
+      find.textContaining('Credit cannot be assigned to the Walk-in Customer'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('credit sale confirmation explains due amount and terms', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(2048, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _creditSaleContainer(selectCreditCustomer: true);
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Credit sale').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Credit sale').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm credit sale'), findsOneWidget);
+    expect(find.text('Riyadh Retail'), findsWidgets);
+    expect(find.text('30 days'), findsOneWidget);
+    expect(find.text('Create credit sale'), findsOneWidget);
+    expect(find.textContaining('full invoice amount'), findsOneWidget);
   });
 
   testWidgets('mobile POS hides desktop shortcut labels', (tester) async {
@@ -203,6 +336,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Sales history explains credit payment and outstanding amount', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _creditSaleContainer(selectCreditCustomer: true);
+    addTearDown(container.dispose);
+    container
+        .read(appStoreProvider.notifier)
+        .checkout('due', serverId: '16', invoiceNo: '0016');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _SalesTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Payment due'), findsOneWidget);
+    expect(find.text('Payment / sync'), findsOneWidget);
+    await tester.tap(find.text('0016'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Credit sale'), findsOneWidget);
+    expect(find.textContaining('Outstanding:'), findsOneWidget);
+    expect(find.text('Riyadh Retail'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Sales mobile filters open as a responsive bottom sheet', (
     tester,
   ) async {
@@ -231,14 +398,70 @@ class _SignedOutAuthController extends AuthController {
   Future<String?> build() async => null;
 }
 
-class _PosTestApp extends StatelessWidget {
+ProviderContainer _creditSaleContainer({bool selectCreditCustomer = false}) {
+  final container = ProviderContainer();
+  const product = Product(
+    id: 'credit-product',
+    name: 'Credit product',
+    sku: 'CREDIT-1',
+    barcode: 'CREDIT-1',
+    categoryId: 'test',
+    purchasePrice: 500,
+    sellingPrice: 1000,
+    stock: 5,
+    minimumStock: 0,
+    variationId: 'credit-variation',
+  );
+  const walkIn = Customer(id: '1', name: 'Walk-in Customer');
+  const creditCustomer = Customer(
+    id: '15',
+    name: 'Riyadh Retail',
+    payTermNumber: '30',
+    payTermType: 'days',
+  );
+  final store = container.read(appStoreProvider.notifier);
+  store.restoreOfflineCatalog(
+    products: const [product],
+    categories: const [],
+    customers: const [walkIn, creditCustomer],
+    locations: const [BusinessLocation(id: '1', name: 'Main Store')],
+    paymentOptions: const [PaymentOption(code: 'cash', label: 'Cash')],
+    taxes: const [],
+  );
+  store.addToCart(product);
+  if (selectCreditCustomer) store.selectCustomer(creditCustomer);
+  return container;
+}
+
+class _PosTestApp extends StatefulWidget {
   const _PosTestApp();
 
   @override
-  Widget build(BuildContext context) => const MaterialApp(
-    localizationsDelegates: [AppLocalizations.delegate],
-    supportedLocales: [Locale('en'), Locale('ar')],
-    home: Scaffold(body: PosScreen()),
+  State<_PosTestApp> createState() => _PosTestAppState();
+}
+
+class _PosTestAppState extends State<_PosTestApp> {
+  late final GoRouter router = GoRouter(
+    initialLocation: '/pos',
+    routes: [
+      GoRoute(
+        path: '/pos',
+        builder: (_, __) => const Scaffold(body: PosScreen()),
+      ),
+    ],
+  );
+
+  @override
+  void dispose() {
+    router.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp.router(
+    localizationsDelegates: const [AppLocalizations.delegate],
+    supportedLocales: const [Locale('en'), Locale('ar')],
+    routerConfig: router,
   );
 }
 

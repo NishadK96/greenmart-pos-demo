@@ -47,6 +47,8 @@ class PrinterDocumentService {
     PdfPageFormat requested,
   ) async {
     final profile = settings.profileKey;
+    final template = settings.templateFor(profile);
+    final erpTemplate = template == PrinterTemplate.erp;
     final paper = settings.paperSizes[profile] ?? '80mm';
     final format = formatFor(paper);
     final doc = pw.Document();
@@ -105,6 +107,61 @@ class PrinterDocumentService {
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
+            if (erpTemplate)
+              pw.Align(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(width: .6),
+                    borderRadius: pw.BorderRadius.circular(3),
+                  ),
+                  child: pw.Text(
+                    'ERP',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+              ),
+            if (template == PrinterTemplate.bilingualReceipt) ...[
+              pw.Text(
+                'ARABIC & ENGLISH 3',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              PdfFonts.text(
+                'نموذج الفاتورة العربية والإنجليزية',
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(fontSize: 9),
+              ),
+              pw.SizedBox(height: 5),
+            ],
+            if (template == PrinterTemplate.detailedTaxInvoice) ...[
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(border: pw.Border.all(width: .7)),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'DETAILED TAX INVOICE',
+                      style: pw.TextStyle(
+                        fontSize: 15,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text('Supplier: GREENMART'),
+                    pw.Text('VAT number: 300000000000003'),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 8),
+            ],
             pw.Text(
               'GREENMART',
               textAlign: pw.TextAlign.center,
@@ -162,6 +219,8 @@ class PrinterDocumentService {
     final profile = sale.customer.isBusiness
         ? 'billing-business'
         : 'billing-retail';
+    final template = settings.templateFor(profile);
+    final erpTemplate = template == PrinterTemplate.erp;
     final format = formatFor(settings.paperSizes[profile] ?? '80mm');
     final doc = pw.Document();
     final theme = await PdfFonts.arabicTheme();
@@ -175,11 +234,83 @@ class PrinterDocumentService {
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            pw.Text(
-              businessName.toUpperCase(),
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-            ),
+            if (template == PrinterTemplate.detailedTaxInvoice)
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(border: pw.Border.all(width: .8)),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'DETAILED TAX INVOICE',
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    PdfFonts.text('فاتورة ضريبية تفصيلية'),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      businessName.toUpperCase(),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text('Invoice: ${sale.invoiceNo}'),
+                    pw.Text('Customer: ${sale.customer.name}'),
+                    if (sale.customer.taxNumber?.isNotEmpty == true)
+                      pw.Text('Customer VAT: ${sale.customer.taxNumber}'),
+                  ],
+                ),
+              )
+            else if (erpTemplate)
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: .7),
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      child: pw.Text(
+                        businessName.toUpperCase(),
+                        style: pw.TextStyle(
+                          fontSize: 17,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    pw.Text(
+                      'ERP',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
+              )
+            else
+              pw.Text(
+                businessName.toUpperCase(),
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            if (erpTemplate || template == PrinterTemplate.detailedTaxInvoice)
+              pw.SizedBox(height: 8),
+            if (template == PrinterTemplate.bilingualReceipt) ...[
+              pw.Text(
+                'ARABIC & ENGLISH 3',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              PdfFonts.text(
+                'فاتورة ثنائية اللغة',
+                textAlign: pw.TextAlign.center,
+              ),
+            ],
             pw.Text(
               sale.syncStatus == SyncStatus.pending
                   ? arabic
@@ -217,7 +348,12 @@ class PrinterDocumentService {
               _paymentLabel(sale.paymentMethod, arabic),
             ),
             pw.Divider(),
-            for (final item in sale.items) _receiptItem(item, arabic),
+            if (template == PrinterTemplate.detailedTaxInvoice) ...[
+              _detailedTableHeader(arabic),
+              pw.Divider(height: 8),
+              for (final item in sale.items) _detailedReceiptItem(item, arabic),
+            ] else
+              for (final item in sale.items) _receiptItem(item, arabic),
             pw.Divider(),
             _line(arabic ? 'الضريبة' : 'Tax', _money(sale.tax)),
             _line(arabic ? 'الخصم' : 'Discount', _money(sale.discount)),
@@ -289,6 +425,71 @@ class PrinterDocumentService {
       children: [
         pw.Expanded(child: PdfFonts.text(item.product.displayName(arabic))),
         pw.Text('${item.quantity} x ${_money(item.unitPrice)}'),
+      ],
+    ),
+  );
+
+  static pw.Widget _detailedTableHeader(bool arabic) => pw.Container(
+    color: PdfColors.grey200,
+    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+    child: pw.Row(
+      children: [
+        pw.Expanded(
+          flex: 4,
+          child: PdfFonts.text(
+            arabic ? 'المنتج' : 'Product',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.Expanded(
+          child: pw.Text(
+            arabic ? 'الكمية' : 'Qty',
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            arabic ? 'السعر' : 'Unit price',
+            textAlign: pw.TextAlign.right,
+          ),
+        ),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            arabic ? 'الإجمالي' : 'Line total',
+            textAlign: pw.TextAlign.right,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  static pw.Widget _detailedReceiptItem(
+    CartLine item,
+    bool arabic,
+  ) => pw.Container(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(bottom: pw.BorderSide(width: .35)),
+    ),
+    child: pw.Row(
+      children: [
+        pw.Expanded(
+          flex: 4,
+          child: PdfFonts.text(item.product.displayName(arabic)),
+        ),
+        pw.Expanded(
+          child: pw.Text('${item.quantity}', textAlign: pw.TextAlign.center),
+        ),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(_money(item.unitPrice), textAlign: pw.TextAlign.right),
+        ),
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(_money(item.total), textAlign: pw.TextAlign.right),
+        ),
       ],
     ),
   );

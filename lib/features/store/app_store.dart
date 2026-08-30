@@ -42,6 +42,16 @@ class AppState {
   List<PaymentOption> get checkoutPaymentOptions => paymentOptions
       .where((option) => !option.isCustom)
       .toList(growable: false);
+  List<PaymentOption> get posPaymentOptions {
+    final standard = checkoutPaymentOptions
+        .where((option) => option.code.toLowerCase() != 'due')
+        .toList(growable: true);
+    if (!standard.any((option) => option.code.toLowerCase() == 'credit')) {
+      standard.add(const PaymentOption(code: 'credit', label: 'Credit sale'));
+    }
+    return List.unmodifiable(standard);
+  }
+
   final List<StockItem> stockItems;
   final List<LookupOption> units, taxes;
   final List<LookupOption> brands;

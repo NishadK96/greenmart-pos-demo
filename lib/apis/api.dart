@@ -1501,6 +1501,7 @@ class Api {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -1515,6 +1516,11 @@ class Api {
           'discount_amount': grossDiscountType == 'percentage'
               ? grossDiscountRate
               : grossDiscount / 100,
+          if (isCreditSale && customer.payTermNumber.trim().isNotEmpty)
+            'pay_term_number':
+                int.tryParse(customer.payTermNumber) ?? customer.payTermNumber,
+          if (isCreditSale && customer.payTermNumber.trim().isNotEmpty)
+            'pay_term_type': customer.payTermType,
           'products': [
             for (final line in lines)
               {
@@ -1526,9 +1532,10 @@ class Api {
                 'discount_amount': line.discount / 100,
               },
           ],
-          'payment': [
-            {'amount': total / 100, 'method': paymentMethod},
-          ],
+          if (!isCreditSale)
+            'payment': [
+              {'amount': total / 100, 'method': paymentMethod},
+            ],
         },
       ],
     };

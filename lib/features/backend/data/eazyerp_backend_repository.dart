@@ -299,6 +299,7 @@ class EazyErpBackendRepository implements BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -311,6 +312,7 @@ class EazyErpBackendRepository implements BackendRepository {
       paymentMethod: paymentMethod,
       total: total,
       grossDiscount: grossDiscount,
+      isCreditSale: isCreditSale,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
     );

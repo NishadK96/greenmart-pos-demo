@@ -2,6 +2,22 @@ enum PrinterSection { billing, quotation, kitchen, barcode }
 
 enum BillingAudience { retail, business }
 
+abstract final class PrinterTemplate {
+  static const erp = 'ERP';
+  static const bilingualReceipt = 'Arabic & English 3';
+  static const detailedTaxInvoice = 'Detailed tax invoice';
+  static const simplifiedQuotation = 'Simplified quotation';
+  static const kitchenTicket = 'Kitchen order ticket';
+  static const compactPriceLabel = 'Compact price label';
+
+  static List<String> optionsFor(PrinterSection section) => switch (section) {
+    PrinterSection.billing => const [erp, bilingualReceipt, detailedTaxInvoice],
+    PrinterSection.quotation => const [erp, simplifiedQuotation],
+    PrinterSection.kitchen => const [erp, kitchenTicket],
+    PrinterSection.barcode => const [erp, compactPriceLabel],
+  };
+}
+
 class PrinterSettings {
   const PrinterSettings({
     this.section = PrinterSection.billing,
@@ -14,11 +30,11 @@ class PrinterSettings {
       'barcode': '50 × 25 mm',
     },
     this.templates = const {
-      'billing-retail': 'Arabic & English 3',
-      'billing-business': 'Detailed tax invoice',
-      'quotation': 'Simplified quotation',
-      'kitchen': 'Kitchen order ticket',
-      'barcode': 'Compact price label',
+      'billing-retail': PrinterTemplate.bilingualReceipt,
+      'billing-business': PrinterTemplate.detailedTaxInvoice,
+      'quotation': PrinterTemplate.simplifiedQuotation,
+      'kitchen': PrinterTemplate.kitchenTicket,
+      'barcode': PrinterTemplate.compactPriceLabel,
     },
     this.selectedPrinters = const {},
     this.defaultPrinterUrl,
@@ -43,6 +59,12 @@ class PrinterSettings {
   String get profileKey => section == PrinterSection.billing
       ? 'billing-${billingAudience.name}'
       : section.name;
+
+  String templateFor(String profile) =>
+      templates[profile] ?? PrinterTemplate.erp;
+
+  bool usesErpTemplate(String profile) =>
+      templateFor(profile) == PrinterTemplate.erp;
 
   PrinterSettings copyWith({
     PrinterSection? section,

@@ -53,6 +53,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             _openCustomerSelector(context, state),
         const SingleActivator(LogicalKeyboardKey.digit4, control: true): () =>
             _openCustomerSelector(context, state),
+        const SingleActivator(LogicalKeyboardKey.f6): _editLatestCartPrice,
+        const SingleActivator(LogicalKeyboardKey.digit6, control: true):
+            _editLatestCartPrice,
+        const SingleActivator(LogicalKeyboardKey.f8): _editGrossDiscount,
+        const SingleActivator(LogicalKeyboardKey.digit8, control: true):
+            _editGrossDiscount,
       },
       child: Focus(
         autofocus: true,
@@ -184,6 +190,28 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         ),
       ),
     );
+  }
+
+  void _editLatestCartPrice() {
+    final state = ref.read(appStoreProvider);
+    if (state.cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add an item before editing its price.')),
+      );
+      return;
+    }
+    _showUnitPriceEditor(context, ref, state.cart.last);
+  }
+
+  void _editGrossDiscount() {
+    final state = ref.read(appStoreProvider);
+    if (state.cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add an item before adding a discount.')),
+      );
+      return;
+    }
+    _showGrossDiscountEditor(context, ref, state);
   }
 
   void _focusProductSearch() {
@@ -1408,6 +1436,196 @@ class _TableLabel extends StatelessWidget {
   );
 }
 
+Future<void> _showUnitPriceEditor(
+  BuildContext context,
+  WidgetRef ref,
+  CartLine line,
+) async {
+  final controller = TextEditingController(
+    text: (line.unitPrice / 100).toStringAsFixed(2),
+  );
+  final formKey = GlobalKey<FormState>();
+  final amount = await showDialog<int>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(context.tr('Edit unit price')),
+      content: Form(
+        key: formKey,
+        child: TextFormField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: context.tr('Unit price'),
+            prefixIcon: Padding(
+              padding: EdgeInsets.all(14),
+              child: RiyalSymbol(size: 16),
+            ),
+            prefixIconConstraints: BoxConstraints(minWidth: 44, minHeight: 44),
+          ),
+          validator: (value) {
+            final parsed = double.tryParse(value?.trim() ?? '');
+            return parsed == null || parsed < 0
+                ? context.tr('Enter a valid amount')
+                : null;
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(context.tr('Cancel')),
+        ),
+        if (line.unitPriceOverride != null)
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, -1),
+            child: Text(context.tr('Use default price')),
+          ),
+        FilledButton(
+          onPressed: () {
+            if (!formKey.currentState!.validate()) return;
+            Navigator.pop(
+              dialogContext,
+              (double.parse(controller.text.trim()) * 100).round(),
+            );
+          },
+          child: Text(context.tr('Apply')),
+        ),
+      ],
+    ),
+  );
+  Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+  if (amount == null) return;
+  ref
+      .read(appStoreProvider.notifier)
+      .unitPrice(line.product.id, amount < 0 ? null : amount);
+}
+
+Future<void> _showGrossDiscountEditor(
+  BuildContext context,
+  WidgetRef ref,
+  AppState state,
+) async {
+  var discountType = state.grossDiscountType;
+  final controller = TextEditingController(
+    text: discountType == 'percentage'
+        ? (state.grossDiscountRate == 0
+              ? ''
+              : state.grossDiscountRate.toStringAsFixed(2))
+        : (state.cartGrossDiscount == 0
+              ? ''
+              : (state.cartGrossDiscount / 100).toStringAsFixed(2)),
+  );
+  final formKey = GlobalKey<FormState>();
+  final result = await showDialog<(String, double)>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text(context.tr('Gross discount')),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                    value: 'fixed',
+                    label: Text(context.tr('Amount')),
+                    icon: RiyalSymbol(size: 15),
+                  ),
+                  ButtonSegment(
+                    value: 'percentage',
+                    label: Text(context.tr('Rate')),
+                    icon: Icon(Icons.percent_rounded, size: 16),
+                  ),
+                ],
+                selected: {discountType},
+                onSelectionChanged: (selection) {
+                  setDialogState(() {
+                    discountType = selection.first;
+                    controller.clear();
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: discountType == 'percentage'
+                      ? context.tr('Discount rate')
+                      : context.tr('Discount amount'),
+                  prefixIcon: discountType == 'percentage'
+                      ? const Icon(Icons.percent_rounded, size: 18)
+                      : const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: RiyalSymbol(size: 16),
+                        ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  helperText: discountType == 'percentage'
+                      ? context.tr('Maximum 100%')
+                      : '${context.tr('Maximum')} ${money(state.maximumGrossDiscount)}',
+                ),
+                validator: (value) {
+                  final parsed = double.tryParse(value?.trim() ?? '');
+                  if (parsed == null || parsed < 0) {
+                    return context.tr('Enter a valid amount');
+                  }
+                  if (discountType == 'percentage' && parsed > 100) {
+                    return context.tr('Discount rate cannot exceed 100%');
+                  }
+                  if (discountType == 'fixed' &&
+                      (parsed * 100).round() > state.maximumGrossDiscount) {
+                    return context.tr('Discount cannot exceed subtotal');
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          if (state.cartGrossDiscount > 0)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, const ('fixed', 0)),
+              child: Text(context.tr('Remove discount')),
+            ),
+          FilledButton(
+            onPressed: () {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(dialogContext, (
+                discountType,
+                double.parse(controller.text.trim()),
+              ));
+            },
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    ),
+  );
+  Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+  if (result != null) {
+    final store = ref.read(appStoreProvider.notifier);
+    if (result.$1 == 'percentage') {
+      store.setGrossDiscountPercentage(result.$2);
+    } else {
+      store.setGrossDiscount((result.$2 * 100).round());
+    }
+  }
+}
+
 class _CurrentOrder extends ConsumerWidget {
   const _CurrentOrder();
 
@@ -1417,8 +1635,8 @@ class _CurrentOrder extends ConsumerWidget {
     final mobile = MediaQuery.sizeOf(context).width < 700;
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
     final lineHeight = mobile
-        ? (compactHeight ? 66.0 : 82.0)
-        : (compactHeight ? 50.0 : 66.0);
+        ? (compactHeight ? 108.0 : 118.0)
+        : (compactHeight ? 108.0 : 118.0);
     final separatorHeight = compactHeight ? 4.0 : 8.0;
     return Material(
       color: Colors.white,
@@ -1513,15 +1731,19 @@ class _CurrentOrder extends ConsumerWidget {
     children: [
       Row(
         children: [
-          Text(
-            context.tr('Current Order'),
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          Expanded(
+            child: Text(
+              context.tr('Current Order'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
           ),
           const SizedBox(width: 8),
           const StatusBadge('Dine In'),
-          const Spacer(),
+          const SizedBox(width: 8),
           IconButton.filledTonal(
             onPressed: () => _selectCustomer(context, ref, state),
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
@@ -1553,109 +1775,171 @@ class _CurrentOrder extends ConsumerWidget {
     double lineHeight,
   ) => SizedBox(
     height: lineHeight,
-    child: Row(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ProductImage(line.product.imageUrl, width: 36, height: 42),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
+        Row(
+          children: [
+            ProductImage(line.product.imageUrl, width: 38, height: 44),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
                 line.product.displayName(context.isArabic),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 13,
                 ),
               ),
-              const SizedBox(height: 1),
-              InkWell(
-                onTap: () => _editPrice(context, ref, line),
-                borderRadius: BorderRadius.circular(4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RiyalAmount(
-                      line.unitPrice,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    const SizedBox(width: 3),
-                    const Icon(
-                      Icons.edit_outlined,
-                      size: 12,
-                      color: AppColors.primary,
-                    ),
-                  ],
-                ),
+            ),
+            const SizedBox(width: 8),
+            RiyalAmount(
+              line.total,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+            ),
+            IconButton(
+              tooltip: 'Remove item',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+              onPressed: () =>
+                  ref.read(appStoreProvider.notifier).remove(line.product.id),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.danger,
+                size: 18,
               ),
-              InkWell(
-                onTap: () => _discount(context, ref, line),
-                child: Text(
-                  line.discount == 0
-                      ? 'Add discount'
-                      : 'Discount ${money(line.discount)}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 10,
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Tooltip(
+                message: context.tr('Edit price (F6 for latest item)'),
+                child: Material(
+                  color: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _showUnitPriceEditor(context, ref, line),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (_, constraints) => Row(
+                          children: [
+                            RiyalAmount(
+                              line.unitPrice,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              context.tr('Edit price'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (constraints.maxWidth >= 280) ...[
+                              const SizedBox(width: 7),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: .16),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'F6',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-        Container(
-          height: 34,
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE1E7E4)),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            children: [
-              _quantityButton(
-                Icons.remove_rounded,
-                () => ref
-                    .read(appStoreProvider.notifier)
-                    .quantity(line.product.id, -1),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFC9D5D0)),
+                borderRadius: BorderRadius.circular(9),
               ),
-              SizedBox(
-                width: 25,
-                child: Text(
-                  '${line.quantity}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+              child: Row(
+                children: [
+                  _quantityButton(
+                    Icons.remove_rounded,
+                    () => ref
+                        .read(appStoreProvider.notifier)
+                        .quantity(line.product.id, -1),
+                  ),
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      '${line.quantity}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  _quantityButton(
+                    Icons.add_rounded,
+                    () => ref
+                        .read(appStoreProvider.notifier)
+                        .quantity(line.product.id, 1),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: InkWell(
+            onTap: () => _discount(context, ref, line),
+            borderRadius: BorderRadius.circular(5),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Text(
+                line.discount == 0
+                    ? context.tr('Add discount')
+                    : '${context.tr('Discount')} ${money(line.discount)}',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
                 ),
               ),
-              _quantityButton(
-                Icons.add_rounded,
-                () => ref
-                    .read(appStoreProvider.notifier)
-                    .quantity(line.product.id, 1),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 61,
-          child: Text(
-            money(line.total),
-            textAlign: TextAlign.end,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Remove item',
-          visualDensity: VisualDensity.compact,
-          onPressed: () =>
-              ref.read(appStoreProvider.notifier).remove(line.product.id),
-          icon: const Icon(
-            Icons.delete_outline_rounded,
-            color: AppColors.danger,
-            size: 18,
+            ),
           ),
         ),
       ],
@@ -1715,70 +1999,139 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       );
 
-  Widget _totals(
+  Widget _totals(BuildContext context, WidgetRef ref, AppState state) =>
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F9F8),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5EAE8)),
+        ),
+        child: Column(
+          children: [
+            _sum(context, 'Subtotal', state.cartSubtotal),
+            _sum(
+              context,
+              'Line discounts',
+              -state.cartLineDiscount,
+              color: AppColors.danger,
+            ),
+            const SizedBox(height: 5),
+            _grossDiscountAction(context, ref, state),
+            const SizedBox(height: 5),
+            _sum(context, 'Tax', state.cartTax),
+            const Divider(height: 16),
+            Row(
+              children: [
+                Text(
+                  context.tr('Grand Total'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const Spacer(),
+                RiyalAmount(
+                  state.cartTotal,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                  ),
+                ),
+              ],
+            ),
+            if (state.cartDiscount > 0)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'You save ${money(state.cartDiscount)}',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+
+  Widget _grossDiscountAction(
     BuildContext context,
     WidgetRef ref,
     AppState state,
-  ) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF7F9F8),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFE5EAE8)),
-    ),
-    child: Column(
-      children: [
-        _sum(context, 'Subtotal', state.cartSubtotal),
-        _sum(
-          context,
-          'Line discounts',
-          -state.cartLineDiscount,
-          color: AppColors.danger,
-        ),
-        _sum(
-          context,
-          state.grossDiscountType == 'percentage' && state.grossDiscountRate > 0
-              ? 'Gross discount (${state.grossDiscountRate.toStringAsFixed(state.grossDiscountRate % 1 == 0 ? 0 : 2)}%)'
-              : 'Gross discount',
-          -state.cartGrossDiscount,
-          color: AppColors.danger,
-          onTap: () => _grossDiscount(context, ref, state),
-          editable: true,
-        ),
-        _sum(context, 'Tax', state.cartTax),
-        const Divider(height: 16),
-        Row(
-          children: [
-            Text(
-              context.tr('Grand Total'),
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-            ),
-            const Spacer(),
-            RiyalAmount(
-              state.cartTotal,
-              style: const TextStyle(
+  ) {
+    final hasDiscount = state.cartGrossDiscount > 0;
+    final rate = state.grossDiscountRate.toStringAsFixed(
+      state.grossDiscountRate % 1 == 0 ? 0 : 2,
+    );
+    final label = hasDiscount
+        ? (state.grossDiscountType == 'percentage'
+              ? '${context.tr('Gross discount')} ($rate%)'
+              : context.tr('Gross discount'))
+        : context.tr('Add gross discount');
+    return Material(
+      color: const Color(0xFFEAF6F2),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Color(0xFF9ACBBC)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _grossDiscount(context, ref, state),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.percent_rounded,
                 color: AppColors.primary,
-                fontWeight: FontWeight.w900,
-                fontSize: 22,
+                size: 18,
               ),
-            ),
-          ],
-        ),
-        if (state.cartDiscount > 0)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'You save ${money(state.cartDiscount)}',
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-            ),
+              if (hasDiscount) ...[
+                RiyalAmount(
+                  -state.cartGrossDiscount,
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Text(
+                  'F8',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
           ),
-      ],
-    ),
-  );
+        ),
+      ),
+    );
+  }
 
   Widget _sum(
     BuildContext context,
@@ -1821,7 +2174,14 @@ class _CurrentOrder extends ConsumerWidget {
     WidgetRef ref,
     AppState state,
   ) {
-    final shortcuts = state.checkoutPaymentOptions.take(5).toList();
+    final options = state.posPaymentOptions;
+    final credit = options
+        .where((option) => option.code == 'credit')
+        .firstOrNull;
+    final shortcuts = [
+      ...options.where((option) => option.code != 'credit').take(4),
+      if (credit != null) credit,
+    ];
     return Row(
       children: [
         for (var index = 0; index < shortcuts.length; index++) ...[
@@ -1863,75 +2223,7 @@ class _CurrentOrder extends ConsumerWidget {
       state.cart.isNotEmpty &&
       state.locations.isNotEmpty &&
       state.customers.isNotEmpty &&
-      state.checkoutPaymentOptions.isNotEmpty;
-
-  Future<void> _editPrice(
-    BuildContext context,
-    WidgetRef ref,
-    CartLine line,
-  ) async {
-    final controller = TextEditingController(
-      text: (line.unitPrice / 100).toStringAsFixed(2),
-    );
-    final formKey = GlobalKey<FormState>();
-    final amount = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.tr('Edit unit price')),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: context.tr('Unit price'),
-              prefixIcon: Padding(
-                padding: EdgeInsets.all(14),
-                child: RiyalSymbol(size: 16),
-              ),
-              prefixIconConstraints: BoxConstraints(
-                minWidth: 44,
-                minHeight: 44,
-              ),
-            ),
-            validator: (value) {
-              final parsed = double.tryParse(value?.trim() ?? '');
-              return parsed == null || parsed < 0
-                  ? context.tr('Enter a valid amount')
-                  : null;
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(context.tr('Cancel')),
-          ),
-          if (line.unitPriceOverride != null)
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, -1),
-              child: Text(context.tr('Use default price')),
-            ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              Navigator.pop(
-                dialogContext,
-                (double.parse(controller.text.trim()) * 100).round(),
-              );
-            },
-            child: Text(context.tr('Apply')),
-          ),
-        ],
-      ),
-    );
-    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
-    if (amount == null) return;
-    ref
-        .read(appStoreProvider.notifier)
-        .unitPrice(line.product.id, amount < 0 ? null : amount);
-  }
+      state.posPaymentOptions.isNotEmpty;
 
   Future<void> _grossDiscount(
     BuildContext context,
@@ -2166,6 +2458,7 @@ class _CurrentOrder extends ConsumerWidget {
     AppState state, {
     String? preferredCode,
   }) {
+    final pageContext = context;
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet<void>(
@@ -2232,42 +2525,53 @@ class _CurrentOrder extends ConsumerWidget {
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 280,
-                            mainAxisExtent: 72,
+                            mainAxisExtent: 92,
                             mainAxisSpacing: 10,
                             crossAxisSpacing: 10,
                           ),
-                      itemCount: state.checkoutPaymentOptions.length,
+                      itemCount: state.posPaymentOptions.length,
                       itemBuilder: (_, index) {
-                        final option = state.checkoutPaymentOptions[index];
+                        final option = state.posPaymentOptions[index];
                         final highlighted =
                             preferredCode != null &&
                             _paymentMatches(option.code, preferredCode);
+                        final label = option.code == 'credit'
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(context.tr(option.label)),
+                                  Text(
+                                    context.tr('Pay later • Customer required'),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(context.tr(option.label));
+                        void submit() => _handlePaymentOption(
+                          sheetContext: sheetContext,
+                          pageContext: pageContext,
+                          ref: ref,
+                          state: state,
+                          code: option.code,
+                          router: router,
+                          messenger: messenger,
+                          submitting: (value) =>
+                              setSheetState(() => submitting = value),
+                        );
                         return highlighted
                             ? FilledButton.icon(
-                                onPressed: () => _submitPayment(
-                                  sheetContext,
-                                  ref,
-                                  option.code,
-                                  router,
-                                  messenger,
-                                  (value) =>
-                                      setSheetState(() => submitting = value),
-                                ),
+                                onPressed: submit,
                                 icon: Icon(_paymentIcon(option.code)),
-                                label: Text(context.tr(option.label)),
+                                label: label,
                               )
                             : FilledButton.tonalIcon(
-                                onPressed: () => _submitPayment(
-                                  sheetContext,
-                                  ref,
-                                  option.code,
-                                  router,
-                                  messenger,
-                                  (value) =>
-                                      setSheetState(() => submitting = value),
-                                ),
+                                onPressed: submit,
                                 icon: Icon(_paymentIcon(option.code)),
-                                label: Text(context.tr(option.label)),
+                                label: label,
                               );
                       },
                     ),
@@ -2283,8 +2587,164 @@ class _CurrentOrder extends ConsumerWidget {
   bool _paymentMatches(String backendCode, String shortcut) {
     if (backendCode == shortcut) return true;
     if (shortcut == 'upi') return backendCode == 'bank_transfer';
-    if (shortcut == 'credit') return backendCode == 'cheque';
     return false;
+  }
+
+  Future<void> _handlePaymentOption({
+    required BuildContext sheetContext,
+    required BuildContext pageContext,
+    required WidgetRef ref,
+    required AppState state,
+    required String code,
+    required GoRouter router,
+    required ScaffoldMessengerState messenger,
+    required ValueChanged<bool> submitting,
+  }) async {
+    if (code != 'credit') {
+      await _submitPayment(
+        sheetContext,
+        ref,
+        code,
+        router,
+        messenger,
+        submitting,
+      );
+      return;
+    }
+
+    final customer = state.customer;
+    if (customer == null || customer.isWalkIn) {
+      final selectCustomer = await showDialog<bool>(
+        context: sheetContext,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(
+            Icons.person_add_alt_1_rounded,
+            color: AppColors.primary,
+            size: 34,
+          ),
+          title: Text(dialogContext.tr('Select a customer first')),
+          content: Text(
+            dialogContext.tr(
+              'Credit cannot be assigned to the Walk-in Customer. Select the customer who will pay this invoice later.',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(dialogContext.tr('Cancel')),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.people_outline_rounded),
+              label: Text(dialogContext.tr('Select customer')),
+            ),
+          ],
+        ),
+      );
+      if (selectCustomer == true && sheetContext.mounted) {
+        Navigator.pop(sheetContext);
+        await _selectCustomer(pageContext, ref, state);
+      }
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: sheetContext,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(
+          Icons.account_balance_wallet_outlined,
+          color: AppColors.primary,
+          size: 34,
+        ),
+        title: Text(dialogContext.tr('Confirm credit sale')),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                dialogContext.tr(
+                  'No payment will be collected now. The full invoice amount will be recorded as due.',
+                ),
+              ),
+              const SizedBox(height: 18),
+              _creditDetail(dialogContext.tr('Customer'), customer.name),
+              _creditDetail(
+                dialogContext.tr('Credit amount'),
+                money(state.cartTotal),
+              ),
+              _creditDetail(
+                dialogContext.tr('Payment term'),
+                _paymentTermLabel(dialogContext, customer),
+              ),
+              _creditDetail(
+                dialogContext.tr('Due date'),
+                _creditDueDate(customer),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(dialogContext.tr('Cancel')),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.check_rounded),
+            label: Text(dialogContext.tr('Create credit sale')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && sheetContext.mounted) {
+      await _submitPayment(
+        sheetContext,
+        ref,
+        'credit',
+        router,
+        messenger,
+        submitting,
+      );
+    }
+  }
+
+  Widget _creditDetail(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(color: AppColors.muted)),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  String _paymentTermLabel(BuildContext context, Customer customer) {
+    final number = int.tryParse(customer.payTermNumber);
+    if (number == null || number <= 0) return context.tr('Not specified');
+    return '$number ${context.tr(customer.payTermType == 'months' ? 'months' : 'days')}';
+  }
+
+  String _creditDueDate(Customer customer) {
+    final number = int.tryParse(customer.payTermNumber);
+    if (number == null || number <= 0) return '—';
+    final now = DateTime.now();
+    final due = customer.payTermType == 'months'
+        ? DateTime(now.year, now.month + number, now.day)
+        : now.add(Duration(days: number));
+    return DateFormat('dd MMM yyyy').format(due);
   }
 
   Future<void> _submitPayment(
@@ -2324,6 +2784,7 @@ class _CurrentOrder extends ConsumerWidget {
     'card' => Icons.credit_card_rounded,
     'cheque' => Icons.account_balance_wallet_outlined,
     'bank_transfer' => Icons.account_balance_outlined,
+    'credit' => Icons.account_balance_wallet_outlined,
     _ => Icons.more_horiz_rounded,
   };
 }

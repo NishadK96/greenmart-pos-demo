@@ -123,6 +123,44 @@ void main() {
     expect(state.cartTotal, 10700);
   });
 
+  test('re-adding a product makes it the latest cart line', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final store = container.read(appStoreProvider.notifier);
+    const first = Product(
+      id: 'first',
+      variationId: 'first-v1',
+      name: 'First',
+      sku: 'FIRST',
+      barcode: 'FIRST',
+      categoryId: '1',
+      purchasePrice: 100,
+      sellingPrice: 200,
+      stock: 5,
+      minimumStock: 0,
+    );
+    const second = Product(
+      id: 'second',
+      variationId: 'second-v1',
+      name: 'Second',
+      sku: 'SECOND',
+      barcode: 'SECOND',
+      categoryId: '1',
+      purchasePrice: 100,
+      sellingPrice: 200,
+      stock: 5,
+      minimumStock: 0,
+    );
+
+    store.addToCart(first);
+    store.addToCart(second);
+    store.addToCart(first);
+
+    final cart = container.read(appStoreProvider).cart;
+    expect(cart.map((line) => line.product.id), ['second', 'first']);
+    expect(cart.last.quantity, 2);
+  });
+
   test('line discounts update totals and never exceed the subtotal', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

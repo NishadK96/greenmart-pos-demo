@@ -190,6 +190,7 @@ class ProductImage extends StatelessWidget {
     if (url.isEmpty) return placeholder;
     return Image.network(
       url,
+      key: ValueKey(url),
       width: width,
       height: height,
       fit: fit,

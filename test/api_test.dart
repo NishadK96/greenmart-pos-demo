@@ -177,6 +177,7 @@ void main() {
           quantity: 3,
           sellLineId: '91',
           quantityReturned: 1,
+          saleUnitPriceIncTax: 4750,
         ),
       ],
       paymentMethod: 'cash',
@@ -192,10 +193,11 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer token-123');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['transaction_id'], 41);
+        expect(body.containsKey('transaction_date'), isFalse);
         final products = body['products'] as List<dynamic>;
         expect(products.single['sell_line_id'], 91);
         expect(products.single['quantity'], 2);
-        expect(products.single['unit_price_inc_tax'], 50.0);
+        expect(products.single['unit_price_inc_tax'], 47.5);
         return http.Response(
           '{"id":88,"invoice_no":"CN-0088","return_parent_id":41}',
           201,
@@ -570,8 +572,50 @@ void main() {
     expect(sale['discount_amount'], 2);
     expect(line['unit_price'], 45.5);
     expect(line['discount_amount'], 1.5);
-    expect((sale['payment'] as List).single['amount'], 42);
+    expect((sale['payments'] as List).single['amount'], 42);
+    expect((sale['payments'] as List).single['method'], 'cash');
   });
+
+  test(
+    'card sale sends a card payment line using the connector contract',
+    () async {
+      Map<String, dynamic>? payload;
+      final api = Api(
+        client: MockClient((request) async {
+          payload = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('[{"id":12,"invoice_no":"INV-12"}]', 200);
+        }),
+      );
+      const product = Product(
+        id: '1',
+        variationId: '2',
+        name: 'Rice',
+        sku: 'SKU-1',
+        barcode: 'SKU-1',
+        categoryId: '3',
+        purchasePrice: 4000,
+        sellingPrice: 4900,
+        stock: 2,
+        minimumStock: 1,
+      );
+
+      await api.createSale(
+        accessToken: 'token-123',
+        locationId: '1',
+        cashRegisterId: '27',
+        customer: const Customer(id: '1', name: 'Walk-in'),
+        lines: const [CartLine(product: product)],
+        paymentMethod: 'card',
+        total: 4900,
+        grossDiscount: 0,
+      );
+
+      final sale = (payload!['sells'] as List).single as Map<String, dynamic>;
+      final payment = (sale['payments'] as List).single as Map<String, dynamic>;
+      expect(payment, {'amount': 49, 'method': 'card'});
+      expect(sale.containsKey('payment'), isFalse);
+    },
+  );
 
   test('create sale sends percentage gross discount', () async {
     Map<String, dynamic>? payload;
@@ -651,7 +695,7 @@ void main() {
     );
 
     final sale = (payload!['sells'] as List).single as Map<String, dynamic>;
-    expect(sale.containsKey('payment'), isFalse);
+    expect(sale.containsKey('payments'), isFalse);
     expect(sale['pay_term_number'], 30);
     expect(sale['pay_term_type'], 'days');
   });
@@ -846,6 +890,116 @@ void main() {
     expect(status.installed, isTrue);
     expect(status.locations.single.portalMode, 'simulation');
     expect(status.totals.success, 18);
+  });
+
+  test('invoice layouts map the ERP assignment and preview metadata', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/invoice-layouts');
+        expect(request.url.queryParameters['location_id'], '3');
+        expect(request.url.queryParameters['document_type'], 'pos');
+        expect(request.headers['Authorization'], 'Bearer token-123');
+        return http.Response(
+          '{"data":{"location_id":3,"document_type":"pos","current_layout_id":8,"layouts":[{"id":8,"name":"Arabic Tax Invoice","design":"english-arabic-copy","design_name":"Arabic-English Letterhead","is_selected":true,"preview_url":"https://example.test/preview"}]}}',
+          200,
+        );
+      }),
+    );
+
+    final catalog = await api.invoiceLayouts(
+      accessToken: 'token-123',
+      locationId: '3',
+    );
+
+    expect(catalog.currentLayoutId, '8');
+    expect(catalog.selectedLayout?.name, 'Arabic Tax Invoice');
+    expect(catalog.layouts.single.design, 'english-arabic-copy');
+  });
+
+  test(
+    'assigning an invoice layout updates then reloads the ERP catalog',
+    () async {
+      var calls = 0;
+      final api = Api(
+        client: MockClient((request) async {
+          calls++;
+          if (request.method == 'PATCH') {
+            expect(
+              request.url.path,
+              '/connector/api/business-location/3/invoice-layout',
+            );
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['invoice_layout_id'], 12);
+            expect(body['document_type'], 'pos');
+            return http.Response(
+              '{"success":true,"data":{"location_id":3,"document_type":"pos","invoice_layout_id":12}}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"data":{"location_id":3,"document_type":"pos","current_layout_id":12,"layouts":[]}}',
+            200,
+          );
+        }),
+      );
+
+      final catalog = await api.assignInvoiceLayout(
+        accessToken: 'token-123',
+        locationId: '3',
+        layoutId: '12',
+      );
+
+      expect(calls, 2);
+      expect(catalog.currentLayoutId, '12');
+    },
+  );
+
+  test('ERP preview and finalized sale endpoints return PDF bytes', () async {
+    final paths = <String>[];
+    final api = Api(
+      client: MockClient((request) async {
+        paths.add(request.url.path);
+        return http.Response.bytes(
+          [37, 80, 68, 70],
+          200,
+          headers: {
+            'content-type': 'application/pdf',
+            'content-disposition': 'attachment; filename="INVOICE-0145.pdf"',
+          },
+        );
+      }),
+    );
+
+    final preview = await api.previewInvoiceLayout(
+      accessToken: 'token-123',
+      layoutId: '8',
+      locationId: '3',
+      transactionId: '145',
+    );
+    final finalPdf = await api.finalizedSaleInvoicePdf('token-123', '145');
+
+    expect(paths, [
+      '/connector/api/invoice-layouts/8/preview',
+      '/connector/api/sell/145/pdf',
+    ]);
+    expect(preview.fileName, 'INVOICE-0145.pdf');
+    expect(finalPdf.bytes, [37, 80, 68, 70]);
+  });
+
+  test('business settings update sends only the overselling flag', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/business-settings');
+        expect(request.method, 'PATCH');
+        expect(jsonDecode(request.body), {'allow_overselling': true});
+        return http.Response(
+          '{"success":true,"data":{"sales":{"allow_overselling":true}}}',
+          200,
+        );
+      }),
+    );
+
+    expect(await api.updateFlutterPosOverselling('token-123', true), isTrue);
   });
 
   test(

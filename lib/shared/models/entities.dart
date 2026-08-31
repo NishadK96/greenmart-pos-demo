@@ -324,14 +324,17 @@ class CartLine {
     this.unitPriceOverride,
     this.sellLineId,
     this.quantityReturned = 0,
+    this.saleUnitPriceIncTax,
   });
   final Product product;
   final int quantity, discount;
   final int? unitPriceOverride;
   final String? sellLineId;
   final int quantityReturned;
+  final int? saleUnitPriceIncTax;
   int get returnableQuantity =>
       (quantity - quantityReturned).clamp(0, quantity);
+  int get returnUnitPrice => saleUnitPriceIncTax ?? unitPrice;
   int get unitPrice => unitPriceOverride ?? product.sellingPrice;
   int get subtotal => unitPrice * quantity;
   int get tax => ((subtotal - discount) * product.taxPercent / 100).round();
@@ -350,6 +353,7 @@ class CartLine {
         : unitPriceOverride ?? this.unitPriceOverride,
     sellLineId: sellLineId,
     quantityReturned: quantityReturned,
+    saleUnitPriceIncTax: saleUnitPriceIncTax,
   );
 }
 

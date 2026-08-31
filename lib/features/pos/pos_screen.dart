@@ -1634,10 +1634,8 @@ class _CurrentOrder extends ConsumerWidget {
     final state = ref.watch(appStoreProvider);
     final mobile = MediaQuery.sizeOf(context).width < 700;
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
-    final lineHeight = mobile
-        ? (compactHeight ? 108.0 : 118.0)
-        : (compactHeight ? 108.0 : 118.0);
-    final separatorHeight = compactHeight ? 4.0 : 8.0;
+    final lineHeight = compactHeight ? 86.0 : 92.0;
+    final separatorHeight = compactHeight ? 5.0 : 6.0;
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -1663,59 +1661,33 @@ class _CurrentOrder extends ConsumerWidget {
               ),
             ],
             _orderHeader(context, ref, state),
-            const Divider(height: 18),
+            const Divider(height: 14),
             Expanded(
               child: state.cart.isEmpty
                   ? const EmptyState('Tap a product to start a sale')
                   : Scrollbar(
-                      thumbVisibility: state.cart.length > 6,
+                      thumbVisibility: state.cart.length > 4,
                       child: ListView.separated(
                         padding: EdgeInsets.zero,
                         itemCount: state.cart.length,
                         separatorBuilder: (_, __) =>
                             Divider(height: separatorHeight),
-                        itemBuilder: (_, index) => _cartLine(
-                          context,
-                          ref,
-                          state.cart[index],
-                          lineHeight,
-                        ),
+                        itemBuilder: (_, index) {
+                          final line =
+                              state.cart[state.cart.length - 1 - index];
+                          return KeyedSubtree(
+                            key: ValueKey('cart-line-${line.product.id}'),
+                            child: _cartLine(context, ref, line, lineHeight),
+                          );
+                        },
                       ),
                     ),
             ),
             if (state.cart.isNotEmpty) ...[
-              const Divider(height: 10),
+              const Divider(height: 8),
               _cartActions(context, ref, state),
-              const SizedBox(height: 9),
-              _totals(context, ref, state),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  onPressed: _canPay(state)
-                      ? () => _payment(context, ref, state)
-                      : null,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'PAY  ${money(state.cartTotal)}',
-                        style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      if (!mobile) ...[
-                        const Spacer(),
-                        const StatusBadge('F9', color: Colors.white),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 9),
-              _paymentShortcuts(context, ref, state),
+              const SizedBox(height: 8),
+              _checkoutFooter(context, ref, state, mobile),
             ],
           ],
         ),
@@ -1736,9 +1708,10 @@ class _CurrentOrder extends ConsumerWidget {
               context.tr('Current Order'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: -.4,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -1775,174 +1748,193 @@ class _CurrentOrder extends ConsumerWidget {
     double lineHeight,
   ) => SizedBox(
     height: lineHeight,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Row(
-          children: [
-            ProductImage(line.product.imageUrl, width: 38, height: 44),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                line.product.displayName(context.isArabic),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            RiyalAmount(
-              line.total,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-            ),
-            IconButton(
-              tooltip: 'Remove item',
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-              onPressed: () =>
-                  ref.read(appStoreProvider.notifier).remove(line.product.id),
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.danger,
-                size: 18,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFCFB),
+        border: Border.all(color: const Color(0xFFE3EAE7)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(7, 6, 6, 5),
+        child: Column(
           children: [
             Expanded(
-              child: Tooltip(
-                message: context.tr('Edit price (F6 for latest item)'),
-                child: Material(
-                  color: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: AppColors.primary),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 40,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: const Color(0xFFE5EBE8)),
+                    ),
+                    child: ProductImage(
+                      line.product.imageUrl,
+                      key: ValueKey('cart-image-${line.product.id}'),
+                    ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => _showUnitPriceEditor(context, ref, line),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      child: LayoutBuilder(
-                        builder: (_, constraints) => Row(
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          line.product.displayName(context.isArabic),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        InkWell(
+                          onTap: () => _discount(context, ref, line),
+                          borderRadius: BorderRadius.circular(5),
+                          child: Text(
+                            line.discount == 0
+                                ? context.tr('Add discount')
+                                : '${context.tr('Discount')} ${money(line.discount)}',
+                            style: TextStyle(
+                              color: line.discount == 0
+                                  ? AppColors.primary
+                                  : AppColors.danger,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  RiyalAmount(
+                    line.total,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Remove item',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 30,
+                      height: 30,
+                    ),
+                    onPressed: () => ref
+                        .read(appStoreProvider.notifier)
+                        .remove(line.product.id),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.danger,
+                      size: 17,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Expanded(
+                  child: Tooltip(
+                    message: context.tr('Edit price (F6 for latest item)'),
+                    child: SizedBox(
+                      height: 29,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            _showUnitPriceEditor(context, ref, line),
+                        style: OutlinedButton.styleFrom(
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(horizontal: 7),
+                          backgroundColor: const Color(0xFFEAF6F2),
+                          side: const BorderSide(color: Color(0xFF9ACBBC)),
+                        ),
+                        icon: const Icon(Icons.edit_rounded, size: 13),
+                        label: Row(
                           children: [
-                            RiyalAmount(
-                              line.unitPrice,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.edit_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
                             Text(
                               context.tr('Edit price'),
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            if (constraints.maxWidth >= 280) ...[
-                              const SizedBox(width: 7),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: .16),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'F6',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                            const SizedBox(width: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'F6',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                            ],
+                            ),
+                            const Spacer(),
+                            RiyalAmount(
+                              line.unitPrice,
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: const Color(0xFFC9D5D0)),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Row(
-                children: [
-                  _quantityButton(
-                    Icons.remove_rounded,
-                    () => ref
-                        .read(appStoreProvider.notifier)
-                        .quantity(line.product.id, -1),
+                const SizedBox(width: 8),
+                Container(
+                  height: 29,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFC9D5D0)),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  SizedBox(
-                    width: 30,
-                    child: Text(
-                      '${line.quantity}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
+                  child: Row(
+                    children: [
+                      _quantityButton(
+                        Icons.remove_rounded,
+                        () => ref
+                            .read(appStoreProvider.notifier)
+                            .quantity(line.product.id, -1),
+                      ),
+                      SizedBox(
+                        width: 28,
+                        child: Text(
+                          '${line.quantity}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      _quantityButton(
+                        Icons.add_rounded,
+                        () => ref
+                            .read(appStoreProvider.notifier)
+                            .quantity(line.product.id, 1),
+                      ),
+                    ],
                   ),
-                  _quantityButton(
-                    Icons.add_rounded,
-                    () => ref
-                        .read(appStoreProvider.notifier)
-                        .quantity(line.product.id, 1),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: InkWell(
-            onTap: () => _discount(context, ref, line),
-            borderRadius: BorderRadius.circular(5),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Text(
-                line.discount == 0
-                    ? context.tr('Add discount')
-                    : '${context.tr('Discount')} ${money(line.discount)}',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     ),
   );
 
@@ -1958,7 +1950,7 @@ class _CurrentOrder extends ConsumerWidget {
       Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
+            child: TextButton.icon(
               onPressed: () {
                 ref.read(appStoreProvider.notifier).holdCart();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1979,7 +1971,7 @@ class _CurrentOrder extends ConsumerWidget {
           ),
           const SizedBox(width: 7),
           Expanded(
-            child: OutlinedButton.icon(
+            child: TextButton.icon(
               onPressed: () => ref.read(appStoreProvider.notifier).clearCart(),
               icon: const Icon(
                 Icons.delete_outline_rounded,
@@ -1991,71 +1983,164 @@ class _CurrentOrder extends ConsumerWidget {
           ),
           if (MediaQuery.sizeOf(context).width >= 700) ...[
             const SizedBox(width: 7),
-            OutlinedButton(
+            IconButton.outlined(
               onPressed: () => _note(context),
-              child: const Icon(Icons.more_horiz_rounded),
+              icon: const Icon(Icons.more_horiz_rounded),
             ),
           ],
         ],
       );
 
-  Widget _totals(BuildContext context, WidgetRef ref, AppState state) =>
-      Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F9F8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5EAE8)),
-        ),
-        child: Column(
-          children: [
-            _sum(context, 'Subtotal', state.cartSubtotal),
-            _sum(
-              context,
-              'Line discounts',
-              -state.cartLineDiscount,
-              color: AppColors.danger,
-            ),
-            const SizedBox(height: 5),
-            _grossDiscountAction(context, ref, state),
-            const SizedBox(height: 5),
-            _sum(context, 'Tax', state.cartTax),
-            const Divider(height: 16),
-            Row(
-              children: [
-                Text(
-                  context.tr('Grand Total'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-                const Spacer(),
-                RiyalAmount(
-                  state.cartTotal,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                  ),
-                ),
-              ],
-            ),
-            if (state.cartDiscount > 0)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'You save ${money(state.cartDiscount)}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
-                ),
+  Widget _checkoutFooter(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+    bool mobile,
+  ) => Container(
+    padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF2F8F5),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFD5E4DE)),
+    ),
+    child: Column(
+      children: [
+        _totals(context, ref, state),
+        const SizedBox(height: 7),
+        SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: FilledButton(
+            onPressed: _canPay(state)
+                ? () => _payment(context, ref, state)
+                : null,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
               ),
-          ],
+            ),
+            child: LayoutBuilder(
+              builder: (_, constraints) => Row(
+                children: [
+                  if (constraints.maxWidth >= 300) ...[
+                    const Icon(Icons.lock_outline_rounded, size: 18),
+                    const SizedBox(width: 7),
+                  ],
+                  Text(
+                    context.tr('Pay now'),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        money(state.cartTotal),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!mobile && constraints.maxWidth >= 350) ...[
+                    const SizedBox(width: 9),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .16),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'F9',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
-      );
+        const SizedBox(height: 6),
+        _paymentShortcuts(context, ref, state),
+      ],
+    ),
+  );
+
+  Widget _totals(BuildContext context, WidgetRef ref, AppState state) => Column(
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: _compactTotal(context, 'Subtotal', state.cartSubtotal),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: _compactTotal(context, 'Tax', state.cartTax)),
+        ],
+      ),
+      if (state.cartLineDiscount > 0)
+        _sum(
+          context,
+          'Line discounts',
+          -state.cartLineDiscount,
+          color: AppColors.danger,
+        ),
+      const SizedBox(height: 3),
+      _grossDiscountAction(context, ref, state),
+      const Divider(height: 12),
+      Row(
+        children: [
+          Text(
+            context.tr('Grand Total'),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          ),
+          const Spacer(),
+          RiyalAmount(
+            state.cartTotal,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w900,
+              fontSize: 19,
+            ),
+          ),
+        ],
+      ),
+      if (state.cartDiscount > 0)
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            'You save ${money(state.cartDiscount)}',
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _compactTotal(BuildContext context, String label, int value) => Row(
+    children: [
+      Text(
+        context.tr(label),
+        style: const TextStyle(color: AppColors.muted, fontSize: 11),
+      ),
+      const Spacer(),
+      RiyalAmount(value, style: const TextStyle(fontSize: 11)),
+    ],
+  );
 
   Widget _grossDiscountAction(
     BuildContext context,
@@ -2081,13 +2166,13 @@ class _CurrentOrder extends ConsumerWidget {
       child: InkWell(
         onTap: () => _grossDiscount(context, ref, state),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
           child: Row(
             children: [
               const Icon(
                 Icons.percent_rounded,
                 color: AppColors.primary,
-                size: 18,
+                size: 16,
               ),
               const SizedBox(width: 7),
               Expanded(
@@ -2095,7 +2180,7 @@ class _CurrentOrder extends ConsumerWidget {
                   label,
                   style: const TextStyle(
                     color: AppColors.primary,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -2175,49 +2260,68 @@ class _CurrentOrder extends ConsumerWidget {
     AppState state,
   ) {
     final options = state.posPaymentOptions;
-    final credit = options
-        .where((option) => option.code == 'credit')
+    PaymentOption? optionFor(String code) => options
+        .where((option) => option.code.toLowerCase() == code)
         .firstOrNull;
     final shortcuts = [
-      ...options.where((option) => option.code != 'credit').take(4),
-      if (credit != null) credit,
-    ];
+      optionFor('cash'),
+      optionFor('card'),
+      optionFor('credit'),
+    ].whereType<PaymentOption>().toList(growable: false);
     return Row(
       children: [
         for (var index = 0; index < shortcuts.length; index++) ...[
-          if (index > 0) const SizedBox(width: 5),
+          if (index > 0) const SizedBox(width: 6),
           Expanded(
-            child: OutlinedButton(
-              onPressed: _canPay(state)
-                  ? () => _payment(
-                      context,
-                      ref,
-                      state,
-                      preferredCode: shortcuts[index].code,
-                    )
-                  : null,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                minimumSize: const Size(0, 42),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_paymentIcon(shortcuts[index].code), size: 16),
-                  Text(
-                    context.tr(shortcuts[index].label),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                ],
-              ),
-            ),
+            child: _quickPaymentButton(context, ref, state, shortcuts[index]),
           ),
         ],
+        if (shortcuts.isNotEmpty) const SizedBox(width: 6),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _canPay(state)
+                ? () => _payment(context, ref, state)
+                : null,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              backgroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFFB9C8C2)),
+            ),
+            icon: const Icon(Icons.more_horiz_rounded, size: 16),
+            label: Text(
+              context.tr('More'),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
       ],
     );
   }
+
+  Widget _quickPaymentButton(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+    PaymentOption option,
+  ) => OutlinedButton.icon(
+    onPressed: _canPay(state)
+        ? () => _payment(context, ref, state, preferredCode: option.code)
+        : null,
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 36),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      backgroundColor: Colors.white,
+      side: const BorderSide(color: Color(0xFFB9C8C2)),
+    ),
+    icon: Icon(_paymentIcon(option.code), size: 15),
+    label: Text(
+      context.tr(option.label),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+    ),
+  );
 
   bool _canPay(AppState state) =>
       state.cart.isNotEmpty &&

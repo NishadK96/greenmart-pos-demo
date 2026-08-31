@@ -9,13 +9,14 @@ import 'package:intl/intl.dart' hide TextDirection;
 import '../../apis/api.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
+import '../../core/utils/pdf_fonts.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
 import '../backend/presentation/backend_controller.dart';
 import '../printers/application/printer_controller.dart';
-import '../printers/application/printer_document_service.dart';
 import '../zatca/presentation/zatca_screen.dart';
+import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
 import '../offline_pos/presentation/offline_pos_controller.dart';
 
@@ -4310,8 +4311,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _exportSales(List<Sale> sales) async {
     final document = pw.Document(title: 'GreenMart Sales History');
+    final theme = await PdfFonts.arabicTheme();
     document.addPage(
       pw.MultiPage(
+        theme: theme,
         build: (_) => [
           pw.Text(
             'GreenMart - Sales History',
@@ -4449,17 +4452,20 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           onPressed: () async {
             final printerState = ref.read(printerControllerProvider);
             try {
-              await PrinterDocumentService.printReceiptTo(
-                sale,
-                ref
-                        .read(appStoreProvider)
-                        .business
-                        ?.displayName(context.isArabic) ??
-                    'GreenMart',
-                printerState.settings,
-                printer: printerState.selectedPrinter,
-                arabic: ref.read(localeProvider).languageCode == 'ar',
-              );
+              await ref
+                  .read(invoiceLayoutControllerProvider.notifier)
+                  .printSale(
+                    sale: sale,
+                    businessName:
+                        ref
+                            .read(appStoreProvider)
+                            .business
+                            ?.displayName(context.isArabic) ??
+                        'GreenMart',
+                    settings: printerState.settings,
+                    printer: printerState.selectedPrinter,
+                    arabic: ref.read(localeProvider).languageCode == 'ar',
+                  );
             } catch (error) {
               if (context.mounted) {
                 ScaffoldMessenger.of(
@@ -4780,8 +4786,8 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
 
   int get refundTotal => widget.sale.items.fold(0, (total, line) {
     final quantity = quantities[line.sellLineId] ?? 0;
-    if (quantity <= 0 || line.quantity <= 0) return total;
-    return total + ((line.total / line.quantity) * quantity).round();
+    if (quantity <= 0) return total;
+    return total + (line.returnUnitPrice * quantity);
   });
 
   @override
@@ -4875,12 +4881,7 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
                         ),
                       ),
                       Text(
-                        money(
-                          line.quantity == 0
-                              ? 0
-                              : ((line.total / line.quantity) * quantity)
-                                    .round(),
-                        ),
+                        money(line.returnUnitPrice * quantity),
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(width: 12),
@@ -5016,6 +5017,8 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
       await ref
           .read(backendControllerProvider.notifier)
           .createSaleReturn(sale: widget.sale, quantities: quantities);
+      ref.invalidate(saleReturnsProvider);
+      await ref.read(backendControllerProvider.future);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (exception) {
       if (mounted) {
@@ -5978,6 +5981,34 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Configure your business and connected services.',
           ),
           const SizedBox(height: 18),
+          _BusinessSaleSettings(
+            allowOverselling: state.allowOverselling,
+            onChanged: (value) async {
+              try {
+                await ref
+                    .read(backendControllerProvider.notifier)
+                    .updateAllowOverselling(value);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        value
+                            ? 'Overselling is enabled for POS sales.'
+                            : 'Overselling is disabled for POS sales.',
+                      ),
+                    ),
+                  );
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error.toString())));
+                }
+              }
+            },
+          ),
+          const SizedBox(height: 10),
           for (final section in sections)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -6003,4 +6034,52 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _BusinessSaleSettings extends StatefulWidget {
+  const _BusinessSaleSettings({
+    required this.allowOverselling,
+    required this.onChanged,
+  });
+
+  final bool allowOverselling;
+  final Future<void> Function(bool value) onChanged;
+
+  @override
+  State<_BusinessSaleSettings> createState() => _BusinessSaleSettingsState();
+}
+
+class _BusinessSaleSettingsState extends State<_BusinessSaleSettings> {
+  bool saving = false;
+
+  @override
+  Widget build(BuildContext context) => Surface(
+    child: SwitchListTile.adaptive(
+      value: widget.allowOverselling,
+      onChanged: saving
+          ? null
+          : (value) async {
+              setState(() => saving = true);
+              try {
+                await widget.onChanged(value);
+              } finally {
+                if (mounted) setState(() => saving = false);
+              }
+            },
+      contentPadding: EdgeInsets.zero,
+      secondary: saving
+          ? const SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const CircleAvatar(child: Icon(Icons.inventory_outlined)),
+      title: const Text(
+        'Allow overselling',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: const Text(
+        'When enabled, POS users can complete a sale even when available stock is zero. This changes the ERP business setting for all POS users.',
+      ),
+    ),
+  );
 }

@@ -28,7 +28,8 @@ ThemeData buildTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.canvas,
-    fontFamily: 'Inter',
+    fontFamily: 'NotoSans',
+    fontFamilyFallback: const ['NotoSansArabic'],
     visualDensity: VisualDensity.compact,
     dividerTheme: const DividerThemeData(
       color: Color(0xFFE8ECEA),

@@ -49,6 +49,16 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/payment-accounts';
   static const businessDetailsUrl =
       '${Config.baseUrl}/connector/api/business-details';
+  static const businessSettingsUrl =
+      '${Config.baseUrl}/connector/api/business-settings';
+  static const invoiceLayoutsUrl =
+      '${Config.baseUrl}/connector/api/invoice-layouts';
+  static String invoiceLayoutPreviewUrl(String layoutId) =>
+      '$invoiceLayoutsUrl/$layoutId/preview';
+  static String locationInvoiceLayoutUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/invoice-layout';
+  static String saleInvoicePdfUrl(String transactionId) =>
+      '${Config.baseUrl}/connector/api/sell/$transactionId/pdf';
   static const loggedInUserUrl =
       '${Config.baseUrl}/connector/api/user/loggedin';
   static const usersUrl = '${Config.baseUrl}/connector/api/user';

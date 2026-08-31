@@ -8,8 +8,8 @@ import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../store/app_store.dart';
 import '../zatca/presentation/zatca_screen.dart';
+import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
-import '../printers/application/printer_document_service.dart';
 
 class ReceiptScreen extends ConsumerWidget {
   const ReceiptScreen({super.key});
@@ -164,19 +164,24 @@ class ReceiptScreen extends ConsumerWidget {
                               printerControllerProvider,
                             );
                             try {
-                              await PrinterDocumentService.printReceiptTo(
-                                sale,
-                                ref
-                                        .read(appStoreProvider)
-                                        .business
-                                        ?.displayName(context.isArabic) ??
-                                    'GreenMart',
-                                printerState.settings,
-                                printer: printerState.selectedPrinter,
-                                arabic:
-                                    ref.read(localeProvider).languageCode ==
-                                    'ar',
-                              );
+                              await ref
+                                  .read(
+                                    invoiceLayoutControllerProvider.notifier,
+                                  )
+                                  .printSale(
+                                    sale: sale,
+                                    businessName:
+                                        ref
+                                            .read(appStoreProvider)
+                                            .business
+                                            ?.displayName(context.isArabic) ??
+                                        'GreenMart',
+                                    settings: printerState.settings,
+                                    printer: printerState.selectedPrinter,
+                                    arabic:
+                                        ref.read(localeProvider).languageCode ==
+                                        'ar',
+                                  );
                             } catch (error) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(

@@ -6,6 +6,7 @@ import '../shared/models/entities.dart';
 import '../features/cash_register/domain/cash_register_entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
 import '../features/zatca/domain/zatca_entities.dart';
+import '../features/invoice_layouts/domain/invoice_layout_entities.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -1318,6 +1319,152 @@ class Api {
     );
   }
 
+  Future<bool> flutterPosOverselling(String accessToken) async {
+    final json = await _getDataObject(
+      Uri.parse(ApiEndPoints.businessSettingsUrl),
+      accessToken,
+      'business settings',
+    );
+    final sales = _map(json['sales']);
+    final value = sales['allow_overselling'];
+    return value == true || value == 1 || value?.toString() == '1';
+  }
+
+  Future<bool> updateFlutterPosOverselling(
+    String accessToken,
+    bool enabled,
+  ) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.businessSettingsUrl),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({'allow_overselling': enabled}),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'business settings update');
+    final sales = _map(_map(root['data'])['sales']);
+    final value = sales['allow_overselling'];
+    return value == true || value == 1 || value?.toString() == '1';
+  }
+
+  Future<ErpInvoiceLayoutCatalog> invoiceLayouts({
+    required String accessToken,
+    required String locationId,
+    String documentType = 'pos',
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.invoiceLayoutsUrl).replace(
+      queryParameters: {
+        'location_id': locationId,
+        'document_type': documentType,
+      },
+    );
+    final data = await _getDataObject(uri, accessToken, 'invoice layouts');
+    final rawLayouts = data['layouts'];
+    return ErpInvoiceLayoutCatalog(
+      locationId: data['location_id']?.toString() ?? locationId,
+      documentType: data['document_type']?.toString() ?? documentType,
+      currentLayoutId: data['current_layout_id']?.toString(),
+      layouts: rawLayouts is List
+          ? rawLayouts
+                .whereType<Map>()
+                .map((raw) {
+                  final item = Map<String, dynamic>.from(raw);
+                  return ErpInvoiceLayout(
+                    id: item['id']?.toString() ?? '',
+                    name: item['name']?.toString() ?? 'Invoice layout',
+                    design: item['design']?.toString() ?? '',
+                    designName: item['design_name']?.toString() ?? '',
+                    isSelected:
+                        item['is_selected'] == true || item['is_selected'] == 1,
+                    previewUrl: item['preview_url']?.toString() ?? '',
+                  );
+                })
+                .where((layout) => layout.id.isNotEmpty)
+                .toList(growable: false)
+          : const [],
+    );
+  }
+
+  Future<ErpInvoiceLayoutCatalog> assignInvoiceLayout({
+    required String accessToken,
+    required String locationId,
+    required String layoutId,
+    String documentType = 'pos',
+  }) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.locationInvoiceLayoutUrl(locationId)),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'document_type': documentType,
+            'invoice_layout_id': int.tryParse(layoutId) ?? layoutId,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'invoice layout assignment');
+    return invoiceLayouts(
+      accessToken: accessToken,
+      locationId: locationId,
+      documentType: documentType,
+    );
+  }
+
+  Future<ErpInvoicePdf> previewInvoiceLayout({
+    required String accessToken,
+    required String layoutId,
+    required String locationId,
+    String documentType = 'pos',
+    String? transactionId,
+  }) {
+    final query = <String, String>{
+      'location_id': locationId,
+      'document_type': documentType,
+      if (transactionId != null && transactionId.isNotEmpty)
+        'transaction_id': transactionId,
+    };
+    return _invoicePdf(
+      accessToken,
+      Uri.parse(
+        ApiEndPoints.invoiceLayoutPreviewUrl(layoutId),
+      ).replace(queryParameters: query).toString(),
+      'invoice-layout-$layoutId-preview.pdf',
+    );
+  }
+
+  Future<ErpInvoicePdf> finalizedSaleInvoicePdf(
+    String accessToken,
+    String transactionId,
+  ) => _invoicePdf(
+    accessToken,
+    ApiEndPoints.saleInvoicePdfUrl(transactionId),
+    'invoice-$transactionId.pdf',
+  );
+
+  Future<ErpInvoicePdf> _invoicePdf(
+    String accessToken,
+    String url,
+    String fallbackName,
+  ) async {
+    final response = await _client
+        .get(Uri.parse(url), headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 60));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(
+          _decodeAny(response.body),
+          'Unable to load the ERP invoice PDF.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    final disposition = response.headers['content-disposition'] ?? '';
+    final match = RegExp('filename="?([^";]+)').firstMatch(disposition);
+    return ErpInvoicePdf(
+      bytes: response.bodyBytes,
+      fileName: match?.group(1) ?? fallbackName,
+    );
+  }
+
   Future<UserProfile> loggedInUser(String accessToken) async {
     final json = await _getDataObject(
       Uri.parse(ApiEndPoints.loggedInUserUrl),
@@ -1533,7 +1680,7 @@ class Api {
               },
           ],
           if (!isCreditSale)
-            'payment': [
+            'payments': [
               {'amount': total / 100, 'method': paymentMethod},
             ],
         },
@@ -1589,18 +1736,14 @@ class Api {
       products.add({
         'sell_line_id': int.parse(line.sellLineId!),
         'quantity': quantity,
-        'unit_price_inc_tax': line.product.sellingPrice / 100,
+        'unit_price_inc_tax': line.returnUnitPrice / 100,
       });
     }
     if (products.isEmpty) {
       throw const ApiException('Select at least one item to return.');
     }
-    final now = DateTime.now();
-    String two(int value) => value.toString().padLeft(2, '0');
     final body = {
       'transaction_id': int.parse(sale.serverId!),
-      'transaction_date':
-          '${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}:${two(now.second)}',
       'discount_type': 'fixed',
       'discount_amount': 0,
       'products': products,
@@ -2308,6 +2451,9 @@ class Api {
             discount: _money(line['line_discount_amount']),
             sellLineId: line['id']?.toString(),
             quantityReturned: _number(line['quantity_returned']).round(),
+            saleUnitPriceIncTax: line['unit_price_inc_tax'] == null
+                ? null
+                : _money(line['unit_price_inc_tax']),
           );
         })
         .whereType<CartLine>()

@@ -153,7 +153,10 @@ class AppStore extends Notifier<AppState> {
       lines.add(CartLine(product: product));
     } else if (i >= 0 &&
         (state.allowOverselling || lines[i].quantity < product.stock)) {
-      lines[i] = lines[i].copyWith(quantity: lines[i].quantity + 1);
+      final updated = lines[i].copyWith(quantity: lines[i].quantity + 1);
+      lines
+        ..removeAt(i)
+        ..add(updated);
     }
     state = state.copyWith(cart: lines);
   }
@@ -290,6 +293,9 @@ class AppStore extends Notifier<AppState> {
 
   void replaceCatalog(List<Product> products, List<Category> categories) =>
       state = state.copyWith(products: products, categories: categories);
+
+  void setAllowOverselling(bool enabled) =>
+      state = state.copyWith(allowOverselling: enabled);
 
   void restoreOfflineCatalog({
     required List<Product> products,

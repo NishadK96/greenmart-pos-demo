@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
+import '../../../core/network/api_provider.dart';
 import '../../../shared/models/entities.dart';
 import '../../../core/utils/money.dart';
 import '../../auth/auth_controller.dart';
@@ -247,16 +248,36 @@ class BackendController extends AsyncNotifier<void> {
   Future<String> createSaleReturn({
     required Sale sale,
     required Map<String, int> quantities,
+  }) => _createSaleReturn(
+    sale: sale,
+    quantities: quantities,
+    allowTokenRefresh: true,
+  );
+
+  Future<String> _createSaleReturn({
+    required Sale sale,
+    required Map<String, int> quantities,
+    required bool allowTokenRefresh,
   }) async {
-    final reference = await ref
-        .read(backendRepositoryProvider)
-        .createSaleReturn(
-          accessToken: await _token(),
-          sale: sale,
-          quantities: quantities,
-        );
-    ref.invalidateSelf();
-    return reference;
+    try {
+      final reference = await ref
+          .read(backendRepositoryProvider)
+          .createSaleReturn(
+            accessToken: await _token(),
+            sale: sale,
+            quantities: quantities,
+          );
+      ref.invalidateSelf();
+      return reference;
+    } on ApiException catch (error) {
+      if (error.statusCode != 401 || !allowTokenRefresh) rethrow;
+      await ref.read(authControllerProvider.notifier).refreshAccessToken();
+      return _createSaleReturn(
+        sale: sale,
+        quantities: quantities,
+        allowTokenRefresh: false,
+      );
+    }
   }
 
   Future<List<SaleReturnRecord>> saleReturns() async => ref
@@ -423,6 +444,27 @@ class BackendController extends AsyncNotifier<void> {
     ref.read(appStoreProvider.notifier).upsertProducts(imported);
     ref.invalidateSelf();
     return imported;
+  }
+
+  Future<bool> updateAllowOverselling(bool enabled) async {
+    var token = await _token();
+    try {
+      final value = await ref
+          .read(apiProvider)
+          .updateFlutterPosOverselling(token, enabled);
+      ref.read(appStoreProvider.notifier).setAllowOverselling(value);
+      return value;
+    } on ApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      token = await ref
+          .read(authControllerProvider.notifier)
+          .refreshAccessToken();
+      final value = await ref
+          .read(apiProvider)
+          .updateFlutterPosOverselling(token, enabled);
+      ref.read(appStoreProvider.notifier).setAllowOverselling(value);
+      return value;
+    }
   }
 
   Future<String> _token() async {

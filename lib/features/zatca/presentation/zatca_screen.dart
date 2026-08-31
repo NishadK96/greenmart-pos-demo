@@ -39,7 +39,7 @@ class _ZatcaScreenState extends ConsumerState<ZatcaScreen> {
               2 => const _TransactionsTab(isReturn: true),
               3 => const _SettingsTab(),
               _ => status.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const _ZatcaLoading(),
                 error: (error, _) => _ZatcaError(
                   message: error.toString(),
                   onRetry: () => ref
@@ -225,6 +225,36 @@ class _ZatcaNavigation extends StatelessWidget {
       selected: {selected},
       onSelectionChanged: (value) => onSelected(value.first),
       showSelectedIcon: false,
+    ),
+  );
+}
+
+class _ZatcaLoading extends StatelessWidget {
+  const _ZatcaLoading();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Surface(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 18),
+            Text(
+              'Loading ZATCA status',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Checking the integration and permitted business locations. This should only take a few seconds.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.muted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

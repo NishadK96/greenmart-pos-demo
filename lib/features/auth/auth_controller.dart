@@ -12,6 +12,7 @@ final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
 class AuthController extends AsyncNotifier<String?> {
   final DeviceSessionStorage _sessions = DeviceSessionStorage();
   String? _webCsrfToken;
+  Future<void>? _webBootstrapInFlight;
   String? _activeSessionId;
 
   @override
@@ -59,10 +60,7 @@ class AuthController extends AsyncNotifier<String?> {
     try {
       final SessionLoginResult session;
       if (kIsWeb) {
-        await _bootstrapWeb();
-        session = await ref
-            .read(apiProvider)
-            .webSessionLogin(username, password, _webCsrfToken!);
+        session = await _webLogin(username, password);
         _activeSessionId = session.sessionId;
       } else {
         session = await ref
@@ -189,8 +187,44 @@ class AuthController extends AsyncNotifier<String?> {
     state = const AsyncData(null);
   }
 
-  Future<void> _bootstrapWeb() async {
+  Future<SessionLoginResult> _webLogin(String username, String password) async {
+    await _bootstrapWeb();
+    try {
+      return await ref
+          .read(apiProvider)
+          .webSessionLogin(username, password, _webCsrfToken!);
+    } on ApiException catch (error) {
+      final csrfMismatch =
+          error.statusCode == 419 ||
+          error.message.toLowerCase().contains('csrf token mismatch');
+      if (!csrfMismatch) rethrow;
+
+      await _bootstrapWeb(force: true);
+      return ref
+          .read(apiProvider)
+          .webSessionLogin(username, password, _webCsrfToken!);
+    }
+  }
+
+  Future<void> _bootstrapWeb({bool force = false}) async {
+    if (force) _webCsrfToken = null;
     if (_webCsrfToken != null) return;
+
+    final pending = _webBootstrapInFlight;
+    if (pending != null) return pending;
+
+    final operation = _loadWebBootstrap();
+    _webBootstrapInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_webBootstrapInFlight, operation)) {
+        _webBootstrapInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _loadWebBootstrap() async {
     final bootstrap = await ref.read(apiProvider).webAuthBootstrap();
     _webCsrfToken = bootstrap.csrfToken;
   }

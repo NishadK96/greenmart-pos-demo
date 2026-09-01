@@ -36,6 +36,33 @@ void main() {
     );
   });
 
+  test('one default printer persists globally for every document type', () async {
+    final repository = PrinterSettingsRepository();
+    const printerUrl = r'windows-printer://office-receipt-printer';
+
+    await repository.save(
+      const PrinterSettings().copyWith(defaultPrinterUrl: printerUrl),
+    );
+    final restored = await repository.load();
+
+    expect(restored.defaultPrinterUrl, printerUrl);
+    for (final section in PrinterSection.values) {
+      expect(
+        restored.copyWith(section: section).defaultPrinterUrl,
+        printerUrl,
+      );
+    }
+    for (final audience in BillingAudience.values) {
+      expect(
+        restored.copyWith(
+          section: PrinterSection.billing,
+          billingAudience: audience,
+        ).defaultPrinterUrl,
+        printerUrl,
+      );
+    }
+  });
+
   test('billing templates generate distinct print layouts', () async {
     Future<List<int>> build(String template) {
       const defaults = PrinterSettings();
@@ -57,5 +84,20 @@ void main() {
     expect(listEquals(erp, bilingual), isFalse);
     expect(listEquals(erp, detailed), isFalse);
     expect(listEquals(bilingual, detailed), isFalse);
+  });
+
+  test('a billing template can be applied consistently to B2C and B2B', () {
+    final settings = const PrinterSettings().withTemplateForCurrentSection(
+      PrinterTemplate.bilingualReceipt,
+    );
+
+    expect(
+      settings.templateFor('billing-retail'),
+      PrinterTemplate.bilingualReceipt,
+    );
+    expect(
+      settings.templateFor('billing-business'),
+      PrinterTemplate.bilingualReceipt,
+    );
   });
 }

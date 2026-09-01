@@ -66,6 +66,17 @@ class PrinterSettings {
   bool usesErpTemplate(String profile) =>
       templateFor(profile) == PrinterTemplate.erp;
 
+  PrinterSettings withTemplateForCurrentSection(String template) {
+    final updated = Map<String, String>.from(templates);
+    if (section == PrinterSection.billing) {
+      updated['billing-retail'] = template;
+      updated['billing-business'] = template;
+    } else {
+      updated[profileKey] = template;
+    }
+    return copyWith(templates: updated);
+  }
+
   PrinterSettings copyWith({
     PrinterSection? section,
     BillingAudience? billingAudience,

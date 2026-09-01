@@ -871,9 +871,7 @@ class _DocumentSettings extends StatelessWidget {
                       .toList(),
                   onChanged: (value) {
                     if (value == null) return;
-                    final map = Map<String, String>.from(settings.templates)
-                      ..[key] = value;
-                    onChanged(settings.copyWith(templates: map));
+                    onChanged(settings.withTemplateForCurrentSection(value));
                   },
                 ),
               ),
@@ -897,7 +895,9 @@ class _DocumentSettings extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '$currentTemplate is the default for ${_profileLabel(settings)}.',
+                    settings.section == PrinterSection.billing
+                        ? '$currentTemplate is the default for all sales invoices (B2C and B2B).'
+                        : '$currentTemplate is the default for ${_profileLabel(settings)}.',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w700,
@@ -1099,13 +1099,13 @@ class _PrinterList extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Available printers',
+                      'Default printer for this app',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     Text(
-                      '${printers.length} device${printers.length == 1 ? '' : 's'} available',
+                      'Used automatically for sales, purchases, ZATCA and all other print actions',
                       style: const TextStyle(color: AppColors.muted),
                     ),
                   ],
@@ -1173,11 +1173,11 @@ class _PrinterList extends StatelessWidget {
                     ),
                   ),
                   if (selectedUrl == printer.url)
-                    const StatusBadge('Selected')
+                    const StatusBadge('Default')
                   else
                     OutlinedButton(
                       onPressed: () => onSelect(printer),
-                      child: const Text('Select'),
+                      child: const Text('Set as default'),
                     ),
                 ],
               ),

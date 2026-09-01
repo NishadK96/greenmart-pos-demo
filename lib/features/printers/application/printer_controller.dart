@@ -112,11 +112,8 @@ class PrinterController extends Notifier<PrinterState> {
   }
 
   Future<void> selectPrinter(Printer printer) async {
-    final selected = Map<String, String>.from(state.settings.selectedPrinters)
-      ..[state.settings.profileKey] = printer.url;
     await update(
       state.settings.copyWith(
-        selectedPrinters: selected,
         defaultPrinterUrl: printer.url,
       ),
     );
@@ -125,7 +122,6 @@ class PrinterController extends Notifier<PrinterState> {
   Future<void> clearDefaults() async {
     await update(
       state.settings.copyWith(
-        selectedPrinters: const {},
         clearDefaultPrinter: true,
       ),
     );

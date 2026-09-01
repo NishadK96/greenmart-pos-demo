@@ -88,6 +88,21 @@ class PrinterDocumentService {
       );
       return doc.save();
     }
+    if (settings.section == PrinterSection.billing && !erpTemplate) {
+      doc.addPage(
+        pw.Page(
+          pageFormat: format,
+          theme: theme,
+          margin: pw.EdgeInsets.all(
+            format.width < PdfPageFormat.a4.width ? 10 : 32,
+          ),
+          build: (_) => template == PrinterTemplate.detailedTaxInvoice
+              ? _detailedTaxSample(settings.billingAudience)
+              : _bilingualReceiptSample(settings.billingAudience),
+        ),
+      );
+      return doc.save();
+    }
     final title = switch (settings.section) {
       PrinterSection.billing =>
         settings.billingAudience == BillingAudience.business
@@ -208,6 +223,144 @@ class PrinterDocumentService {
     );
     return doc.save();
   }
+
+  static pw.Widget _bilingualReceiptSample(BillingAudience audience) =>
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Text(
+            'GREENMART',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 17, fontWeight: pw.FontWeight.bold),
+          ),
+          PdfFonts.text(
+            'جرين مارت',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'ARABIC & ENGLISH 3 · THERMAL RECEIPT',
+            textAlign: pw.TextAlign.center,
+            style: const pw.TextStyle(fontSize: 7),
+          ),
+          pw.SizedBox(height: 7),
+          pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          PdfFonts.bilingual(
+            audience == BillingAudience.business
+                ? 'TAX INVOICE | فاتورة ضريبية'
+                : 'SIMPLIFIED TAX INVOICE | فاتورة ضريبية مبسطة',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          _documentFact('Invoice | الفاتورة', 'TEST-0001'),
+          _documentFact('Customer | العميل', 'Walk-in Customer'),
+          _documentFact('Payment | الدفع', 'CASH | نقدي'),
+          pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          _line('Sample Product × 2', '98.00'),
+          _line('Service item × 1', '25.00'),
+          pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          _line('Subtotal | المجموع', '123.00'),
+          _line('VAT | الضريبة', '6.15'),
+          _line('TOTAL | الإجمالي', '129.15', bold: true),
+          pw.SizedBox(height: 10),
+          pw.Center(
+            child: pw.BarcodeWidget(
+              barcode: pw.Barcode.qrCode(),
+              data: 'GREENMART|TEST-0001|129.15|6.15',
+              width: 66,
+              height: 66,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          PdfFonts.text(
+            'شكراً لزيارتكم · Thank you',
+            textAlign: pw.TextAlign.center,
+            style: const pw.TextStyle(fontSize: 8),
+          ),
+        ],
+      );
+
+  static pw.Widget _detailedTaxSample(BillingAudience audience) => pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+    children: [
+      pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'DETAILED TAX INVOICE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  PdfFonts.text('فاتورة ضريبية تفصيلية'),
+                  pw.SizedBox(height: 5),
+                  pw.Text('GREENMART'),
+                  pw.Text('VAT: 300000000000003'),
+                ],
+              ),
+            ),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Text('Invoice: TEST-0001'),
+                pw.Text('Customer: Walk-in Customer'),
+                pw.Text(
+                  audience == BillingAudience.business ? 'B2B' : 'B2C',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      pw.SizedBox(height: 14),
+      pw.TableHelper.fromTextArray(
+        headers: const ['#', 'Product', 'Qty', 'Unit price', 'VAT', 'Total'],
+        data: const [
+          ['1', 'Sample Product', '2', '49.00', '4.90', '102.90'],
+          ['2', 'Service item', '1', '25.00', '1.25', '26.25'],
+        ],
+        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+        border: pw.TableBorder.all(width: .5),
+        cellPadding: const pw.EdgeInsets.all(5),
+      ),
+      pw.SizedBox(height: 14),
+      pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.SizedBox(
+          width: 240,
+          child: pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: .7)),
+            child: pw.Column(
+              children: [
+                _line('Subtotal', '123.00'),
+                _line('VAT', '6.15'),
+                pw.Divider(),
+                _line('Grand total', '129.15', bold: true),
+              ],
+            ),
+          ),
+        ),
+      ),
+      pw.Spacer(),
+      pw.Row(
+        children: [
+          pw.Expanded(child: pw.Text('Receiver signature: ____________')),
+          pw.Expanded(child: pw.Text('Salesperson signature: __________')),
+        ],
+      ),
+    ],
+  );
 
   static Future<Uint8List> receipt(
     Sale sale,

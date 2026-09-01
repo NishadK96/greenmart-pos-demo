@@ -24,6 +24,13 @@ final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
 );
 
+Future<bool?> showSaleReturnDialog(BuildContext context, Sale sale) =>
+    showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _SaleReturnDialog(sale: sale),
+    );
+
 class PagePad extends StatelessWidget {
   const PagePad({super.key, required this.child});
   final Widget child;
@@ -4482,11 +4489,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   );
 
   Future<void> _showSaleReturn(BuildContext context, Sale sale) async {
-    final completed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _SaleReturnDialog(sale: sale),
-    );
+    final completed = await showSaleReturnDialog(context, sale);
     if (!mounted) return;
     if (completed == true) {
       ScaffoldMessenger.of(this.context).showSnackBar(

@@ -11,6 +11,9 @@ import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../backend/presentation/backend_controller.dart';
+import '../home/module_screens.dart' show showSaleReturnDialog;
+import '../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../printers/application/printer_controller.dart';
 import '../store/app_store.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
@@ -896,16 +899,17 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   );
 }
 
-class _RecentSalesDialog extends StatefulWidget {
+class _RecentSalesDialog extends ConsumerStatefulWidget {
   const _RecentSalesDialog({required this.sales});
 
   final List<Sale> sales;
 
   @override
-  State<_RecentSalesDialog> createState() => _RecentSalesDialogState();
+  ConsumerState<_RecentSalesDialog> createState() =>
+      _RecentSalesDialogState();
 }
 
-class _RecentSalesDialogState extends State<_RecentSalesDialog> {
+class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -1138,7 +1142,7 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
           child: _TableLabel('Total', textAlign: TextAlign.end),
         ),
         SizedBox(
-          width: 82,
+          width: 118,
           child: _TableLabel('Actions', textAlign: TextAlign.end),
         ),
       ],
@@ -1174,6 +1178,11 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
                   Text(
                     money(sale.total),
                     style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  IconButton(
+                    tooltip: 'Print',
+                    onPressed: () => _printSale(sale),
+                    icon: const Icon(Icons.print_outlined, size: 20),
                   ),
                   IconButton(
                     tooltip: 'View sale',
@@ -1271,10 +1280,15 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
                 ),
               ),
               SizedBox(
-                width: 82,
+                width: 118,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    IconButton(
+                      tooltip: 'Print',
+                      onPressed: () => _printSale(sale),
+                      icon: const Icon(Icons.print_outlined, size: 19),
+                    ),
                     IconButton(
                       tooltip: 'View sale',
                       onPressed: () => _showSaleDetails(sale),
@@ -1320,8 +1334,14 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
     child: PopupMenuButton<String>(
       padding: EdgeInsets.zero,
       tooltip: 'Sale actions',
-      onSelected: (value) {
-        if (value == 'view') _showSaleDetails(sale);
+      onSelected: (value) async {
+        if (value == 'view') {
+          await _showSaleDetails(sale);
+        } else if (value == 'print') {
+          await _printSale(sale);
+        } else if (value == 'return') {
+          await _returnSale(sale);
+        }
       },
       itemBuilder: (_) => [
         PopupMenuItem(
@@ -1334,21 +1354,26 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
           ),
         ),
         PopupMenuItem(
-          enabled: false,
+          value: 'print',
           child: ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.print_outlined),
-            title: Text(context.tr('Reprint (available in F7)')),
+            title: Text(context.tr('Print')),
           ),
         ),
         PopupMenuItem(
-          enabled: false,
+          value: 'return',
+          enabled: sale.serverId != null,
           child: ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.assignment_return_outlined),
-            title: Text(context.tr('Return (available in F5)')),
+            title: Text(
+              sale.serverId == null
+                  ? 'Return (available after sync)'
+                  : context.tr('Return'),
+            ),
           ),
         ),
       ],
@@ -1408,6 +1433,21 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
         ),
       ),
       actions: [
+        OutlinedButton.icon(
+          onPressed: () => _printSale(sale),
+          icon: const Icon(Icons.print_outlined),
+          label: Text(context.tr('Print')),
+        ),
+        OutlinedButton.icon(
+          onPressed: sale.serverId == null
+              ? null
+              : () async {
+                  Navigator.pop(dialogContext);
+                  await _returnSale(sale);
+                },
+          icon: const Icon(Icons.assignment_return_outlined),
+          label: Text(context.tr('Return')),
+        ),
         FilledButton(
           onPressed: () => Navigator.pop(dialogContext),
           child: Text(context.tr('Close')),
@@ -1415,6 +1455,39 @@ class _RecentSalesDialogState extends State<_RecentSalesDialog> {
       ],
     ),
   );
+
+  Future<void> _printSale(Sale sale) async {
+    final printerState = ref.read(printerControllerProvider);
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: sale,
+            businessName:
+                ref
+                    .read(appStoreProvider)
+                    .business
+                    ?.displayName(context.isArabic) ??
+                'GreenMart',
+            settings: printerState.settings,
+            printer: printerState.selectedPrinter,
+            arabic: context.isArabic,
+          );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Print failed: $error')));
+    }
+  }
+
+  Future<void> _returnSale(Sale sale) async {
+    final completed = await showSaleReturnDialog(context, sale);
+    if (!mounted || completed != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sale return created successfully.')),
+    );
+  }
 }
 
 class _TableLabel extends StatelessWidget {

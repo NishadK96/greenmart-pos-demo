@@ -17,8 +17,10 @@ class BackendController extends AsyncNotifier<void> {
   Future<void> build() async {
     final token = await ref.watch(authControllerProvider.future);
     final store = ref.read(appStoreProvider.notifier);
-    store.replaceCatalog(const [], const []);
-    if (token == null || token.isEmpty) return;
+    if (token == null || token.isEmpty) {
+      store.replaceCatalog(const [], const []);
+      return;
+    }
     if (token == 'offline-local-session') {
       final cached = await ref.read(offlinePosControllerProvider.future);
       if (!cached.catalog.isNotEmpty) {

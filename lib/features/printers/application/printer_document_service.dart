@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -403,12 +404,12 @@ class PrinterDocumentService {
                     ),
                     PdfFonts.text('فاتورة ضريبية تفصيلية'),
                     pw.SizedBox(height: 6),
-                    pw.Text(
+                    PdfFonts.text(
                       businessName.toUpperCase(),
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text('Invoice: ${sale.invoiceNo}'),
-                    pw.Text('Customer: ${sale.customer.name}'),
+                    PdfFonts.text('Customer: ${sale.customer.name}'),
                     if (sale.customer.taxNumber?.isNotEmpty == true)
                       pw.Text('Customer VAT: ${sale.customer.taxNumber}'),
                   ],
@@ -424,7 +425,7 @@ class PrinterDocumentService {
                 child: pw.Row(
                   children: [
                     pw.Expanded(
-                      child: pw.Text(
+                      child: PdfFonts.text(
                         businessName.toUpperCase(),
                         style: pw.TextStyle(
                           fontSize: 17,
@@ -440,7 +441,7 @@ class PrinterDocumentService {
                 ),
               )
             else
-              pw.Text(
+              PdfFonts.text(
                 businessName.toUpperCase(),
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
@@ -464,7 +465,7 @@ class PrinterDocumentService {
                 textAlign: pw.TextAlign.center,
               ),
             ],
-            pw.Text(
+            PdfFonts.text(
               sale.syncStatus == SyncStatus.pending
                   ? arabic
                         ? 'إيصال مؤقت غير متصل'
@@ -477,9 +478,6 @@ class PrinterDocumentService {
                   ? 'فاتورة ضريبية مبسطة'
                   : 'SIMPLIFIED TAX INVOICE',
               textAlign: pw.TextAlign.center,
-              textDirection: arabic
-                  ? pw.TextDirection.rtl
-                  : pw.TextDirection.ltr,
             ),
             if (!arabic && sale.syncStatus != SyncStatus.pending)
               PdfFonts.text(
@@ -564,6 +562,7 @@ class PrinterDocumentService {
                     : null,
               ),
             ),
+            pw.SizedBox(width: 8),
             pw.Text(
               value,
               style: bold ? pw.TextStyle(fontWeight: pw.FontWeight.bold) : null,
@@ -577,6 +576,7 @@ class PrinterDocumentService {
     child: pw.Row(
       children: [
         pw.Expanded(child: PdfFonts.text(item.product.displayName(arabic))),
+        pw.SizedBox(width: 8),
         pw.Text('${item.quantity} x ${_money(item.unitPrice)}'),
       ],
     ),
@@ -595,21 +595,21 @@ class PrinterDocumentService {
           ),
         ),
         pw.Expanded(
-          child: pw.Text(
+          child: PdfFonts.text(
             arabic ? 'الكمية' : 'Qty',
             textAlign: pw.TextAlign.center,
           ),
         ),
         pw.Expanded(
           flex: 2,
-          child: pw.Text(
+          child: PdfFonts.text(
             arabic ? 'السعر' : 'Unit price',
             textAlign: pw.TextAlign.right,
           ),
         ),
         pw.Expanded(
           flex: 2,
-          child: pw.Text(
+          child: PdfFonts.text(
             arabic ? 'الإجمالي' : 'Line total',
             textAlign: pw.TextAlign.right,
           ),
@@ -709,18 +709,6 @@ class PrinterDocumentService {
               : 'billing-retail'] ??
           '80mm',
     );
-    if (kIsWeb) {
-      return Printing.sharePdf(
-        bytes: await receipt(
-          sale,
-          businessName,
-          settings,
-          format,
-          arabic: arabic,
-        ),
-        filename: 'invoice-${sale.invoiceNo}.pdf',
-      );
-    }
     return Printing.layoutPdf(
       name: 'Invoice ${sale.invoiceNo}',
       format: format,
@@ -736,9 +724,6 @@ class PrinterDocumentService {
     Printer? printer,
     bool arabic = false,
   }) async {
-    if (kIsWeb) {
-      return printReceipt(sale, businessName, settings, arabic: arabic);
-    }
     if (printer != null && printer.url != 'system-print-dialog') {
       final profile = sale.customer.isBusiness
           ? 'billing-business'

@@ -38,7 +38,7 @@ jobs:
 
       - name: Build Windows application
         shell: pwsh
-        run: flutter build windows --release --dart-define="EAZYERP_BASE_URL=$env:API_BASE_URL"
+        run: flutter build windows --release --dart-define="EAZYERP_BASE_URL=$env:API_BASE_URL" --dart-define=use_arabic=true
 
       - name: Package Windows application
         shell: pwsh

@@ -3,6 +3,8 @@ import 'package:pdf/widgets.dart' as pw;
 
 abstract final class PdfFonts {
   static pw.ThemeData? _theme;
+  static pw.Font? _arabicRegular;
+  static pw.Font? _arabicBold;
 
   static Future<pw.ThemeData> arabicTheme() async {
     final cached = _theme;
@@ -19,6 +21,8 @@ abstract final class PdfFonts {
     final arabicBold = pw.Font.ttf(
       await rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'),
     );
+    _arabicRegular = arabicRegular;
+    _arabicBold = arabicBold;
     return _theme = pw.ThemeData.withFont(
       base: regular,
       bold: bold,
@@ -38,13 +42,22 @@ abstract final class PdfFonts {
     pw.TextStyle? style,
     pw.TextAlign? textAlign,
     int? maxLines,
-  }) => pw.Text(
-    value,
-    style: style,
-    textAlign: textAlign,
-    textDirection: directionFor(value),
-    maxLines: maxLines,
-  );
+  }) {
+    final arabic = containsArabic(value);
+    final arabicFont = style?.fontWeight == pw.FontWeight.bold
+        ? _arabicBold
+        : _arabicRegular;
+    final resolvedStyle = arabic && arabicFont != null
+        ? (style ?? const pw.TextStyle()).copyWith(font: arabicFont)
+        : style;
+    return pw.Text(
+      value,
+      style: resolvedStyle,
+      textAlign: textAlign,
+      textDirection: directionFor(value),
+      maxLines: maxLines,
+    );
+  }
 
   static pw.Widget bilingual(
     String label, {

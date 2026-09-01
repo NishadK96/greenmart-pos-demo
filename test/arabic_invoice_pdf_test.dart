@@ -71,9 +71,16 @@ void main() {
       PrinterDocumentService.formatFor('80mm'),
       arabic: true,
     );
+    final bilingualSampleBytes = await PrinterDocumentService.sample(
+      const PrinterSettings(
+        templates: {'billing-retail': PrinterTemplate.bilingualReceipt},
+      ),
+      PrinterDocumentService.formatFor('80mm'),
+    );
 
     expect(purchaseBytes.length, greaterThan(10000));
     expect(receiptBytes.length, greaterThan(10000));
+    expect(bilingualSampleBytes.length, greaterThan(10000));
     expect(PdfFonts.containsArabic('فاتورة ضريبية'), isTrue);
 
     final outputDirectory = Platform.environment['PDF_QA_OUTPUT_DIR'];
@@ -85,6 +92,9 @@ void main() {
       File(
         '${directory.path}/arabic-sales-receipt-sample.pdf',
       ).writeAsBytesSync(receiptBytes);
+      File(
+        '${directory.path}/bilingual-printer-sample.pdf',
+      ).writeAsBytesSync(bilingualSampleBytes);
     }
   });
 }

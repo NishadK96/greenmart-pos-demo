@@ -1457,10 +1457,32 @@ class Api {
         statusCode: response.statusCode,
       );
     }
+    final bytes = response.bodyBytes;
+    if (bytes.length < 5 ||
+        bytes[0] != 0x25 ||
+        bytes[1] != 0x50 ||
+        bytes[2] != 0x44 ||
+        bytes[3] != 0x46) {
+      throw const ApiException(
+        'The backend preview endpoint did not return a valid PDF document.',
+        statusCode: 502,
+      );
+    }
+    final pdfSource = latin1.decode(bytes, allowInvalid: true);
+    final pageCount = RegExp(
+      r'/Type\s*/Page(?!s)\b',
+    ).allMatches(pdfSource).length;
+    if (pageCount > 100) {
+      throw ApiException(
+        'The backend generated an invalid $pageCount-page invoice preview. '
+        'Please ask the backend team to fix the invoice layout renderer.',
+        statusCode: 502,
+      );
+    }
     final disposition = response.headers['content-disposition'] ?? '';
     final match = RegExp('filename="?([^";]+)').firstMatch(disposition);
     return ErpInvoicePdf(
-      bytes: response.bodyBytes,
+      bytes: bytes,
       fileName: match?.group(1) ?? fallbackName,
     );
   }

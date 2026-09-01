@@ -960,7 +960,7 @@ void main() {
       client: MockClient((request) async {
         paths.add(request.url.path);
         return http.Response.bytes(
-          [37, 80, 68, 70],
+          utf8.encode('%PDF-1.4\n%%EOF'),
           200,
           headers: {
             'content-type': 'application/pdf',
@@ -983,7 +983,38 @@ void main() {
       '/connector/api/sell/145/pdf',
     ]);
     expect(preview.fileName, 'INVOICE-0145.pdf');
-    expect(finalPdf.bytes, [37, 80, 68, 70]);
+    expect(finalPdf.bytes, utf8.encode('%PDF-1.4\n%%EOF'));
+  });
+
+  test('ERP preview rejects an implausibly large backend PDF', () async {
+    final malformedPdf = StringBuffer('%PDF-1.4\n')
+      ..writeAll(List.filled(101, '/Type /Page\n'))
+      ..write('%%EOF');
+    final api = Api(
+      client: MockClient(
+        (_) async => http.Response.bytes(
+          latin1.encode(malformedPdf.toString()),
+          200,
+          headers: {'content-type': 'application/pdf'},
+        ),
+      ),
+    );
+
+    await expectLater(
+      api.previewInvoiceLayout(
+        accessToken: 'token-123',
+        layoutId: '4',
+        locationId: '3',
+        transactionId: '15',
+      ),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.message,
+          'message',
+          contains('invalid 101-page invoice preview'),
+        ),
+      ),
+    );
   });
 
   test('business settings update sends only the overselling flag', () async {

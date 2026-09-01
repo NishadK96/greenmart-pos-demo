@@ -3,6 +3,8 @@ import 'package:pdf/widgets.dart' as pw;
 
 abstract final class PdfFonts {
   static pw.ThemeData? _theme;
+  static pw.Font? _latinRegular;
+  static pw.Font? _latinBold;
   static pw.Font? _arabicRegular;
   static pw.Font? _arabicBold;
 
@@ -21,6 +23,8 @@ abstract final class PdfFonts {
     final arabicBold = pw.Font.ttf(
       await rootBundle.load('assets/fonts/NotoSansArabic-Bold.ttf'),
     );
+    _latinRegular = regular;
+    _latinBold = bold;
     _arabicRegular = arabicRegular;
     _arabicBold = arabicBold;
     return _theme = pw.ThemeData.withFont(
@@ -47,8 +51,14 @@ abstract final class PdfFonts {
     final arabicFont = style?.fontWeight == pw.FontWeight.bold
         ? _arabicBold
         : _arabicRegular;
+    final latinFont = style?.fontWeight == pw.FontWeight.bold
+        ? _latinBold
+        : _latinRegular;
     final resolvedStyle = arabic && arabicFont != null
-        ? (style ?? const pw.TextStyle()).copyWith(font: arabicFont)
+        ? (style ?? const pw.TextStyle()).copyWith(
+            font: arabicFont,
+            fontFallback: latinFont == null ? null : [latinFont],
+          )
         : style;
     return pw.Text(
       value,
@@ -65,7 +75,7 @@ abstract final class PdfFonts {
     pw.TextAlign? textAlign,
     pw.CrossAxisAlignment crossAxisAlignment = pw.CrossAxisAlignment.start,
   }) {
-    final parts = label.split(' / ');
+    final parts = label.split(RegExp(r'\s+(?:/|\|)\s+'));
     if (parts.length != 2 || !containsArabic(parts.last)) {
       return text(label, style: style, textAlign: textAlign);
     }

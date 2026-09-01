@@ -288,9 +288,10 @@ class PrinterDocumentService {
             ),
           ),
           pw.SizedBox(height: 6),
-          PdfFonts.text(
-            'شكراً لزيارتكم · Thank you',
+          PdfFonts.bilingual(
+            'Thank you | شكراً لزيارتكم',
             textAlign: pw.TextAlign.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
             style: const pw.TextStyle(fontSize: 8),
           ),
         ],
@@ -679,7 +680,13 @@ class PrinterDocumentService {
       children: [
         PdfFonts.bilingual(label),
         pw.SizedBox(width: 5),
-        pw.Expanded(child: PdfFonts.text(value, textAlign: pw.TextAlign.right)),
+        pw.Expanded(
+          child: PdfFonts.bilingual(
+            value,
+            textAlign: pw.TextAlign.right,
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+          ),
+        ),
       ],
     ),
   );

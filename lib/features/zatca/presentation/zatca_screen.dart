@@ -732,6 +732,8 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
                     file.bytes,
                     name: file.fileName,
                     printer: printerState.selectedPrinter,
+                    previewBeforePrinting:
+                        printerState.settings.previewBeforePrinting,
                   );
                 }),
           child: const Text('Print PDF/A-3'),
@@ -2264,6 +2266,7 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
       file.bytes,
       name: file.fileName,
       printer: printerState.selectedPrinter,
+      previewBeforePrinting: printerState.settings.previewBeforePrinting,
     );
   });
 }

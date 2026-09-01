@@ -38,6 +38,7 @@ class PrinterSettings {
     },
     this.selectedPrinters = const {},
     this.defaultPrinterUrl,
+    this.previewBeforePrinting = false,
     this.barcodeColumns = 3,
     this.barcodeHeight = 56,
     this.barcodeWidthPercent = 78,
@@ -53,6 +54,7 @@ class PrinterSettings {
   final Map<String, String> templates;
   final Map<String, String> selectedPrinters;
   final String? defaultPrinterUrl;
+  final bool previewBeforePrinting;
   final int barcodeColumns, barcodeHeight, barcodeWidthPercent, barcodeDpi;
   final bool showStoreName, showPrice, showDate;
 
@@ -85,6 +87,7 @@ class PrinterSettings {
     Map<String, String>? selectedPrinters,
     String? defaultPrinterUrl,
     bool clearDefaultPrinter = false,
+    bool? previewBeforePrinting,
     int? barcodeColumns,
     int? barcodeHeight,
     int? barcodeWidthPercent,
@@ -101,6 +104,7 @@ class PrinterSettings {
     defaultPrinterUrl: clearDefaultPrinter
         ? null
         : defaultPrinterUrl ?? this.defaultPrinterUrl,
+    previewBeforePrinting: previewBeforePrinting ?? this.previewBeforePrinting,
     barcodeColumns: barcodeColumns ?? this.barcodeColumns,
     barcodeHeight: barcodeHeight ?? this.barcodeHeight,
     barcodeWidthPercent: barcodeWidthPercent ?? this.barcodeWidthPercent,
@@ -115,6 +119,7 @@ class PrinterSettings {
     'templates': templates,
     'selectedPrinters': selectedPrinters,
     'defaultPrinterUrl': defaultPrinterUrl,
+    'previewBeforePrinting': previewBeforePrinting,
     'barcodeColumns': barcodeColumns,
     'barcodeHeight': barcodeHeight,
     'barcodeWidthPercent': barcodeWidthPercent,
@@ -141,6 +146,7 @@ class PrinterSettings {
       defaultPrinterUrl:
           json['defaultPrinterUrl']?.toString() ??
           _firstSelectedPrinter(json['selectedPrinters']),
+      previewBeforePrinting: json['previewBeforePrinting'] as bool? ?? false,
       barcodeColumns: json['barcodeColumns'] as int? ?? 3,
       barcodeHeight: json['barcodeHeight'] as int? ?? 56,
       barcodeWidthPercent: json['barcodeWidthPercent'] as int? ?? 78,

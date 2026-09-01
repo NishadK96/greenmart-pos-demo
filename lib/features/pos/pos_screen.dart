@@ -16,6 +16,20 @@ import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
 import '../store/app_store.dart';
 
+final _posPaymentShortcutProvider =
+    NotifierProvider.autoDispose<_PaymentShortcutNotifier, String?>(
+      _PaymentShortcutNotifier.new,
+    );
+
+class _PaymentShortcutNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void trigger(String code) => state = code;
+
+  void clear() => state = null;
+}
+
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
@@ -62,6 +76,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         const SingleActivator(LogicalKeyboardKey.f8): _editGrossDiscount,
         const SingleActivator(LogicalKeyboardKey.digit8, control: true):
             _editGrossDiscount,
+        const SingleActivator(LogicalKeyboardKey.f9): _triggerPaymentShortcut,
+        const SingleActivator(LogicalKeyboardKey.f10): () =>
+            _triggerPaymentShortcut('cash'),
+        const SingleActivator(LogicalKeyboardKey.f11): () =>
+            _triggerPaymentShortcut('card'),
+        const SingleActivator(LogicalKeyboardKey.f12): () =>
+            _triggerPaymentShortcut('credit'),
       },
       child: Focus(
         autofocus: true,
@@ -204,6 +225,29 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       return;
     }
     _showUnitPriceEditor(context, ref, state.cart.last);
+  }
+
+  void _triggerPaymentShortcut([String? preferredCode]) {
+    final state = ref.read(appStoreProvider);
+    final canPay =
+        state.cart.isNotEmpty &&
+        state.locations.isNotEmpty &&
+        state.customers.isNotEmpty &&
+        state.posPaymentOptions.isNotEmpty;
+    if (!canPay) return;
+    if (preferredCode != null &&
+        !state.posPaymentOptions.any(
+          (option) => option.code.toLowerCase() == preferredCode,
+        )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$preferredCode payment is not available.')),
+      );
+      return;
+    }
+    ref.read(_posPaymentShortcutProvider.notifier).trigger(preferredCode ?? '');
+    if (MediaQuery.sizeOf(context).width < 930) {
+      _openCartSheet(context);
+    }
   }
 
   void _editGrossDiscount() {
@@ -905,8 +949,7 @@ class _RecentSalesDialog extends ConsumerStatefulWidget {
   final List<Sale> sales;
 
   @override
-  ConsumerState<_RecentSalesDialog> createState() =>
-      _RecentSalesDialogState();
+  ConsumerState<_RecentSalesDialog> createState() => _RecentSalesDialogState();
 }
 
 class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
@@ -1705,6 +1748,22 @@ class _CurrentOrder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
+    final paymentShortcut = ref.watch(_posPaymentShortcutProvider);
+    if (paymentShortcut != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted ||
+            ref.read(_posPaymentShortcutProvider) != paymentShortcut) {
+          return;
+        }
+        ref.read(_posPaymentShortcutProvider.notifier).clear();
+        _payment(
+          context,
+          ref,
+          state,
+          preferredCode: paymentShortcut.isEmpty ? null : paymentShortcut,
+        );
+      });
+    }
     final mobile = MediaQuery.sizeOf(context).width < 700;
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
     final lineHeight = compactHeight ? 86.0 : 92.0;
@@ -1760,7 +1819,7 @@ class _CurrentOrder extends ConsumerWidget {
               const Divider(height: 8),
               _cartActions(context, ref, state),
               const SizedBox(height: 8),
-              _checkoutFooter(context, ref, state, mobile),
+              _checkoutFooter(context, ref, state),
             ],
           ],
         ),
@@ -2064,92 +2123,70 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       );
 
-  Widget _checkoutFooter(
-    BuildContext context,
-    WidgetRef ref,
-    AppState state,
-    bool mobile,
-  ) => Container(
-    padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF2F8F5),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFFD5E4DE)),
-    ),
-    child: Column(
-      children: [
-        _totals(context, ref, state),
-        const SizedBox(height: 7),
-        SizedBox(
-          width: double.infinity,
-          height: 46,
-          child: FilledButton(
-            onPressed: _canPay(state)
-                ? () => _payment(context, ref, state)
-                : null,
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-              ),
-            ),
-            child: LayoutBuilder(
-              builder: (_, constraints) => Row(
-                children: [
-                  if (constraints.maxWidth >= 300) ...[
-                    const Icon(Icons.lock_outline_rounded, size: 18),
-                    const SizedBox(width: 7),
-                  ],
-                  Text(
-                    context.tr('Pay now'),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const Spacer(),
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        money(state.cartTotal),
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (!mobile && constraints.maxWidth >= 350) ...[
-                    const SizedBox(width: 9),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .16),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'F9',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
+  Widget _checkoutFooter(BuildContext context, WidgetRef ref, AppState state) =>
+      Container(
+        padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF2F8F5),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFD5E4DE)),
         ),
-        const SizedBox(height: 6),
-        _paymentShortcuts(context, ref, state),
-      ],
-    ),
-  );
+        child: Column(
+          children: [
+            _totals(context, ref, state),
+            const SizedBox(height: 7),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton(
+                onPressed: _canPay(state)
+                    ? () => _payment(context, ref, state)
+                    : null,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+                child: LayoutBuilder(
+                  builder: (_, constraints) => Row(
+                    children: [
+                      if (constraints.maxWidth >= 300) ...[
+                        const Icon(Icons.lock_outline_rounded, size: 18),
+                        const SizedBox(width: 7),
+                      ],
+                      Text(
+                        context.tr('Pay now'),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Spacer(),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            money(state.cartTotal),
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      _paymentKeyBadge('F9', onPrimary: true),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _paymentShortcuts(context, ref, state),
+          ],
+        ),
+      );
 
   Widget _totals(BuildContext context, WidgetRef ref, AppState state) => Column(
     children: [
@@ -2341,34 +2378,44 @@ class _CurrentOrder extends ConsumerWidget {
       optionFor('card'),
       optionFor('credit'),
     ].whereType<PaymentOption>().toList(growable: false);
-    return Row(
-      children: [
-        for (var index = 0; index < shortcuts.length; index++) ...[
-          if (index > 0) const SizedBox(width: 6),
-          Expanded(
-            child: _quickPaymentButton(context, ref, state, shortcuts[index]),
-          ),
-        ],
-        if (shortcuts.isNotEmpty) const SizedBox(width: 6),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _canPay(state)
-                ? () => _payment(context, ref, state)
-                : null,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              backgroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFFB9C8C2)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 6.0;
+        final buttonWidth = (constraints.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final option in shortcuts)
+              SizedBox(
+                width: buttonWidth,
+                child: _quickPaymentButton(context, ref, state, option),
+              ),
+            SizedBox(
+              width: buttonWidth,
+              child: OutlinedButton.icon(
+                onPressed: _canPay(state)
+                    ? () => _payment(context, ref, state)
+                    : null,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFB9C8C2)),
+                ),
+                icon: const Icon(Icons.more_horiz_rounded, size: 16),
+                label: Text(
+                  context.tr('More'),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ),
-            icon: const Icon(Icons.more_horiz_rounded, size: 16),
-            label: Text(
-              context.tr('More'),
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -2377,22 +2424,53 @@ class _CurrentOrder extends ConsumerWidget {
     WidgetRef ref,
     AppState state,
     PaymentOption option,
-  ) => OutlinedButton.icon(
+  ) => OutlinedButton(
     onPressed: _canPay(state)
         ? () => _payment(context, ref, state, preferredCode: option.code)
         : null,
     style: OutlinedButton.styleFrom(
       minimumSize: const Size(0, 36),
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       backgroundColor: Colors.white,
       side: const BorderSide(color: Color(0xFFB9C8C2)),
     ),
-    icon: Icon(_paymentIcon(option.code), size: 15),
-    label: Text(
-      context.tr(option.label),
+    child: Row(
+      children: [
+        Icon(_paymentIcon(option.code), size: 15),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            context.tr(option.label),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(width: 4),
+        _paymentKeyBadge(_paymentShortcutLabel(option.code)),
+      ],
+    ),
+  );
+
+  Widget _paymentKeyBadge(String label, {bool onPrimary = false}) => Container(
+    constraints: const BoxConstraints(minWidth: 27),
+    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+    decoration: BoxDecoration(
+      color: onPrimary
+          ? Colors.white.withValues(alpha: .17)
+          : const Color(0xFFE3F1EC),
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Text(
+      label,
+      textAlign: TextAlign.center,
       maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+      style: TextStyle(
+        color: onPrimary ? Colors.white : AppColors.primary,
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
+        height: 1,
+      ),
     ),
   );
 
@@ -2401,6 +2479,13 @@ class _CurrentOrder extends ConsumerWidget {
       state.locations.isNotEmpty &&
       state.customers.isNotEmpty &&
       state.posPaymentOptions.isNotEmpty;
+
+  String _paymentShortcutLabel(String code) => switch (code.toLowerCase()) {
+    'cash' => 'F10',
+    'card' => 'F11',
+    'credit' => 'F12',
+    _ => '',
+  };
 
   Future<void> _grossDiscount(
     BuildContext context,
@@ -2638,6 +2723,7 @@ class _CurrentOrder extends ConsumerWidget {
     final pageContext = context;
     final router = GoRouter.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    var preferredSubmitted = false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2647,115 +2733,143 @@ class _CurrentOrder extends ConsumerWidget {
       builder: (sheetContext) {
         var submitting = false;
         return StatefulBuilder(
-          builder: (context, setSheetState) => ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight:
-                  MediaQuery.sizeOf(context).height *
-                  (MediaQuery.sizeOf(context).width < 700 ? .96 : .82),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 14, 12, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Select payment method',
-                              style: TextStyle(
-                                color: AppColors.muted,
-                                fontWeight: FontWeight.w600,
+          builder: (context, setSheetState) {
+            if (preferredCode != null && !preferredSubmitted) {
+              preferredSubmitted = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!sheetContext.mounted) return;
+                final option = state.posPaymentOptions
+                    .where((item) => _paymentMatches(item.code, preferredCode))
+                    .firstOrNull;
+                if (option == null) return;
+                _handlePaymentOption(
+                  sheetContext: sheetContext,
+                  pageContext: pageContext,
+                  ref: ref,
+                  state: state,
+                  code: option.code,
+                  router: router,
+                  messenger: messenger,
+                  submitting: (value) {
+                    if (sheetContext.mounted) {
+                      setSheetState(() => submitting = value);
+                    }
+                  },
+                );
+              });
+            }
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.sizeOf(context).height *
+                    (MediaQuery.sizeOf(context).width < 700 ? .96 : .82),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 14, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Select payment method',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Collect ${money(state.cartTotal)}',
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: submitting
-                            ? null
-                            : () => Navigator.pop(sheetContext),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                if (submitting)
-                  const Padding(
-                    padding: EdgeInsets.all(48),
-                    child: CircularProgressIndicator(),
-                  )
-                else
-                  Flexible(
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.all(22),
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 280,
-                            mainAxisExtent: 92,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
+                              Text(
+                                'Collect ${money(state.cartTotal)}',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w900),
+                              ),
+                            ],
                           ),
-                      itemCount: state.posPaymentOptions.length,
-                      itemBuilder: (_, index) {
-                        final option = state.posPaymentOptions[index];
-                        final highlighted =
-                            preferredCode != null &&
-                            _paymentMatches(option.code, preferredCode);
-                        final label = option.code == 'credit'
-                            ? Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(context.tr(option.label)),
-                                  Text(
-                                    context.tr('Pay later • Customer required'),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(context.tr(option.label));
-                        void submit() => _handlePaymentOption(
-                          sheetContext: sheetContext,
-                          pageContext: pageContext,
-                          ref: ref,
-                          state: state,
-                          code: option.code,
-                          router: router,
-                          messenger: messenger,
-                          submitting: (value) =>
-                              setSheetState(() => submitting = value),
-                        );
-                        return highlighted
-                            ? FilledButton.icon(
-                                onPressed: submit,
-                                icon: Icon(_paymentIcon(option.code)),
-                                label: label,
-                              )
-                            : FilledButton.tonalIcon(
-                                onPressed: submit,
-                                icon: Icon(_paymentIcon(option.code)),
-                                label: label,
-                              );
-                      },
+                        ),
+                        IconButton(
+                          onPressed: submitting
+                              ? null
+                              : () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
                   ),
-              ],
-            ),
-          ),
+                  const Divider(height: 1),
+                  if (submitting)
+                    const Padding(
+                      padding: EdgeInsets.all(48),
+                      child: CircularProgressIndicator(),
+                    )
+                  else
+                    Flexible(
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.all(22),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 280,
+                              mainAxisExtent: 92,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                            ),
+                        itemCount: state.posPaymentOptions.length,
+                        itemBuilder: (_, index) {
+                          final option = state.posPaymentOptions[index];
+                          final highlighted =
+                              preferredCode != null &&
+                              _paymentMatches(option.code, preferredCode);
+                          final label = option.code == 'credit'
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(context.tr(option.label)),
+                                    Text(
+                                      context.tr(
+                                        'Pay later • Customer required',
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(context.tr(option.label));
+                          void submit() => _handlePaymentOption(
+                            sheetContext: sheetContext,
+                            pageContext: pageContext,
+                            ref: ref,
+                            state: state,
+                            code: option.code,
+                            router: router,
+                            messenger: messenger,
+                            submitting: (value) =>
+                                setSheetState(() => submitting = value),
+                          );
+                          return highlighted
+                              ? FilledButton.icon(
+                                  onPressed: submit,
+                                  icon: Icon(_paymentIcon(option.code)),
+                                  label: label,
+                                )
+                              : FilledButton.tonalIcon(
+                                  onPressed: submit,
+                                  icon: Icon(_paymentIcon(option.code)),
+                                  label: label,
+                                );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

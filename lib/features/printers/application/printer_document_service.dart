@@ -1,8 +1,8 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../../../core/utils/desktop_pdf_preview.dart';
 import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
@@ -14,14 +14,28 @@ class PrinterDocumentService {
     required String name,
     Printer? printer,
     PdfPageFormat format = PdfPageFormat.a4,
+    bool previewBeforePrinting = false,
   }) async {
-    if (printer != null && printer.url != 'system-print-dialog') {
-      return Printing.directPrintPdf(
-        printer: printer,
-        name: name,
-        format: format,
-        onLayout: (_) async => bytes,
-      );
+    if (_usesExternalWindowsPreview && previewBeforePrinting) {
+      return openDesktopPdfPreview(bytes, fileName: name);
+    }
+    if (!previewBeforePrinting &&
+        printer != null &&
+        printer.url != 'system-print-dialog') {
+      try {
+        final printed = await Printing.directPrintPdf(
+          printer: printer,
+          name: name,
+          format: format,
+          onLayout: (_) async => bytes,
+        );
+        if (printed) return true;
+      } catch (_) {
+        // Fall through to the system dialog when direct printing is unavailable.
+      }
+    }
+    if (_usesExternalWindowsPreview) {
+      return openDesktopPdfPreview(bytes, fileName: name);
     }
     return Printing.layoutPdf(
       name: name,
@@ -314,9 +328,7 @@ class PrinterDocumentService {
               children: [
                 pw.Text('Invoice: TEST-0001'),
                 pw.Text('Customer: Walk-in Customer'),
-                pw.Text(
-                  audience == BillingAudience.business ? 'B2B' : 'B2C',
-                ),
+                pw.Text(audience == BillingAudience.business ? 'B2B' : 'B2C'),
               ],
             ),
           ],
@@ -686,12 +698,33 @@ class PrinterDocumentService {
     final format = formatFor(
       settings.paperSizes[settings.profileKey] ?? '80mm',
     );
-    if (printer != null && printer.url != 'system-print-dialog') {
-      return await Printing.directPrintPdf(
-        printer: printer,
-        name: 'GreenMart ${settings.profileKey} test',
-        format: format,
-        onLayout: (requested) => sample(settings, requested),
+    if (_usesExternalWindowsPreview && settings.previewBeforePrinting) {
+      final bytes = await sample(settings, format);
+      return openDesktopPdfPreview(
+        bytes,
+        fileName: 'GreenMart ${settings.profileKey} test.pdf',
+      );
+    }
+    if (!settings.previewBeforePrinting &&
+        printer != null &&
+        printer.url != 'system-print-dialog') {
+      try {
+        final printed = await Printing.directPrintPdf(
+          printer: printer,
+          name: 'GreenMart ${settings.profileKey} test',
+          format: format,
+          onLayout: (requested) => sample(settings, requested),
+        );
+        if (printed) return true;
+      } catch (_) {
+        // Fall through to the system dialog when direct printing is unavailable.
+      }
+    }
+    if (_usesExternalWindowsPreview) {
+      final bytes = await sample(settings, format);
+      return openDesktopPdfPreview(
+        bytes,
+        fileName: 'GreenMart ${settings.profileKey} test.pdf',
       );
     }
     return await printSample(settings);
@@ -724,18 +757,55 @@ class PrinterDocumentService {
     Printer? printer,
     bool arabic = false,
   }) async {
-    if (printer != null && printer.url != 'system-print-dialog') {
-      final profile = sale.customer.isBusiness
-          ? 'billing-business'
-          : 'billing-retail';
-      return await Printing.directPrintPdf(
-        printer: printer,
-        name: 'Invoice ${sale.invoiceNo}',
-        format: formatFor(settings.paperSizes[profile] ?? '80mm'),
-        onLayout: (format) =>
-            receipt(sale, businessName, settings, format, arabic: arabic),
+    final profile = sale.customer.isBusiness
+        ? 'billing-business'
+        : 'billing-retail';
+    final format = formatFor(settings.paperSizes[profile] ?? '80mm');
+    if (_usesExternalWindowsPreview && settings.previewBeforePrinting) {
+      final bytes = await receipt(
+        sale,
+        businessName,
+        settings,
+        format,
+        arabic: arabic,
+      );
+      return openDesktopPdfPreview(
+        bytes,
+        fileName: 'Invoice ${sale.invoiceNo}.pdf',
+      );
+    }
+    if (!settings.previewBeforePrinting &&
+        printer != null &&
+        printer.url != 'system-print-dialog') {
+      try {
+        final printed = await Printing.directPrintPdf(
+          printer: printer,
+          name: 'Invoice ${sale.invoiceNo}',
+          format: format,
+          onLayout: (format) =>
+              receipt(sale, businessName, settings, format, arabic: arabic),
+        );
+        if (printed) return true;
+      } catch (_) {
+        // Fall through to the system dialog when direct printing is unavailable.
+      }
+    }
+    if (_usesExternalWindowsPreview) {
+      final bytes = await receipt(
+        sale,
+        businessName,
+        settings,
+        format,
+        arabic: arabic,
+      );
+      return openDesktopPdfPreview(
+        bytes,
+        fileName: 'Invoice ${sale.invoiceNo}.pdf',
       );
     }
     return await printReceipt(sale, businessName, settings, arabic: arabic);
   }
+
+  static bool get _usesExternalWindowsPreview =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 }

@@ -36,30 +36,49 @@ void main() {
     );
   });
 
-  test('one default printer persists globally for every document type', () async {
+  test(
+    'one default printer persists globally for every document type',
+    () async {
+      final repository = PrinterSettingsRepository();
+      const printerUrl = r'windows-printer://office-receipt-printer';
+
+      await repository.save(
+        const PrinterSettings().copyWith(defaultPrinterUrl: printerUrl),
+      );
+      final restored = await repository.load();
+
+      expect(restored.defaultPrinterUrl, printerUrl);
+      for (final section in PrinterSection.values) {
+        expect(
+          restored.copyWith(section: section).defaultPrinterUrl,
+          printerUrl,
+        );
+      }
+      for (final audience in BillingAudience.values) {
+        expect(
+          restored
+              .copyWith(
+                section: PrinterSection.billing,
+                billingAudience: audience,
+              )
+              .defaultPrinterUrl,
+          printerUrl,
+        );
+      }
+    },
+  );
+
+  test('preview-before-printing preference persists globally', () async {
     final repository = PrinterSettingsRepository();
-    const printerUrl = r'windows-printer://office-receipt-printer';
 
     await repository.save(
-      const PrinterSettings().copyWith(defaultPrinterUrl: printerUrl),
+      const PrinterSettings().copyWith(previewBeforePrinting: true),
     );
     final restored = await repository.load();
 
-    expect(restored.defaultPrinterUrl, printerUrl);
+    expect(restored.previewBeforePrinting, isTrue);
     for (final section in PrinterSection.values) {
-      expect(
-        restored.copyWith(section: section).defaultPrinterUrl,
-        printerUrl,
-      );
-    }
-    for (final audience in BillingAudience.values) {
-      expect(
-        restored.copyWith(
-          section: PrinterSection.billing,
-          billingAudience: audience,
-        ).defaultPrinterUrl,
-        printerUrl,
-      );
+      expect(restored.copyWith(section: section).previewBeforePrinting, isTrue);
     }
   });
 

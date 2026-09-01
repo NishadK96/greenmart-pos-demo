@@ -58,7 +58,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _sellingInc = TextEditingController(
       text: p == null ? '' : (p.sellingPrice / 100).toStringAsFixed(2),
     );
-    _margin = TextEditingController(text: '25.00');
+    _margin = TextEditingController(text: _initialMargin(p));
     _minimum = TextEditingController(text: '${p?.minimumStock ?? 0}');
     _unitId = p?.unitId.isNotEmpty == true ? p!.unitId : null;
     _categoryId = p?.categoryId.isNotEmpty == true ? p!.categoryId : null;
@@ -77,6 +77,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   void _refreshPreview() {
     if (mounted) setState(() {});
+  }
+
+  String _initialMargin(Product? product) {
+    if (product == null || product.purchasePrice <= 0) return '';
+    final margin =
+        (product.sellingPrice - product.purchasePrice) /
+        product.purchasePrice *
+        100;
+    return margin.toStringAsFixed(2);
   }
 
   @override
@@ -122,7 +131,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final desktop = constraints.maxWidth >= 1080;
-                final content = _productFormContent(state);
+                final content = widget.quick
+                    ? _quickProductFormContent(state)
+                    : _productFormContent(state);
                 final sidebar = _productPreview(state);
                 return SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
@@ -131,7 +142,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     desktop ? 22 : 14,
                     100,
                   ),
-                  child: desktop
+                  child: widget.quick
+                      ? content
+                      : desktop
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -171,29 +184,39 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Products  /  Create product',
+              Text(
+                widget.quick
+                    ? 'Products  /  Quick add'
+                    : 'Products  /  Create product',
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               Text(
-                editing ? 'Edit product' : 'Create product',
+                widget.quick
+                    ? 'Quick add product'
+                    : editing
+                    ? 'Edit product'
+                    : 'Create product',
                 style: const TextStyle(
                   fontSize: 25,
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const Text(
-                'Add product details, pricing, inventory and availability.',
+              Text(
+                widget.quick
+                    ? 'Enter the essential details needed to start selling.'
+                    : 'Add product details, pricing, inventory and availability.',
                 style: TextStyle(color: AppColors.muted, fontSize: 13),
               ),
             ],
           ),
         ),
-        OutlinedButton(
-          onPressed: _saving ? null : () => _save(_SaveMode.save),
-          child: const Text('Save draft'),
-        ),
-        const SizedBox(width: 10),
+        if (!widget.quick) ...[
+          OutlinedButton(
+            onPressed: _saving ? null : () => _save(_SaveMode.save),
+            child: const Text('Save draft'),
+          ),
+          const SizedBox(width: 10),
+        ],
         FilledButton.icon(
           onPressed: _saving ? null : () => _save(_SaveMode.save),
           icon: const Icon(Icons.save_outlined),
@@ -201,6 +224,223 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ),
       ],
     ),
+  );
+
+  Widget _quickProductFormContent(AppState state) => Column(
+    children: [
+      _productSection(
+        1,
+        'Basic details',
+        'Only the information required to create and sell this product.',
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 620;
+            final width = twoColumns
+                ? (constraints.maxWidth - 12) / 2
+                : constraints.maxWidth;
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: _field(_name, 'Product name', required: true),
+                ),
+                SizedBox(
+                  width: width,
+                  child: TextFormField(
+                    controller: _sku,
+                    decoration: InputDecoration(
+                      labelText: 'SKU',
+                      hintText: 'Leave blank to auto-generate',
+                      suffixIcon: _sku.text.trim().isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Check SKU availability',
+                              onPressed: _checkSkuAvailability,
+                              icon: const Icon(Icons.fact_check_outlined),
+                            ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _dropdown(
+                    'Unit',
+                    _unitId,
+                    state.units,
+                    (v) => setState(() => _unitId = v),
+                    required: true,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _dropdown(
+                    'Category',
+                    _categoryId,
+                    state.categories
+                        .map((e) => LookupOption(id: e.id, name: e.name))
+                        .toList(),
+                    (v) => setState(() => _categoryId = v),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        2,
+        'Stock and location',
+        'Choose where the product is sold and whether stock is tracked.',
+        Column(
+          children: [
+            _settingRow(
+              Icons.inventory_2_outlined,
+              'Track inventory',
+              'Track quantities and receive low-stock alerts.',
+              _manageStock,
+              (v) => setState(() => _manageStock = v),
+              trailing: _manageStock
+                  ? SizedBox(
+                      width: 210,
+                      child: _field(
+                        _minimum,
+                        'Low-stock alert quantity',
+                        number: true,
+                      ),
+                    )
+                  : null,
+            ),
+            if (state.locations.length > 1) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: state.locations
+                      .map(
+                        (location) => _locationCard(
+                          LookupOption(id: location.id, name: location.name),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: 14),
+      _productSection(
+        3,
+        'Tax and pricing',
+        'Enter either inclusive or exclusive prices; linked values update automatically.',
+        Column(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 620;
+                final width = twoColumns
+                    ? (constraints.maxWidth - 12) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _dropdown('Applicable tax', _taxId, state.taxes, (
+                        v,
+                      ) {
+                        setState(() => _taxId = v);
+                        _recalculatePrices(state);
+                      }),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _choice(
+                        'Selling price tax type',
+                        _taxType,
+                        const [
+                          LookupOption(id: 'exclusive', name: 'Exclusive'),
+                          LookupOption(id: 'inclusive', name: 'Inclusive'),
+                        ],
+                        (v) => setState(() => _taxType = v!),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 900
+                    ? 3
+                    : constraints.maxWidth >= 560
+                    ? 2
+                    : 1;
+                final width =
+                    (constraints.maxWidth - (columns - 1) * 12) / columns;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: _priceField(
+                        _purchase,
+                        'Purchase cost excluding tax',
+                        () => _recalculatePrices(state),
+                        required: false,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _priceField(
+                        _purchaseInc,
+                        'Purchase cost including tax',
+                        () => _recalculatePurchaseExcludingTax(state),
+                        required: false,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _priceField(
+                        _margin,
+                        'Margin (%) — optional',
+                        () => _recalculatePrices(state),
+                        required: false,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _priceField(
+                        _selling,
+                        'Selling price excluding tax',
+                        () => _recalculateSellingInc(state),
+                        required: false,
+                      ),
+                    ),
+                    SizedBox(
+                      width: width,
+                      child: _priceField(
+                        _sellingInc,
+                        'Selling price including tax',
+                        () => _recalculateSellingExcludingTax(state),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    ],
   );
 
   Widget _productFormContent(AppState state) => Column(
@@ -531,7 +771,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       _priceField(
                         _purchaseInc,
                         'Purchase cost including tax',
-                        null,
+                        () => _recalculatePurchaseExcludingTax(state),
                         required: false,
                       ),
                     ],
@@ -565,7 +805,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       _priceField(
                         _sellingInc,
                         'Selling price including tax',
-                        null,
+                        () => _recalculateSellingExcludingTax(state),
                       ),
                     ],
                   ),
@@ -1229,7 +1469,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                     child: _priceField(
                                       _purchaseInc,
                                       'Including tax',
-                                      null,
+                                      () => _recalculatePurchaseExcludingTax(
+                                        state,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1260,7 +1502,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                     child: _priceField(
                                       _sellingInc,
                                       'Including tax',
-                                      null,
+                                      () => _recalculateSellingExcludingTax(
+                                        state,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1539,9 +1783,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   void _recalculatePrices(AppState state) {
     final purchase = double.tryParse(_purchase.text);
     if (purchase == null) return;
-    final margin = double.tryParse(_margin.text) ?? 0;
     final tax = _taxPercent(state) / 100;
     _purchaseInc.text = (purchase * (1 + tax)).toStringAsFixed(2);
+    final margin = double.tryParse(_margin.text);
+    if (margin == null) return;
     final selling = purchase * (1 + margin / 100);
     _selling.text = selling.toStringAsFixed(2);
     _sellingInc.text = (selling * (1 + tax)).toStringAsFixed(2);
@@ -1552,6 +1797,35 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (selling == null) return;
     _sellingInc.text = (selling * (1 + _taxPercent(state) / 100))
         .toStringAsFixed(2);
+    _recalculateMargin();
+  }
+
+  void _recalculateMargin() {
+    final purchase = double.tryParse(_purchase.text);
+    final selling = double.tryParse(_selling.text);
+    if (purchase == null || purchase <= 0 || selling == null) {
+      _margin.clear();
+      return;
+    }
+    _margin.text = ((selling - purchase) / purchase * 100).toStringAsFixed(2);
+  }
+
+  void _recalculatePurchaseExcludingTax(AppState state) {
+    final purchaseIncludingTax = double.tryParse(_purchaseInc.text);
+    if (purchaseIncludingTax == null) return;
+    final taxMultiplier = 1 + _taxPercent(state) / 100;
+    if (taxMultiplier <= 0) return;
+    _purchase.text = (purchaseIncludingTax / taxMultiplier).toStringAsFixed(2);
+    _recalculatePrices(state);
+  }
+
+  void _recalculateSellingExcludingTax(AppState state) {
+    final sellingIncludingTax = double.tryParse(_sellingInc.text);
+    if (sellingIncludingTax == null) return;
+    final taxMultiplier = 1 + _taxPercent(state) / 100;
+    if (taxMultiplier <= 0) return;
+    _selling.text = (sellingIncludingTax / taxMultiplier).toStringAsFixed(2);
+    _recalculateSellingInc(state);
   }
 
   int _cents(String value) => ((double.tryParse(value) ?? 0) * 100).round();
@@ -1703,7 +1977,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     ]) {
       controller.clear();
     }
-    _margin.text = '25.00';
+    _margin.clear();
     _minimum.text = '0';
     _opening.text = '0';
     setState(() {

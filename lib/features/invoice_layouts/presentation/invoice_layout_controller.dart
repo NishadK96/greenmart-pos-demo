@@ -105,6 +105,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
         file.bytes,
         name: file.fileName,
         printer: printer,
+        previewBeforePrinting: settings.previewBeforePrinting,
       );
     }
     return PrinterDocumentService.printReceiptTo(

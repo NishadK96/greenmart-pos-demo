@@ -122,7 +122,7 @@ class ProductDraft {
     this.taxType = 'exclusive',
     this.purchasePriceIncTax,
     this.sellingPriceIncTax,
-    this.profitPercent = 25,
+    this.profitPercent = 0,
     this.description = '',
     this.weight = '',
     this.preparationMinutes,

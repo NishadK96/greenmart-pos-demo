@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/desktop_pdf_preview.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
@@ -58,6 +60,8 @@ class PrinterSettingsScreen extends ConsumerWidget {
                               file.bytes,
                               name: file.fileName,
                               printer: state.selectedPrinter,
+                              previewBeforePrinting:
+                                  settings.previewBeforePrinting,
                             );
                             return;
                           }
@@ -580,6 +584,10 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
                       );
                     }
                     final file = snapshot.requireData;
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.windows) {
+                      return _WindowsErpPreview(file: file);
+                    }
                     return PdfPreview(
                       build: (_) async => file.bytes,
                       pdfFileName: file.fileName,
@@ -625,6 +633,104 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
       ),
     );
   }
+}
+
+class _WindowsErpPreview extends StatefulWidget {
+  const _WindowsErpPreview({required this.file});
+
+  final ErpInvoicePdf file;
+
+  @override
+  State<_WindowsErpPreview> createState() => _WindowsErpPreviewState();
+}
+
+class _WindowsErpPreviewState extends State<_WindowsErpPreview> {
+  bool _opening = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+  }
+
+  Future<void> _open() async {
+    if (mounted)
+      setState(() {
+        _opening = true;
+        _error = null;
+      });
+    try {
+      final opened = await openDesktopPdfPreview(
+        widget.file.bytes,
+        fileName: widget.file.fileName,
+      );
+      if (!opened) throw StateError('Windows PDF viewer is unavailable.');
+      if (mounted) setState(() => _opening = false);
+    } catch (error) {
+      if (mounted)
+        setState(() {
+          _opening = false;
+          _error = error.toString();
+        });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Card(
+      margin: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_opening)
+                const CircularProgressIndicator()
+              else
+                Icon(
+                  _error == null
+                      ? Icons.open_in_new_rounded
+                      : Icons.error_outline_rounded,
+                  size: 42,
+                  color: _error == null ? AppColors.primary : AppColors.danger,
+                ),
+              const SizedBox(height: 16),
+              Text(
+                _opening
+                    ? 'Opening invoice preview…'
+                    : _error == null
+                    ? 'Preview opened in your Windows PDF viewer'
+                    : 'Unable to open the Windows PDF viewer',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error ??
+                    'This uses the native Windows viewer to reliably display the ERP invoice. Nothing is printed automatically.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted),
+              ),
+              if (!_opening) ...[
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: _open,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Open preview again'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _InvoicePreviewLoading extends StatelessWidget {
@@ -905,6 +1011,23 @@ class _DocumentSettings extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+            value: settings.previewBeforePrinting,
+            onChanged: (value) =>
+                onChanged(settings.copyWith(previewBeforePrinting: value)),
+            secondary: const Icon(Icons.preview_outlined),
+            title: const Text(
+              'Preview before printing',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(
+              settings.previewBeforePrinting
+                  ? 'The system print preview opens before every document is printed.'
+                  : 'Documents are sent directly to the saved default printer when supported.',
+            ),
           ),
           const SizedBox(height: 12),
           Container(

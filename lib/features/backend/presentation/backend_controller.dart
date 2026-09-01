@@ -19,6 +19,15 @@ class BackendController extends AsyncNotifier<void> {
     final store = ref.read(appStoreProvider.notifier);
     store.replaceCatalog(const [], const []);
     if (token == null || token.isEmpty) return;
+    if (token == 'offline-local-session') {
+      final cached = await ref.read(offlinePosControllerProvider.future);
+      if (!cached.catalog.isNotEmpty) {
+        throw const ApiException(
+          'Offline data is unavailable. Connect once and synchronize this device.',
+        );
+      }
+      return;
+    }
     try {
       final snapshot = await ref.read(backendRepositoryProvider).load(token);
       configureCurrency(snapshot.business.currencySymbol);

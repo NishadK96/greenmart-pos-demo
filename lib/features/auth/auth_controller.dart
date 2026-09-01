@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../apis/api.dart';
 import '../../core/network/api_provider.dart';
 import 'device_session_storage.dart';
+import 'offline_credential_storage.dart';
 import '../offline_pos/data/offline_pos_storage.dart';
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
@@ -11,6 +12,8 @@ final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
 
 class AuthController extends AsyncNotifier<String?> {
   final DeviceSessionStorage _sessions = DeviceSessionStorage();
+  final OfflineCredentialStorage _offlineCredentials =
+      OfflineCredentialStorage();
   String? _webCsrfToken;
   Future<void>? _webBootstrapInFlight;
   String? _activeSessionId;
@@ -29,9 +32,7 @@ class AuthController extends AsyncNotifier<String?> {
         _activeSessionId = session.sessionId;
         return session.accessToken;
       } catch (_) {
-        return await OfflinePosStorage().canResumeOffline()
-            ? 'offline-local-session'
-            : null;
+        return null;
       }
     }
     final id = await _sessions.activeSessionId();
@@ -45,9 +46,7 @@ class AuthController extends AsyncNotifier<String?> {
       await _sessions.saveSession(result.sessionId, result.refreshToken!);
       return result.accessToken;
     } catch (_) {
-      return await OfflinePosStorage().canResumeOffline()
-          ? 'offline-local-session'
-          : null;
+      return null;
     }
   }
 
@@ -68,9 +67,18 @@ class AuthController extends AsyncNotifier<String?> {
             .sessionLogin(username, password, await _sessions.deviceHeaders());
         await _sessions.saveSession(session.sessionId, session.refreshToken!);
       }
+      if (remember) {
+        await _offlineCredentials.save(username, password);
+      } else {
+        await _offlineCredentials.clear();
+      }
       state = AsyncData(session.accessToken);
       return LoginResult.success(session.accessToken);
     } on ApiException catch (error) {
+      if (error.statusCode == null || error.statusCode! >= 500) {
+        final offline = await _offlineLogin(username, password);
+        if (offline != null) return offline;
+      }
       state = const AsyncData(null);
       return LoginResult.failure(
         error.statusCode == 400 || error.statusCode == 401
@@ -79,6 +87,8 @@ class AuthController extends AsyncNotifier<String?> {
         message: error.message,
       );
     } catch (_) {
+      final offline = await _offlineLogin(username, password);
+      if (offline != null) return offline;
       state = const AsyncData(null);
       return const LoginResult.failure(LoginFailure.network);
     }
@@ -174,6 +184,7 @@ class AuthController extends AsyncNotifier<String?> {
 
   Future<void> logout() async {
     await OfflinePosStorage().disableOfflineResume();
+    await _offlineCredentials.clear();
     if (kIsWeb) {
       final token = state.asData?.value;
       if (token != null) {
@@ -185,6 +196,29 @@ class AuthController extends AsyncNotifier<String?> {
       await _sessions.clearActiveSession();
     }
     state = const AsyncData(null);
+  }
+
+  Future<LoginResult?> _offlineLogin(String username, String password) async {
+    if (!await OfflinePosStorage().canResumeOffline()) return null;
+    final result = await _offlineCredentials.verify(username, password);
+    switch (result) {
+      case OfflineCredentialResult.success:
+        const token = 'offline-local-session';
+        state = const AsyncData(token);
+        return LoginResult.success(token);
+      case OfflineCredentialResult.mismatch:
+        state = const AsyncData(null);
+        return const LoginResult.failure(LoginFailure.invalidCredentials);
+      case OfflineCredentialResult.expired:
+        state = const AsyncData(null);
+        return const LoginResult.failure(
+          LoginFailure.server,
+          message:
+              'Offline access has expired. Connect to the server to sign in again.',
+        );
+      case OfflineCredentialResult.unavailable:
+        return null;
+    }
   }
 
   Future<SessionLoginResult> _webLogin(String username, String password) async {

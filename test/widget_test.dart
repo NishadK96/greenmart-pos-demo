@@ -197,9 +197,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Credit sale').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Credit sale').last);
+    await tester.sendKeyEvent(LogicalKeyboardKey.f12);
     await tester.pumpAndSettle();
 
     expect(find.text('Select a customer first'), findsOneWidget);
@@ -229,9 +227,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Credit sale').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Credit sale').last);
+    await tester.sendKeyEvent(LogicalKeyboardKey.f12);
     await tester.pumpAndSettle();
 
     expect(find.text('Confirm credit sale'), findsOneWidget);

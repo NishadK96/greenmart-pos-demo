@@ -21,7 +21,9 @@ class PrinterSettingsScreen extends ConsumerWidget {
     final layoutState = ref.watch(invoiceLayoutControllerProvider);
     final controller = ref.read(printerControllerProvider.notifier);
     final layoutController = ref.read(invoiceLayoutControllerProvider.notifier);
-    final locations = ref.watch(appStoreProvider).locations;
+    final appState = ref.watch(appStoreProvider);
+    final locations = appState.locations;
+    final previewTransactionId = _latestFinalizedTransactionId(appState.sales);
     final settings = state.settings;
     return Scaffold(
       body: SafeArea(
@@ -43,8 +45,14 @@ class PrinterSettingsScreen extends ConsumerWidget {
                                 'Select an ERP invoice layout before previewing.',
                               );
                             }
+                            if (previewTransactionId == null) {
+                              throw const ApiException(
+                                'Complete and synchronize at least one sale before testing an ERP invoice layout.',
+                              );
+                            }
                             final file = await layoutController.preview(
                               selected.id,
+                              transactionId: previewTransactionId,
                             );
                             await PrinterDocumentService.printPdfBytes(
                               file.bytes,
@@ -94,7 +102,17 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         onPreview: (layout) => _showErpInvoicePreview(
                           context,
                           layout: layout,
-                          load: () => layoutController.preview(layout.id),
+                          load: () {
+                            if (previewTransactionId == null) {
+                              throw const ApiException(
+                                'Complete and synchronize at least one sale before previewing an ERP invoice layout.',
+                              );
+                            }
+                            return layoutController.preview(
+                              layout.id,
+                              transactionId: previewTransactionId,
+                            );
+                          },
                         ),
                         onAssign: (layout) async {
                           try {
@@ -147,6 +165,17 @@ class PrinterSettingsScreen extends ConsumerWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+
+  static String? _latestFinalizedTransactionId(List<Sale> sales) {
+    Sale? latest;
+    for (final sale in sales) {
+      if (sale.serverId == null || sale.serverId!.trim().isEmpty) continue;
+      if (latest == null || sale.createdAt.isAfter(latest.createdAt)) {
+        latest = sale;
+      }
+    }
+    return latest?.serverId;
+  }
 }
 
 class _ErpInvoiceLayoutsPanel extends StatelessWidget {

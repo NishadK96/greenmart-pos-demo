@@ -368,7 +368,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                           LookupOption(id: 'exclusive', name: 'Exclusive'),
                           LookupOption(id: 'inclusive', name: 'Inclusive'),
                         ],
-                        (v) => setState(() => _taxType = v!),
+                        (v) {
+                          setState(() => _taxType = v!);
+                          _recalculateSellingInc(state);
+                        },
                       ),
                     ),
                   ],
@@ -378,63 +381,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             const SizedBox(height: 14),
             LayoutBuilder(
               builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 900
-                    ? 3
-                    : constraints.maxWidth >= 560
-                    ? 2
-                    : 1;
-                final width =
-                    (constraints.maxWidth - (columns - 1) * 12) / columns;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: width,
-                      child: _priceField(
-                        _purchase,
-                        'Purchase cost excluding tax',
-                        () => _recalculatePrices(state),
-                        required: false,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _priceField(
-                        _purchaseInc,
-                        'Purchase cost including tax',
-                        () => _recalculatePurchaseExcludingTax(state),
-                        required: false,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _priceField(
-                        _margin,
-                        'Margin (%) — optional',
-                        () => _recalculatePrices(state),
-                        required: false,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _priceField(
-                        _selling,
-                        'Selling price excluding tax',
-                        () => _recalculateSellingInc(state),
-                        required: false,
-                      ),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _priceField(
-                        _sellingInc,
-                        'Selling price including tax',
-                        () => _recalculateSellingExcludingTax(state),
-                      ),
-                    ),
-                  ],
-                );
+                return _pricingInputs(state, constraints.maxWidth);
               },
             ),
           ],
@@ -721,7 +668,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   LookupOption(id: 'exclusive', name: 'Exclusive'),
                   LookupOption(id: 'inclusive', name: 'Inclusive'),
                 ],
-                (v) => setState(() => _taxType = v!),
+                (v) {
+                  setState(() => _taxType = v!);
+                  _recalculateSellingInc(state);
+                },
               ),
             ),
             SizedBox(
@@ -737,7 +687,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _productSection(
         7,
         'Pricing',
-        'Configure purchase cost, margin and selling price.',
+        'Enter the three values you work with. Tax counterparts are calculated automatically.',
         Column(
           children: [
             const Row(
@@ -755,62 +705,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      _priceField(
-                        _purchase,
-                        'Purchase cost excluding tax',
-                        () => _recalculatePrices(state),
-                        required: false,
-                      ),
-                      const SizedBox(height: 10),
-                      _priceField(
-                        _purchaseInc,
-                        'Purchase cost including tax',
-                        () => _recalculatePurchaseExcludingTax(state),
-                        required: false,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _margin,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Margin (%)',
-                      suffixText: '%',
-                    ),
-                    onChanged: (_) => _recalculatePrices(state),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    children: [
-                      _priceField(
-                        _selling,
-                        'Selling price excluding tax',
-                        () => _recalculateSellingInc(state),
-                        required: false,
-                      ),
-                      const SizedBox(height: 10),
-                      _priceField(
-                        _sellingInc,
-                        'Selling price including tax',
-                        () => _recalculateSellingExcludingTax(state),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) =>
+                  _pricingInputs(state, constraints.maxWidth),
             ),
             const SizedBox(height: 14),
             Align(
@@ -1398,7 +1295,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             LookupOption(id: 'exclusive', name: 'Exclusive'),
                             LookupOption(id: 'inclusive', name: 'Inclusive'),
                           ],
-                          (v) => setState(() => _taxType = v!),
+                          (v) {
+                            setState(() => _taxType = v!);
+                            _recalculateSellingInc(state);
+                          },
                         ),
                       ),
                       SizedBox(
@@ -1635,6 +1535,130 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     },
   );
 
+  Widget _pricingInputs(AppState state, double availableWidth) {
+    final columns = availableWidth >= 760
+        ? 3
+        : availableWidth >= 500
+        ? 2
+        : 1;
+    final width = (availableWidth - (columns - 1) * 12) / columns;
+    final sellingIncludesTax = _taxType == 'inclusive';
+    final taxPercent = _taxPercent(state);
+    final taxDescription = _taxId == null
+        ? 'No tax selected'
+        : '${taxPercent.toStringAsFixed(taxPercent % 1 == 0 ? 0 : 2)}% tax';
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _priceField(
+                _purchase,
+                'Purchase cost excluding tax',
+                () => _recalculatePrices(state),
+                required: false,
+              ),
+              const SizedBox(height: 7),
+              _calculatedPrice(
+                'Including tax',
+                _purchaseInc.text,
+                taxDescription,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _margin,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: true,
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Margin (%) — optional',
+                  suffixText: '%',
+                  helperText: 'Leave empty to enter the selling price directly',
+                ),
+                onChanged: (_) => _recalculatePrices(state),
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) return null;
+                  return double.tryParse(text) == null
+                      ? context.tr('Enter a valid number')
+                      : null;
+                },
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _priceField(
+                sellingIncludesTax ? _sellingInc : _selling,
+                sellingIncludesTax
+                    ? 'Selling price including tax'
+                    : 'Selling price excluding tax',
+                sellingIncludesTax
+                    ? () => _recalculateSellingExcludingTax(state)
+                    : () => _recalculateSellingInc(state),
+              ),
+              const SizedBox(height: 7),
+              _calculatedPrice(
+                sellingIncludesTax ? 'Excluding tax' : 'Including tax',
+                sellingIncludesTax ? _selling.text : _sellingInc.text,
+                taxDescription,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _calculatedPrice(String label, String value, String taxDescription) {
+    final amount = double.tryParse(value);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F7F5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDCE5E0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.calculate_outlined,
+            size: 16,
+            color: AppColors.muted,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              '$label · $taxDescription',
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
+          ),
+          RiyalAmount(
+            toPaise(amount ?? 0),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _dropdown(
     String label,
     String? value,
@@ -1825,7 +1849,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final taxMultiplier = 1 + _taxPercent(state) / 100;
     if (taxMultiplier <= 0) return;
     _selling.text = (sellingIncludingTax / taxMultiplier).toStringAsFixed(2);
-    _recalculateSellingInc(state);
+    _recalculateMargin();
   }
 
   int _cents(String value) => ((double.tryParse(value) ?? 0) * 100).round();

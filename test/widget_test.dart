@@ -161,6 +161,107 @@ void main() {
     expect(find.text('Rate'), findsOneWidget);
   });
 
+  testWidgets('cart keyboard entry changes the selected item quantity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = _keyboardCartContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+    await tester.pump();
+    expect(find.text('3_'), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(
+      container
+          .read(appStoreProvider)
+          .cart
+          .firstWhere((line) => line.product.id == 'keyboard-second')
+          .quantity,
+      3,
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.equal);
+    await tester.pumpAndSettle();
+    expect(
+      container
+          .read(appStoreProvider)
+          .cart
+          .firstWhere((line) => line.product.id == 'keyboard-first')
+          .quantity,
+      2,
+    );
+  });
+
+  testWidgets('Enter opens keyboard actions for the selected cart item', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = _keyboardCartContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keyboard second product'), findsWidgets);
+    expect(find.text('Edit unit price'), findsOneWidget);
+    expect(find.text('Line discount'), findsOneWidget);
+    expect(find.text('Remove item'), findsOneWidget);
+  });
+
+  testWidgets('payment keyboard requires two deliberate Enter presses', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = _keyboardCartContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select payment method'), findsOneWidget);
+    expect(find.textContaining('use arrow keys'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Press Enter again to confirm'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('Press Enter again to confirm'), findsNothing);
+  });
+
   testWidgets('POS customer selector opens quick customer creation', (
     tester,
   ) async {
@@ -426,6 +527,49 @@ ProviderContainer _creditSaleContainer({bool selectCreditCustomer = false}) {
   );
   store.addToCart(product);
   if (selectCreditCustomer) store.selectCustomer(creditCustomer);
+  return container;
+}
+
+ProviderContainer _keyboardCartContainer() {
+  final container = ProviderContainer();
+  const first = Product(
+    id: 'keyboard-first',
+    name: 'Keyboard first product',
+    sku: 'KEY-1',
+    barcode: 'KEY-1',
+    categoryId: 'test',
+    purchasePrice: 500,
+    sellingPrice: 1000,
+    stock: 10,
+    minimumStock: 0,
+    variationId: 'keyboard-first-variation',
+  );
+  const second = Product(
+    id: 'keyboard-second',
+    name: 'Keyboard second product',
+    sku: 'KEY-2',
+    barcode: 'KEY-2',
+    categoryId: 'test',
+    purchasePrice: 700,
+    sellingPrice: 1500,
+    stock: 10,
+    minimumStock: 0,
+    variationId: 'keyboard-second-variation',
+  );
+  final store = container.read(appStoreProvider.notifier);
+  store.restoreOfflineCatalog(
+    products: const [first, second],
+    categories: const [],
+    customers: const [Customer(id: '1', name: 'Walk-in Customer')],
+    locations: const [BusinessLocation(id: '1', name: 'Main Store')],
+    paymentOptions: const [
+      PaymentOption(code: 'cash', label: 'Cash'),
+      PaymentOption(code: 'card', label: 'Card'),
+    ],
+    taxes: const [],
+  );
+  store.addToCart(first);
+  store.addToCart(second);
   return container;
 }
 

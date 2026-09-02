@@ -21,6 +21,71 @@ final _posPaymentShortcutProvider =
       _PaymentShortcutNotifier.new,
     );
 
+final _posCartKeyboardProvider =
+    NotifierProvider.autoDispose<_CartKeyboardNotifier, _CartKeyboardState>(
+      _CartKeyboardNotifier.new,
+    );
+
+final _posCartKeyDispatcherProvider =
+    NotifierProvider<_CartKeyDispatcher, void>(_CartKeyDispatcher.new);
+
+class _CartKeyDispatcher extends Notifier<void> {
+  KeyEventResult Function(KeyEvent event)? _handler;
+
+  @override
+  void build() {}
+
+  void register(KeyEventResult Function(KeyEvent event) handler) {
+    _handler = handler;
+  }
+
+  KeyEventResult dispatch(KeyEvent event) =>
+      _handler?.call(event) ?? KeyEventResult.ignored;
+}
+
+class _CartKeyboardState {
+  const _CartKeyboardState({this.selectedProductId, this.quantityBuffer = ''});
+
+  final String? selectedProductId;
+  final String quantityBuffer;
+
+  _CartKeyboardState copyWith({
+    String? selectedProductId,
+    String? quantityBuffer,
+    bool clearSelection = false,
+  }) => _CartKeyboardState(
+    selectedProductId: clearSelection
+        ? null
+        : selectedProductId ?? this.selectedProductId,
+    quantityBuffer: quantityBuffer ?? this.quantityBuffer,
+  );
+}
+
+class _CartKeyboardNotifier extends Notifier<_CartKeyboardState> {
+  @override
+  _CartKeyboardState build() => const _CartKeyboardState();
+
+  void select(String? productId) => state = productId == null
+      ? const _CartKeyboardState()
+      : _CartKeyboardState(selectedProductId: productId);
+
+  void appendQuantityDigit(String digit) {
+    final current = state.quantityBuffer;
+    if (current.length >= 4 || (current.isEmpty && digit == '0')) return;
+    state = state.copyWith(quantityBuffer: '$current$digit');
+  }
+
+  void removeQuantityDigit() {
+    final current = state.quantityBuffer;
+    if (current.isEmpty) return;
+    state = state.copyWith(
+      quantityBuffer: current.substring(0, current.length - 1),
+    );
+  }
+
+  void clearQuantity() => state = state.copyWith(quantityBuffer: '');
+}
+
 class _PaymentShortcutNotifier extends Notifier<String?> {
   @override
   String? build() => null;
@@ -86,6 +151,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       },
       child: Focus(
         autofocus: true,
+        onKeyEvent: (_, event) {
+          if (_searchFocus.hasFocus || _quickActionOpen) {
+            return KeyEventResult.ignored;
+          }
+          final focusContext = FocusManager.instance.primaryFocus?.context;
+          if (focusContext?.widget is EditableText ||
+              focusContext?.findAncestorWidgetOfExactType<EditableText>() !=
+                  null) {
+            return KeyEventResult.ignored;
+          }
+          return ref
+              .read(_posCartKeyDispatcherProvider.notifier)
+              .dispatch(event);
+        },
         child: LayoutBuilder(
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= 930;
@@ -224,7 +303,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       );
       return;
     }
-    _showUnitPriceEditor(context, ref, state.cart.last);
+    final selectedId = ref.read(_posCartKeyboardProvider).selectedProductId;
+    final selected = state.cart
+        .where((line) => line.product.id == selectedId)
+        .firstOrNull;
+    _showUnitPriceEditor(context, ref, selected ?? state.cart.last);
   }
 
   void _triggerPaymentShortcut([String? preferredCode]) {
@@ -922,6 +1005,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   void _addProduct(Product product) {
     ref.read(appStoreProvider.notifier).addToCart(product);
+    ref.read(_posCartKeyboardProvider.notifier).select(product.id);
     setState(() {
       _recent.remove(product.id);
       _recent.insert(0, product.id);
@@ -1552,6 +1636,328 @@ class _TableLabel extends StatelessWidget {
   );
 }
 
+enum _CartLineAction { editPrice, discount, remove }
+
+class _CartLineActionsDialog extends StatefulWidget {
+  const _CartLineActionsDialog({required this.line});
+
+  final CartLine line;
+
+  @override
+  State<_CartLineActionsDialog> createState() => _CartLineActionsDialogState();
+}
+
+class _CartLineActionsDialogState extends State<_CartLineActionsDialog> {
+  var _selectedIndex = 0;
+
+  static const _actions = [
+    (
+      action: _CartLineAction.editPrice,
+      icon: Icons.edit_rounded,
+      label: 'Edit unit price',
+    ),
+    (
+      action: _CartLineAction.discount,
+      icon: Icons.percent_rounded,
+      label: 'Line discount',
+    ),
+    (
+      action: _CartLineAction.remove,
+      icon: Icons.delete_outline_rounded,
+      label: 'Remove item',
+    ),
+  ];
+
+  KeyEventResult _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+        event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      final delta = event.logicalKey == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      setState(() {
+        _selectedIndex = (_selectedIndex + delta) % _actions.length;
+        if (_selectedIndex < 0) _selectedIndex += _actions.length;
+      });
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      Navigator.pop(context, _actions[_selectedIndex].action);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      Navigator.pop(context);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    autofocus: true,
+    onKeyEvent: (_, event) => _onKeyEvent(event),
+    child: AlertDialog(
+      title: Text(widget.line.product.displayName(context.isArabic)),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Use ↑ / ↓ to choose an action, then press Enter.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            for (var index = 0; index < _actions.length; index++) ...[
+              Material(
+                color: index == _selectedIndex
+                    ? const Color(0xFFE4F3ED)
+                    : Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(
+                    color: index == _selectedIndex
+                        ? AppColors.primary
+                        : const Color(0xFFE1E8E5),
+                  ),
+                ),
+                child: ListTile(
+                  selected: index == _selectedIndex,
+                  leading: Icon(
+                    _actions[index].icon,
+                    color: _actions[index].action == _CartLineAction.remove
+                        ? AppColors.danger
+                        : AppColors.primary,
+                  ),
+                  title: Text(_actions[index].label),
+                  trailing: index == _selectedIndex
+                      ? const Icon(Icons.keyboard_return_rounded, size: 18)
+                      : null,
+                  onTap: () => Navigator.pop(context, _actions[index].action),
+                ),
+              ),
+              if (index != _actions.length - 1) const SizedBox(height: 7),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.tr('Cancel')),
+        ),
+      ],
+    ),
+  );
+}
+
+class _KeyboardPaymentGrid extends StatefulWidget {
+  const _KeyboardPaymentGrid({
+    required this.options,
+    required this.paymentTotal,
+    required this.iconFor,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final List<PaymentOption> options;
+  final int paymentTotal;
+  final IconData Function(String code) iconFor;
+  final ValueChanged<PaymentOption> onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_KeyboardPaymentGrid> createState() => _KeyboardPaymentGridState();
+}
+
+class _KeyboardPaymentGridState extends State<_KeyboardPaymentGrid> {
+  var _selectedIndex = 0;
+  var _armed = false;
+
+  void _move(int delta) {
+    if (widget.options.isEmpty) return;
+    setState(() {
+      _selectedIndex = (_selectedIndex + delta).clamp(
+        0,
+        widget.options.length - 1,
+      );
+      _armed = false;
+    });
+  }
+
+  KeyEventResult _onKeyEvent(KeyEvent event, int columns) {
+    if (event is! KeyDownEvent || widget.options.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _move(-columns);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _move(columns);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      widget.onCancel();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      if (_armed) {
+        widget.onSubmit(widget.options[_selectedIndex]);
+      } else {
+        setState(() => _armed = true);
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (widget.options.isEmpty) {
+        return const Center(child: Text('No payment methods available.'));
+      }
+      final columns = constraints.maxWidth >= 480 ? 2 : 1;
+      final selected = widget.options[_selectedIndex];
+      return Focus(
+        autofocus: true,
+        onKeyEvent: (_, event) => _onKeyEvent(event, columns),
+        child: Column(
+          children: [
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisExtent: 92,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                ),
+                itemCount: widget.options.length,
+                itemBuilder: (_, index) {
+                  final option = widget.options[index];
+                  final isSelected = index == _selectedIndex;
+                  final isArmed = isSelected && _armed;
+                  return Semantics(
+                    selected: isSelected,
+                    button: true,
+                    label:
+                        '${context.tr(option.label)} payment${isArmed ? ', ready to confirm' : ''}',
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(
+                                    alpha: .14,
+                                  ),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => widget.onSubmit(option),
+                        style: FilledButton.styleFrom(
+                          alignment: Alignment.centerLeft,
+                          backgroundColor: isArmed
+                              ? AppColors.primary
+                              : isSelected
+                              ? const Color(0xFFDDF1E9)
+                              : null,
+                          foregroundColor: isArmed ? Colors.white : null,
+                          side: BorderSide(
+                            color: isSelected
+                                ? AppColors.primary
+                                : const Color(0xFFD8E2DE),
+                            width: isSelected ? 2 : 1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: Icon(widget.iconFor(option.code)),
+                        label: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.tr(option.label),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (option.code == 'credit')
+                              Text(
+                                context.tr('Pay later • Customer required'),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            if (isArmed)
+                              const Text(
+                                'Press Enter again to confirm',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Semantics(
+              liveRegion: true,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F7F5),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  _armed
+                      ? '${context.tr(selected.label)} selected for ${money(widget.paymentTotal)}. Press Enter again to complete the sale, or use an arrow key to change.'
+                      : 'Keyboard: use arrow keys to select a payment method, then press Enter twice to confirm.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _armed ? AppColors.primary : AppColors.muted,
+                    fontSize: 11,
+                    fontWeight: _armed ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 Future<void> _showUnitPriceEditor(
   BuildContext context,
   WidgetRef ref,
@@ -1563,52 +1969,57 @@ Future<void> _showUnitPriceEditor(
   final formKey = GlobalKey<FormState>();
   final amount = await showDialog<int>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(context.tr('Edit unit price')),
-      content: Form(
-        key: formKey,
-        child: TextFormField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: context.tr('Unit price'),
-            prefixIcon: Padding(
-              padding: EdgeInsets.all(14),
-              child: RiyalSymbol(size: 16),
+    builder: (dialogContext) {
+      void apply() {
+        if (!formKey.currentState!.validate()) return;
+        Navigator.pop(
+          dialogContext,
+          (double.parse(controller.text.trim()) * 100).round(),
+        );
+      }
+
+      return AlertDialog(
+        title: Text(context.tr('Edit unit price')),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: context.tr('Unit price'),
+              prefixIcon: Padding(
+                padding: EdgeInsets.all(14),
+                child: RiyalSymbol(size: 16),
+              ),
+              prefixIconConstraints: BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
             ),
-            prefixIconConstraints: BoxConstraints(minWidth: 44, minHeight: 44),
+            validator: (value) {
+              final parsed = double.tryParse(value?.trim() ?? '');
+              return parsed == null || parsed < 0
+                  ? context.tr('Enter a valid amount')
+                  : null;
+            },
+            onFieldSubmitted: (_) => apply(),
           ),
-          validator: (value) {
-            final parsed = double.tryParse(value?.trim() ?? '');
-            return parsed == null || parsed < 0
-                ? context.tr('Enter a valid amount')
-                : null;
-          },
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: Text(context.tr('Cancel')),
-        ),
-        if (line.unitPriceOverride != null)
+        actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, -1),
-            child: Text(context.tr('Use default price')),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
           ),
-        FilledButton(
-          onPressed: () {
-            if (!formKey.currentState!.validate()) return;
-            Navigator.pop(
-              dialogContext,
-              (double.parse(controller.text.trim()) * 100).round(),
-            );
-          },
-          child: Text(context.tr('Apply')),
-        ),
-      ],
-    ),
+          if (line.unitPriceOverride != null)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, -1),
+              child: Text(context.tr('Use default price')),
+            ),
+          FilledButton(onPressed: apply, child: Text(context.tr('Apply'))),
+        ],
+      );
+    },
   );
   Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
   if (amount == null) return;
@@ -1749,6 +2160,7 @@ class _CurrentOrder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
     final paymentShortcut = ref.watch(_posPaymentShortcutProvider);
+    final keyboardState = ref.watch(_posCartKeyboardProvider);
     if (paymentShortcut != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted ||
@@ -1768,63 +2180,320 @@ class _CurrentOrder extends ConsumerWidget {
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
     final lineHeight = compactHeight ? 86.0 : 92.0;
     final separatorHeight = compactHeight ? 5.0 : 6.0;
-    return Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: mobile
-            ? const BorderRadius.vertical(top: Radius.circular(22))
-            : BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8E5)),
+    final visualLines = state.cart.reversed.toList(growable: false);
+    final selectedProductId =
+        visualLines.any(
+          (line) => line.product.id == keyboardState.selectedProductId,
+        )
+        ? keyboardState.selectedProductId
+        : visualLines.firstOrNull?.product.id;
+    if (selectedProductId != keyboardState.selectedProductId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          ref.read(_posCartKeyboardProvider.notifier).select(selectedProductId);
+        }
+      });
+    }
+    ref
+        .read(_posCartKeyDispatcherProvider.notifier)
+        .register(
+          (event) => _handleCartKey(
+            context,
+            ref,
+            state,
+            visualLines,
+            selectedProductId,
+            event,
+          ),
+        );
+    return Focus(
+      autofocus: !mobile,
+      onKeyEvent: (_, event) => _handleCartKey(
+        context,
+        ref,
+        state,
+        visualLines,
+        selectedProductId,
+        event,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-        child: Column(
-          children: [
-            if (mobile) ...[
-              Container(
-                width: 42,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD4DCD9),
-                  borderRadius: BorderRadius.circular(999),
+      child: Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: mobile
+              ? const BorderRadius.vertical(top: Radius.circular(22))
+              : BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFE2E8E5)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: Column(
+            children: [
+              if (mobile) ...[
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4DCD9),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-              ),
-            ],
-            _orderHeader(context, ref, state),
-            const Divider(height: 14),
-            Expanded(
-              child: state.cart.isEmpty
-                  ? const EmptyState('Tap a product to start a sale')
-                  : Scrollbar(
-                      thumbVisibility: state.cart.length > 4,
-                      child: ListView.separated(
-                        padding: EdgeInsets.zero,
-                        itemCount: state.cart.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: separatorHeight),
-                        itemBuilder: (_, index) {
-                          final line =
-                              state.cart[state.cart.length - 1 - index];
-                          return KeyedSubtree(
-                            key: ValueKey('cart-line-${line.product.id}'),
-                            child: _cartLine(context, ref, line, lineHeight),
-                          );
-                        },
+              ],
+              _orderHeader(context, ref, state),
+              const Divider(height: 14),
+              Expanded(
+                child: state.cart.isEmpty
+                    ? const EmptyState('Tap a product to start a sale')
+                    : Scrollbar(
+                        thumbVisibility: state.cart.length > 4,
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: state.cart.length,
+                          separatorBuilder: (_, __) =>
+                              Divider(height: separatorHeight),
+                          itemBuilder: (_, index) {
+                            final line =
+                                state.cart[state.cart.length - 1 - index];
+                            final selected =
+                                line.product.id == selectedProductId;
+                            return KeyedSubtree(
+                              key: ValueKey('cart-line-${line.product.id}'),
+                              child: Builder(
+                                builder: (lineContext) {
+                                  if (selected) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                          if (lineContext.mounted) {
+                                            Scrollable.ensureVisible(
+                                              lineContext,
+                                              duration: const Duration(
+                                                milliseconds: 140,
+                                              ),
+                                              alignmentPolicy:
+                                                  ScrollPositionAlignmentPolicy
+                                                      .keepVisibleAtEnd,
+                                            );
+                                          }
+                                        });
+                                  }
+                                  return _cartLine(
+                                    context,
+                                    ref,
+                                    line,
+                                    lineHeight,
+                                    selected: selected,
+                                    quantityBuffer: selected
+                                        ? keyboardState.quantityBuffer
+                                        : '',
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-            ),
-            if (state.cart.isNotEmpty) ...[
-              const Divider(height: 8),
-              _cartActions(context, ref, state),
-              const SizedBox(height: 8),
-              _checkoutFooter(context, ref, state),
+              ),
+              if (state.cart.isNotEmpty) ...[
+                const Divider(height: 8),
+                _cartActions(context, ref, state),
+                const SizedBox(height: 8),
+                _checkoutFooter(context, ref, state),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  KeyEventResult _handleCartKey(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+    List<CartLine> visualLines,
+    String? selectedProductId,
+    KeyEvent event,
+  ) {
+    if (event is! KeyDownEvent ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext?.widget is EditableText ||
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return KeyEventResult.ignored;
+    }
+    if (visualLines.isEmpty) return KeyEventResult.ignored;
+
+    final keyboard = ref.read(_posCartKeyboardProvider.notifier);
+    final liveSelectedProductId =
+        ref.read(_posCartKeyboardProvider).selectedProductId ??
+        selectedProductId;
+    var selectedIndex = visualLines.indexWhere(
+      (line) => line.product.id == liveSelectedProductId,
+    );
+    if (selectedIndex < 0) selectedIndex = 0;
+    final selectedLine = visualLines[selectedIndex];
+    final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      final delta = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      final next = (selectedIndex + delta).clamp(0, visualLines.length - 1);
+      keyboard.select(visualLines[next].product.id);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.add ||
+        key == LogicalKeyboardKey.numpadAdd ||
+        key == LogicalKeyboardKey.equal) {
+      keyboard.clearQuantity();
+      ref.read(appStoreProvider.notifier).quantity(selectedLine.product.id, 1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.minus ||
+        key == LogicalKeyboardKey.numpadSubtract) {
+      keyboard.clearQuantity();
+      if (selectedLine.quantity > 1) {
+        ref
+            .read(appStoreProvider.notifier)
+            .quantity(selectedLine.product.id, -1);
+      } else {
+        _confirmRemoveLine(context, ref, selectedLine);
+      }
+      return KeyEventResult.handled;
+    }
+    final digit = _quantityDigit(key);
+    if (digit != null) {
+      keyboard.appendQuantityDigit(digit);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.backspace) {
+      keyboard.removeQuantityDigit();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      if (ref.read(_posCartKeyboardProvider).quantityBuffer.isNotEmpty) {
+        keyboard.clearQuantity();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.delete) {
+      keyboard.clearQuantity();
+      _confirmRemoveLine(context, ref, selectedLine);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      final buffer = ref.read(_posCartKeyboardProvider).quantityBuffer;
+      if (buffer.isNotEmpty) {
+        final requested = int.tryParse(buffer);
+        keyboard.clearQuantity();
+        if (requested == null || requested < 1) return KeyEventResult.handled;
+        if (!state.allowOverselling && requested > selectedLine.product.stock) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Only ${selectedLine.product.stock} available in stock.',
+              ),
+            ),
+          );
+          return KeyEventResult.handled;
+        }
+        ref
+            .read(appStoreProvider.notifier)
+            .quantity(
+              selectedLine.product.id,
+              requested - selectedLine.quantity,
+            );
+      } else {
+        _openKeyboardLineActions(context, ref, selectedLine);
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  String? _quantityDigit(LogicalKeyboardKey key) {
+    final digits = {
+      LogicalKeyboardKey.digit0: '0',
+      LogicalKeyboardKey.digit1: '1',
+      LogicalKeyboardKey.digit2: '2',
+      LogicalKeyboardKey.digit3: '3',
+      LogicalKeyboardKey.digit4: '4',
+      LogicalKeyboardKey.digit5: '5',
+      LogicalKeyboardKey.digit6: '6',
+      LogicalKeyboardKey.digit7: '7',
+      LogicalKeyboardKey.digit8: '8',
+      LogicalKeyboardKey.digit9: '9',
+      LogicalKeyboardKey.numpad0: '0',
+      LogicalKeyboardKey.numpad1: '1',
+      LogicalKeyboardKey.numpad2: '2',
+      LogicalKeyboardKey.numpad3: '3',
+      LogicalKeyboardKey.numpad4: '4',
+      LogicalKeyboardKey.numpad5: '5',
+      LogicalKeyboardKey.numpad6: '6',
+      LogicalKeyboardKey.numpad7: '7',
+      LogicalKeyboardKey.numpad8: '8',
+      LogicalKeyboardKey.numpad9: '9',
+    };
+    return digits[key];
+  }
+
+  Future<void> _openKeyboardLineActions(
+    BuildContext context,
+    WidgetRef ref,
+    CartLine line,
+  ) async {
+    final action = await showDialog<_CartLineAction>(
+      context: context,
+      builder: (_) => _CartLineActionsDialog(line: line),
+    );
+    if (!context.mounted || action == null) return;
+    switch (action) {
+      case _CartLineAction.editPrice:
+        await _showUnitPriceEditor(context, ref, line);
+        return;
+      case _CartLineAction.discount:
+        await _discount(context, ref, line);
+        return;
+      case _CartLineAction.remove:
+        await _confirmRemoveLine(context, ref, line);
+        return;
+    }
+  }
+
+  Future<void> _confirmRemoveLine(
+    BuildContext context,
+    WidgetRef ref,
+    CartLine line,
+  ) async {
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove item?'),
+        content: Text(
+          'Remove ${line.product.displayName(context.isArabic)} from the order?',
+        ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (remove == true) {
+      ref.read(appStoreProvider.notifier).remove(line.product.id);
+    }
   }
 
   Widget _orderHeader(
@@ -1870,6 +2539,20 @@ class _CurrentOrder extends ConsumerWidget {
           ),
         ],
       ),
+      if (MediaQuery.sizeOf(context).width >= 930)
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Keyboard: ↑ ↓ select item  •  type quantity + Enter  •  Enter item actions  •  + / − adjust',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
     ],
   );
 
@@ -1877,194 +2560,221 @@ class _CurrentOrder extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     CartLine line,
-    double lineHeight,
-  ) => SizedBox(
-    height: lineHeight,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFCFB),
-        border: Border.all(color: const Color(0xFFE3EAE7)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(7, 6, 6, 5),
-        child: Column(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 40,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: const Color(0xFFE5EBE8)),
-                    ),
-                    child: ProductImage(
-                      line.product.imageUrl,
-                      key: ValueKey('cart-image-${line.product.id}'),
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          line.product.displayName(context.isArabic),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        InkWell(
-                          onTap: () => _discount(context, ref, line),
-                          borderRadius: BorderRadius.circular(5),
-                          child: Text(
-                            line.discount == 0
-                                ? context.tr('Add discount')
-                                : '${context.tr('Discount')} ${money(line.discount)}',
-                            style: TextStyle(
-                              color: line.discount == 0
-                                  ? AppColors.primary
-                                  : AppColors.danger,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  RiyalAmount(
-                    line.total,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Remove item',
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 30,
-                      height: 30,
-                    ),
-                    onPressed: () => ref
-                        .read(appStoreProvider.notifier)
-                        .remove(line.product.id),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: AppColors.danger,
-                      size: 17,
-                    ),
-                  ),
-                ],
-              ),
+    double lineHeight, {
+    required bool selected,
+    required String quantityBuffer,
+  }) => MouseRegion(
+    onEnter: (_) =>
+        ref.read(_posCartKeyboardProvider.notifier).select(line.product.id),
+    child: Semantics(
+      selected: selected,
+      label:
+          '${line.product.displayName(context.isArabic)}, quantity ${line.quantity}, ${money(line.total)}',
+      hint: selected
+          ? 'Selected. Use arrow keys to move, type a quantity and press Enter, or press Enter for item actions.'
+          : 'Press the arrow keys to select this item.',
+      child: SizedBox(
+        height: lineHeight,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFF0F8F5) : const Color(0xFFFAFCFB),
+            border: Border.all(
+              color: selected ? AppColors.primary : const Color(0xFFE3EAE7),
+              width: selected ? 2 : 1,
             ),
-            const SizedBox(height: 3),
-            Row(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(7, 6, 6, 5),
+            child: Column(
               children: [
                 Expanded(
-                  child: Tooltip(
-                    message: context.tr('Edit price (F6 for latest item)'),
-                    child: SizedBox(
-                      height: 29,
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _showUnitPriceEditor(context, ref, line),
-                        style: OutlinedButton.styleFrom(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 7),
-                          backgroundColor: const Color(0xFFEAF6F2),
-                          side: const BorderSide(color: Color(0xFF9ACBBC)),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 40,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: const Color(0xFFE5EBE8)),
                         ),
-                        icon: const Icon(Icons.edit_rounded, size: 13),
-                        label: Row(
+                        child: ProductImage(
+                          line.product.imageUrl,
+                          key: ValueKey('cart-image-${line.product.id}'),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              context.tr('Edit price'),
+                              line.product.displayName(context.isArabic),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'F6',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-                            RiyalAmount(
-                              line.unitPrice,
-                              style: const TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 10,
                                 fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            InkWell(
+                              onTap: () => _discount(context, ref, line),
+                              borderRadius: BorderRadius.circular(5),
+                              child: Text(
+                                line.discount == 0
+                                    ? context.tr('Add discount')
+                                    : '${context.tr('Discount')} ${money(line.discount)}',
+                                style: TextStyle(
+                                  color: line.discount == 0
+                                      ? AppColors.primary
+                                      : AppColors.danger,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  height: 29,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFC9D5D0)),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Row(
-                    children: [
-                      _quantityButton(
-                        Icons.remove_rounded,
-                        () => ref
-                            .read(appStoreProvider.notifier)
-                            .quantity(line.product.id, -1),
-                      ),
-                      SizedBox(
-                        width: 28,
-                        child: Text(
-                          '${line.quantity}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
+                      RiyalAmount(
+                        line.total,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
                         ),
                       ),
-                      _quantityButton(
-                        Icons.add_rounded,
-                        () => ref
+                      IconButton(
+                        tooltip: 'Remove item',
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 30,
+                          height: 30,
+                        ),
+                        onPressed: () => ref
                             .read(appStoreProvider.notifier)
-                            .quantity(line.product.id, 1),
+                            .remove(line.product.id),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: AppColors.danger,
+                          size: 17,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Tooltip(
+                        message: context.tr('Edit price (F6 for latest item)'),
+                        child: SizedBox(
+                          height: 29,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                _showUnitPriceEditor(context, ref, line),
+                            style: OutlinedButton.styleFrom(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                              ),
+                              backgroundColor: const Color(0xFFEAF6F2),
+                              side: const BorderSide(color: Color(0xFF9ACBBC)),
+                            ),
+                            icon: const Icon(Icons.edit_rounded, size: 13),
+                            label: Row(
+                              children: [
+                                Text(
+                                  context.tr('Edit price'),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'F6',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                RiyalAmount(
+                                  line.unitPrice,
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 29,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFC9D5D0)),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Row(
+                        children: [
+                          _quantityButton(
+                            Icons.remove_rounded,
+                            () => ref
+                                .read(appStoreProvider.notifier)
+                                .quantity(line.product.id, -1),
+                          ),
+                          SizedBox(
+                            width: 28,
+                            child: Text(
+                              quantityBuffer.isEmpty
+                                  ? '${line.quantity}'
+                                  : '${quantityBuffer}_',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: quantityBuffer.isEmpty
+                                    ? null
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          _quantityButton(
+                            Icons.add_rounded,
+                            () => ref
+                                .read(appStoreProvider.notifier)
+                                .quantity(line.product.id, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     ),
@@ -2573,6 +3283,13 @@ class _CurrentOrder extends ConsumerWidget {
                     }
                     return null;
                   },
+                  onFieldSubmitted: (_) {
+                    if (!formKey.currentState!.validate()) return;
+                    Navigator.pop(dialogContext, (
+                      discountType,
+                      double.parse(controller.text.trim()),
+                    ));
+                  },
                 ),
               ],
             ),
@@ -2651,6 +3368,13 @@ class _CurrentOrder extends ConsumerWidget {
               if ((parsed * 100).round() > line.subtotal)
                 return context.tr('Discount cannot exceed subtotal');
               return null;
+            },
+            onFieldSubmitted: (_) {
+              if (!formKey.currentState!.validate()) return;
+              Navigator.pop(
+                dialogContext,
+                (double.parse(controller.text.trim()) * 100).round(),
+              );
             },
           ),
         ),
@@ -2807,63 +3531,22 @@ class _CurrentOrder extends ConsumerWidget {
                     )
                   else
                     Flexible(
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.all(22),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 280,
-                              mainAxisExtent: 92,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                            ),
-                        itemCount: state.posPaymentOptions.length,
-                        itemBuilder: (_, index) {
-                          final option = state.posPaymentOptions[index];
-                          final highlighted =
-                              preferredCode != null &&
-                              _paymentMatches(option.code, preferredCode);
-                          final label = option.code == 'credit'
-                              ? Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(context.tr(option.label)),
-                                    Text(
-                                      context.tr(
-                                        'Pay later • Customer required',
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Text(context.tr(option.label));
-                          void submit() => _handlePaymentOption(
-                            sheetContext: sheetContext,
-                            pageContext: pageContext,
-                            ref: ref,
-                            state: state,
-                            code: option.code,
-                            router: router,
-                            messenger: messenger,
-                            submitting: (value) =>
-                                setSheetState(() => submitting = value),
-                          );
-                          return highlighted
-                              ? FilledButton.icon(
-                                  onPressed: submit,
-                                  icon: Icon(_paymentIcon(option.code)),
-                                  label: label,
-                                )
-                              : FilledButton.tonalIcon(
-                                  onPressed: submit,
-                                  icon: Icon(_paymentIcon(option.code)),
-                                  label: label,
-                                );
-                        },
+                      child: _KeyboardPaymentGrid(
+                        options: state.posPaymentOptions,
+                        paymentTotal: state.cartTotal,
+                        iconFor: _paymentIcon,
+                        onCancel: () => Navigator.pop(sheetContext),
+                        onSubmit: (option) => _handlePaymentOption(
+                          sheetContext: sheetContext,
+                          pageContext: pageContext,
+                          ref: ref,
+                          state: state,
+                          code: option.code,
+                          router: router,
+                          messenger: messenger,
+                          submitting: (value) =>
+                              setSheetState(() => submitting = value),
+                        ),
                       ),
                     ),
                 ],
@@ -2926,6 +3609,7 @@ class _CurrentOrder extends ConsumerWidget {
               child: Text(dialogContext.tr('Cancel')),
             ),
             FilledButton.icon(
+              autofocus: true,
               onPressed: () => Navigator.pop(dialogContext, true),
               icon: const Icon(Icons.people_outline_rounded),
               label: Text(dialogContext.tr('Select customer')),
@@ -2983,6 +3667,7 @@ class _CurrentOrder extends ConsumerWidget {
             child: Text(dialogContext.tr('Cancel')),
           ),
           FilledButton.icon(
+            autofocus: true,
             onPressed: () => Navigator.pop(dialogContext, true),
             icon: const Icon(Icons.check_rounded),
             label: Text(dialogContext.tr('Create credit sale')),

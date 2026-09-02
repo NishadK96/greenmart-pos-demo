@@ -44,20 +44,27 @@ class _CartKeyDispatcher extends Notifier<void> {
 }
 
 class _CartKeyboardState {
-  const _CartKeyboardState({this.selectedProductId, this.quantityBuffer = ''});
+  const _CartKeyboardState({
+    this.selectedProductId,
+    this.quantityBuffer = '',
+    this.paySelected = false,
+  });
 
   final String? selectedProductId;
   final String quantityBuffer;
+  final bool paySelected;
 
   _CartKeyboardState copyWith({
     String? selectedProductId,
     String? quantityBuffer,
+    bool? paySelected,
     bool clearSelection = false,
   }) => _CartKeyboardState(
     selectedProductId: clearSelection
         ? null
         : selectedProductId ?? this.selectedProductId,
     quantityBuffer: quantityBuffer ?? this.quantityBuffer,
+    paySelected: paySelected ?? this.paySelected,
   );
 }
 
@@ -68,6 +75,9 @@ class _CartKeyboardNotifier extends Notifier<_CartKeyboardState> {
   void select(String? productId) => state = productId == null
       ? const _CartKeyboardState()
       : _CartKeyboardState(selectedProductId: productId);
+
+  void selectPay() =>
+      state = state.copyWith(quantityBuffer: '', paySelected: true);
 
   void appendQuantityDigit(String digit) {
     final current = state.quantityBuffer;
@@ -105,16 +115,26 @@ class PosScreen extends ConsumerStatefulWidget {
 class _PosScreenState extends ConsumerState<PosScreen> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
+  final _posFocus = FocusNode(debugLabel: 'POS keyboard controller');
   final Set<String> _favorites = {};
   final List<String> _recent = [];
   String _category = 'all', _query = '', _mode = 'all';
   bool _grid = true;
   bool _quickActionOpen = false;
+  bool _cartKeyboardActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.addEarlyKeyEventHandler(_handleEarlyCartKey);
+  }
 
   @override
   void dispose() {
+    FocusManager.instance.removeEarlyKeyEventHandler(_handleEarlyCartKey);
     _searchController.dispose();
     _searchFocus.dispose();
+    _posFocus.dispose();
     super.dispose();
   }
 
@@ -150,9 +170,21 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             _triggerPaymentShortcut('credit'),
       },
       child: Focus(
+        focusNode: _posFocus,
         autofocus: true,
         onKeyEvent: (_, event) {
-          if (_searchFocus.hasFocus || _quickActionOpen) {
+          if (_quickActionOpen) {
+            return KeyEventResult.ignored;
+          }
+          if (_searchFocus.hasFocus) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.arrowDown &&
+                state.cart.isNotEmpty) {
+              _searchFocus.unfocus();
+              return ref
+                  .read(_posCartKeyDispatcherProvider.notifier)
+                  .dispatch(event);
+            }
             return KeyEventResult.ignored;
           }
           final focusContext = FocusManager.instance.primaryFocus?.context;
@@ -331,6 +363,40 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (MediaQuery.sizeOf(context).width < 930) {
       _openCartSheet(context);
     }
+  }
+
+  KeyEventResult _handleEarlyCartKey(KeyEvent event) {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    final editing =
+        focusContext?.widget is EditableText ||
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    final canTakeCartFocus =
+        _searchFocus.hasFocus || (_cartKeyboardActive && !editing);
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.arrowDown ||
+        !canTakeCartFocus ||
+        _quickActionOpen ||
+        ref.read(appStoreProvider).cart.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    _cartKeyboardActive = true;
+    _searchFocus.unfocus();
+    _posFocus.requestFocus();
+    final state = ref.read(appStoreProvider);
+    final visualLines = state.cart.reversed.toList(growable: false);
+    final keyboardState = ref.read(_posCartKeyboardProvider);
+    final keyboard = ref.read(_posCartKeyboardProvider.notifier);
+    if (keyboardState.paySelected) return KeyEventResult.handled;
+    var selectedIndex = visualLines.indexWhere(
+      (line) => line.product.id == keyboardState.selectedProductId,
+    );
+    if (selectedIndex < 0) selectedIndex = 0;
+    if (selectedIndex == visualLines.length - 1) {
+      keyboard.selectPay();
+    } else {
+      keyboard.select(visualLines[selectedIndex + 1].product.id);
+    }
+    return KeyEventResult.handled;
   }
 
   void _editGrossDiscount() {
@@ -2298,7 +2364,12 @@ class _CurrentOrder extends ConsumerWidget {
                 const Divider(height: 8),
                 _cartActions(context, ref, state),
                 const SizedBox(height: 8),
-                _checkoutFooter(context, ref, state),
+                _checkoutFooter(
+                  context,
+                  ref,
+                  state,
+                  paySelected: keyboardState.paySelected,
+                ),
               ],
             ],
           ),
@@ -2329,6 +2400,7 @@ class _CurrentOrder extends ConsumerWidget {
     if (visualLines.isEmpty) return KeyEventResult.ignored;
 
     final keyboard = ref.read(_posCartKeyboardProvider.notifier);
+    final paySelected = ref.read(_posCartKeyboardProvider).paySelected;
     final liveSelectedProductId =
         ref.read(_posCartKeyboardProvider).selectedProductId ??
         selectedProductId;
@@ -2339,9 +2411,29 @@ class _CurrentOrder extends ConsumerWidget {
     final selectedLine = visualLines[selectedIndex];
     final key = event.logicalKey;
 
+    if (paySelected) {
+      if (key == LogicalKeyboardKey.arrowUp) {
+        keyboard.select(visualLines.last.product.id);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.numpadEnter) {
+        if (_canPay(state)) _payment(context, ref, state);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     if (key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.arrowUp) {
       final delta = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      if (delta > 0 && selectedIndex == visualLines.length - 1) {
+        keyboard.selectPay();
+        return KeyEventResult.handled;
+      }
       final next = (selectedIndex + delta).clamp(0, visualLines.length - 1);
       keyboard.select(visualLines[next].product.id);
       return KeyEventResult.handled;
@@ -2543,7 +2635,7 @@ class _CurrentOrder extends ConsumerWidget {
         const Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'Keyboard: ↑ ↓ select item  •  type quantity + Enter  •  Enter item actions  •  + / − adjust',
+            'Keyboard: ↑ ↓ select item or Pay  •  type quantity + Enter  •  Enter activates',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -2833,35 +2925,66 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       );
 
-  Widget _checkoutFooter(BuildContext context, WidgetRef ref, AppState state) =>
-      Container(
-        padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF2F8F5),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFD5E4DE)),
-        ),
-        child: Column(
-          children: [
-            _totals(context, ref, state),
-            const SizedBox(height: 7),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
+  Widget _checkoutFooter(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state, {
+    required bool paySelected,
+  }) => Container(
+    padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF2F8F5),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFD5E4DE)),
+    ),
+    child: Column(
+      children: [
+        _totals(context, ref, state),
+        const SizedBox(height: 7),
+        SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: Semantics(
+            key: const ValueKey('pos-pay-keyboard-target'),
+            button: true,
+            selected: paySelected,
+            label: 'Pay now ${money(state.cartTotal)}',
+            hint: paySelected
+                ? 'Selected. Press Enter to choose a payment method.'
+                : 'Press the down arrow after the last cart item to select.',
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: paySelected
+                      ? const Color(0xFFF4B942)
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
               child: FilledButton(
                 onPressed: _canPay(state)
                     ? () => _payment(context, ref, state)
                     : null,
                 style: FilledButton.styleFrom(
+                  elevation: paySelected ? 4 : 0,
+                  shadowColor: AppColors.primary.withValues(alpha: .35),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(9),
                   ),
                 ),
                 child: LayoutBuilder(
                   builder: (_, constraints) => Row(
                     children: [
                       if (constraints.maxWidth >= 300) ...[
-                        const Icon(Icons.lock_outline_rounded, size: 18),
+                        Icon(
+                          paySelected
+                              ? Icons.keyboard_return_rounded
+                              : Icons.lock_outline_rounded,
+                          size: 18,
+                        ),
                         const SizedBox(width: 7),
                       ],
                       Text(
@@ -2886,17 +3009,22 @@ class _CurrentOrder extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 9),
-                      _paymentKeyBadge('F9', onPrimary: true),
+                      _paymentKeyBadge(
+                        paySelected ? 'ENTER' : 'F9',
+                        onPrimary: true,
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            _paymentShortcuts(context, ref, state),
-          ],
+          ),
         ),
-      );
+        const SizedBox(height: 6),
+        _paymentShortcuts(context, ref, state),
+      ],
+    ),
+  );
 
   Widget _totals(BuildContext context, WidgetRef ref, AppState state) => Column(
     children: [

@@ -232,6 +232,45 @@ void main() {
     expect(find.text('Remove item'), findsOneWidget);
   });
 
+  testWidgets('Down after the last cart item selects Pay and Enter opens it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = _keyboardCartContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+    await tester.pump();
+    final search = tester.widget<TextField>(find.byType(TextField).first);
+    expect(search.focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+
+    expect(find.text('ENTER'), findsOneWidget);
+    final payTarget = tester.widget<Semantics>(
+      find.byKey(const ValueKey('pos-pay-keyboard-target')).first,
+    );
+    expect(payTarget.properties.selected, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('Select payment method'), findsOneWidget);
+  });
+
   testWidgets('payment keyboard requires two deliberate Enter presses', (
     tester,
   ) async {

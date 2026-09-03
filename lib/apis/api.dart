@@ -1670,6 +1670,7 @@ class Api {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    required String clientTransactionId,
     bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
@@ -1677,6 +1678,7 @@ class Api {
     final body = {
       'sells': [
         {
+          'client_transaction_id': clientTransactionId,
           'location_id': int.parse(locationId),
           'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
@@ -1725,10 +1727,15 @@ class Api {
         statusCode: response.statusCode,
       );
     }
-    if (decoded is! List || decoded.isEmpty || decoded.first is! Map) {
+    dynamic rawResult = decoded;
+    if (rawResult is Map && rawResult['data'] is Map) {
+      rawResult = rawResult['data'];
+    }
+    if (rawResult is List && rawResult.isNotEmpty) rawResult = rawResult.first;
+    if (rawResult is! Map) {
       throw const ApiException('Invalid create-sale response.');
     }
-    var result = Map<String, dynamic>.from(decoded.first as Map);
+    var result = Map<String, dynamic>.from(rawResult);
     if (result['original'] is Map) result = _map(result['original']);
     if (result['error'] != null || result['success'] == false) {
       throw ApiException(_apiMessage(result, 'Unable to create sale.'));

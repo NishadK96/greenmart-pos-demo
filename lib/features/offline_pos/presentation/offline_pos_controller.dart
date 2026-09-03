@@ -125,7 +125,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
     if (cached != null) _hydrate(cached.catalog);
   }
 
-  Future<Sale> queueCurrentSale() async {
+  Future<Sale> queueCurrentSale({String? clientTransactionId}) async {
     final current = state.value ?? await future;
     final context = current.context;
     if (context == null || !context.active) {
@@ -150,7 +150,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       );
     }
     final sale = ref.read(appStoreProvider.notifier).checkout('cash');
-    final clientId = _uuid();
+    final clientId = clientTransactionId ?? _uuid();
     final provisional =
         'OFF-${sale.createdAt.millisecondsSinceEpoch.toString().substring(5)}';
     ref

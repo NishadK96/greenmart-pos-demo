@@ -32,8 +32,15 @@ class BackendSnapshot {
 }
 
 class CreatedSale {
-  const CreatedSale({required this.id, required this.invoiceNo});
-  final String id, invoiceNo;
+  const CreatedSale({
+    required this.id,
+    required this.invoiceNo,
+    required this.invoicePdfUrl,
+    required this.idempotentReplay,
+  });
+
+  final String id, invoiceNo, invoicePdfUrl;
+  final bool idempotentReplay;
 }
 
 abstract interface class BackendRepository {
@@ -145,6 +152,7 @@ abstract interface class BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    required String clientTransactionId,
     bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,

@@ -521,6 +521,7 @@ void main() {
         paymentMethod: 'cash',
         total: 4900,
         grossDiscount: 0,
+        clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a001',
       ),
       throwsA(
         isA<ApiException>().having(
@@ -564,17 +565,66 @@ void main() {
       paymentMethod: 'cash',
       total: 4200,
       grossDiscount: 200,
+      clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a002',
     );
 
     final sale = (payload['sells'] as List).single as Map<String, dynamic>;
     final line = (sale['products'] as List).single as Map<String, dynamic>;
     expect(sale['discount_type'], 'fixed');
+    expect(
+      sale['client_transaction_id'],
+      '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a002',
+    );
     expect(sale['discount_amount'], 2);
     expect(line['unit_price'], 45.5);
     expect(line['discount_amount'], 1.5);
     expect((sale['payments'] as List).single['amount'], 42);
     expect((sale['payments'] as List).single['method'], 'cash');
   });
+
+  test(
+    'create sale accepts the idempotent backend response contract',
+    () async {
+      final api = Api(
+        client: MockClient(
+          (_) async => http.Response(
+            '{"id":145,"official_invoice_no":"INV-000145",'
+            '"invoice_pdf_url":"/connector/api/sell/145/pdf",'
+            '"idempotent_replay":true}',
+            200,
+          ),
+        ),
+      );
+      const product = Product(
+        id: '1',
+        variationId: '2',
+        name: 'Rice',
+        sku: 'SKU-1',
+        barcode: 'SKU-1',
+        categoryId: '3',
+        purchasePrice: 4000,
+        sellingPrice: 4900,
+        stock: 2,
+        minimumStock: 1,
+      );
+
+      final result = await api.createSale(
+        accessToken: 'token-123',
+        locationId: '1',
+        cashRegisterId: '27',
+        customer: const Customer(id: '1', name: 'Walk-in'),
+        lines: const [CartLine(product: product)],
+        paymentMethod: 'cash',
+        total: 4900,
+        grossDiscount: 0,
+        clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a006',
+      );
+
+      expect(result['id'], 145);
+      expect(result['official_invoice_no'], 'INV-000145');
+      expect(result['idempotent_replay'], isTrue);
+    },
+  );
 
   test(
     'card sale sends a card payment line using the connector contract',
@@ -608,6 +658,7 @@ void main() {
         paymentMethod: 'card',
         total: 4900,
         grossDiscount: 0,
+        clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a003',
       );
 
       final sale = (payload!['sells'] as List).single as Map<String, dynamic>;
@@ -647,6 +698,7 @@ void main() {
       paymentMethod: 'cash',
       total: 4655,
       grossDiscount: 245,
+      clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a004',
       grossDiscountType: 'percentage',
       grossDiscountRate: 5,
     );
@@ -691,6 +743,7 @@ void main() {
       paymentMethod: 'credit',
       total: 4900,
       grossDiscount: 0,
+      clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a005',
       isCreditSale: true,
     );
 

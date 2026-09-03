@@ -92,10 +92,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     Printer? printer,
     bool arabic = false,
   }) async {
-    final profile = sale.customer.isBusiness
-        ? 'billing-business'
-        : 'billing-retail';
-    if (sale.serverId != null && settings.usesErpTemplate(profile)) {
+    if (sale.serverId != null) {
       final file = await _authorized(
         (token) => ref
             .read(apiProvider)

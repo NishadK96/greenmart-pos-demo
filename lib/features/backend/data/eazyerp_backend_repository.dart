@@ -299,6 +299,7 @@ class EazyErpBackendRepository implements BackendRepository {
     required String paymentMethod,
     required int total,
     required int grossDiscount,
+    required String clientTransactionId,
     bool isCreditSale = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
@@ -312,13 +313,21 @@ class EazyErpBackendRepository implements BackendRepository {
       paymentMethod: paymentMethod,
       total: total,
       grossDiscount: grossDiscount,
+      clientTransactionId: clientTransactionId,
       isCreditSale: isCreditSale,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
     );
     return CreatedSale(
       id: json['id']?.toString() ?? '',
-      invoiceNo: json['invoice_no']?.toString() ?? '',
+      invoiceNo:
+          json['official_invoice_no']?.toString() ??
+          json['invoice_no']?.toString() ??
+          '',
+      invoicePdfUrl: json['invoice_pdf_url']?.toString() ?? '',
+      idempotentReplay:
+          json['idempotent_replay'] == true ||
+          json['idempotent_replay']?.toString() == '1',
     );
   }
 

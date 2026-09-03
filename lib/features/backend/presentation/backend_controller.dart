@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
 import '../../../core/network/api_provider.dart';
@@ -13,6 +15,9 @@ final backendControllerProvider =
     AsyncNotifierProvider<BackendController, void>(BackendController.new);
 
 class BackendController extends AsyncNotifier<void> {
+  String? _pendingSaleFingerprint;
+  String? _pendingClientTransactionId;
+
   @override
   Future<void> build() async {
     final token = await ref.watch(authControllerProvider.future);
@@ -208,6 +213,17 @@ class BackendController extends AsyncNotifier<void> {
           'The open cash register does not match an available business location.',
         );
       }
+      final fingerprint = _saleFingerprint(
+        state,
+        paymentMethod,
+        register.locationId,
+        register.id,
+      );
+      if (_pendingSaleFingerprint != fingerprint ||
+          _pendingClientTransactionId == null) {
+        _pendingSaleFingerprint = fingerprint;
+        _pendingClientTransactionId = _uuidV4();
+      }
       final created = await ref
           .read(backendRepositoryProvider)
           .createSale(
@@ -219,10 +235,13 @@ class BackendController extends AsyncNotifier<void> {
             paymentMethod: paymentMethod,
             total: state.cartTotal,
             grossDiscount: state.cartGrossDiscount,
+            clientTransactionId: _pendingClientTransactionId!,
             isCreditSale: paymentMethod == 'credit',
             grossDiscountType: state.grossDiscountType,
             grossDiscountRate: state.grossDiscountRate,
           );
+      _pendingSaleFingerprint = null;
+      _pendingClientTransactionId = null;
       final sale = ref
           .read(appStoreProvider.notifier)
           .checkout(
@@ -247,13 +266,48 @@ class BackendController extends AsyncNotifier<void> {
     }
   }
 
-  Future<Sale> _queueOfflineCashSale(String paymentMethod) {
+  String _saleFingerprint(
+    AppState state,
+    String paymentMethod,
+    String locationId,
+    String cashRegisterId,
+  ) => [
+    locationId,
+    cashRegisterId,
+    state.customer?.id ?? state.customers.first.id,
+    paymentMethod,
+    state.cartGrossDiscount,
+    state.grossDiscountType,
+    state.grossDiscountRate,
+    for (final line in state.cart)
+      '${line.product.id}:${line.product.variationId}:${line.quantity}:'
+          '${line.unitPrice}:${line.discount}',
+  ].join('|');
+
+  String _uuidV4() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0'));
+    final value = hex.join();
+    return '${value.substring(0, 8)}-${value.substring(8, 12)}-'
+        '${value.substring(12, 16)}-${value.substring(16, 20)}-'
+        '${value.substring(20)}';
+  }
+
+  Future<Sale> _queueOfflineCashSale(String paymentMethod) async {
     if (paymentMethod != 'cash') {
       throw const ApiException(
         'Only cash sales can be completed while offline.',
       );
     }
-    return ref.read(offlinePosControllerProvider.notifier).queueCurrentSale();
+    final sale = await ref
+        .read(offlinePosControllerProvider.notifier)
+        .queueCurrentSale(clientTransactionId: _pendingClientTransactionId);
+    _pendingSaleFingerprint = null;
+    _pendingClientTransactionId = null;
+    return sale;
   }
 
   Future<String> createSaleReturn({

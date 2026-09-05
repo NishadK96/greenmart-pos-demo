@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../apis/api.dart';
-import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
@@ -331,7 +331,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final state = ref.read(appStoreProvider);
     if (state.cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add an item before editing its price.')),
+        SnackBar(
+          content: Text(context.tr('Add an item before editing its price.')),
+        ),
       );
       return;
     }
@@ -403,7 +405,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final state = ref.read(appStoreProvider);
     if (state.cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add an item before adding a discount.')),
+        SnackBar(
+          content: Text(context.tr('Add an item before adding a discount.')),
+        ),
       );
       return;
     }
@@ -561,8 +565,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         height: 48,
         child: FilledButton.icon(
           onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Scanner input is ready through the search field.'),
+            SnackBar(
+              content: Text(
+                context.tr('Scanner input is ready through the search field.'),
+              ),
             ),
           ),
           icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
@@ -769,7 +775,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Favorite',
+                  tooltip: context.tr('Favorite'),
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints.tightFor(
@@ -792,7 +798,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   ),
                 ),
                 PopupMenuButton<String>(
-                  tooltip: 'Product actions',
+                  tooltip: context.tr('Product actions'),
                   padding: EdgeInsets.zero,
                   onSelected: (value) {
                     if (value == 'add') _addProduct(product);
@@ -917,7 +923,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               SizedBox.square(
                 dimension: 30,
                 child: IconButton(
-                  tooltip: 'Add to order',
+                  tooltip: context.tr('Add to order'),
                   padding: EdgeInsets.zero,
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -1016,8 +1022,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 Icons.point_of_sale_outlined,
                 'Open Drawer',
                 () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Cash drawer command is ready.'),
+                  SnackBar(
+                    content: Text(context.tr('Cash drawer command is ready.')),
                   ),
                 ),
               ),
@@ -1025,7 +1031,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 Icons.more_horiz_rounded,
                 'More',
                 () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('More cashier actions')),
+                  SnackBar(content: Text(context.tr('More cashier actions'))),
                 ),
               ),
             ],
@@ -1103,6 +1109,7 @@ class _RecentSalesDialog extends ConsumerStatefulWidget {
 }
 
 class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
+  bool _printing = false;
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -1160,7 +1167,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     children: [
                       if (mobile)
                         IconButton(
-                          tooltip: 'Back',
+                          tooltip: context.tr('Back'),
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.arrow_back_rounded),
                         ),
@@ -1183,18 +1190,20 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Recent Sales',
-                              style: TextStyle(
+                            Text(
+                              context.tr('Recent Sales'),
+                              style: const TextStyle(
                                 fontSize: 19,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                             if (!mobile) ...[
                               const SizedBox(height: 2),
-                              const Text(
-                                'Review completed transactions without leaving the POS.',
-                                style: TextStyle(
+                              Text(
+                                context.tr(
+                                  'Review completed transactions without leaving the POS.',
+                                ),
+                                style: const TextStyle(
                                   color: AppColors.muted,
                                   fontSize: 11,
                                 ),
@@ -1211,7 +1220,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                       ],
                       if (!mobile)
                         IconButton(
-                          tooltip: 'Close',
+                          tooltip: context.tr('Close'),
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close_rounded),
                         ),
@@ -1228,13 +1237,14 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                       autofocus: true,
                       onChanged: (value) => setState(() => _query = value),
                       decoration: InputDecoration(
-                        hintText:
-                            'Search invoice, customer, phone or payment method',
+                        hintText: context.tr(
+                          'Search invoice, customer, phone or payment method',
+                        ),
                         prefixIcon: const Icon(Icons.search_rounded, size: 21),
                         suffixIcon: _query.isEmpty
                             ? null
                             : IconButton(
-                                tooltip: 'Clear search',
+                                tooltip: context.tr('Clear search'),
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() => _query = '');
@@ -1252,9 +1262,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                 Expanded(
                   child: sales.isEmpty
                       ? EmptyState(
-                          widget.sales.isEmpty
-                              ? 'No completed sales are available yet'
-                              : 'No sales match this search',
+                          context.tr(
+                            widget.sales.isEmpty
+                                ? 'No completed sales are available yet'
+                                : 'No sales match this search',
+                          ),
                         )
                       : Scrollbar(
                           child: ListView.separated(
@@ -1279,7 +1291,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                   child: Row(
                     children: [
                       Text(
-                        query.isEmpty
+                        context.isArabic
+                            ? query.isEmpty
+                                  ? '${widget.sales.length} عملية بيع مكتملة'
+                                  : 'عرض ${sales.length} من ${widget.sales.length} مبيعات'
+                            : query.isEmpty
                             ? '${widget.sales.length} completed ${widget.sales.length == 1 ? 'sale' : 'sales'}'
                             : 'Showing ${sales.length} of ${widget.sales.length} sales',
                         style: const TextStyle(
@@ -1291,7 +1307,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                       const Spacer(),
                       OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Close'),
+                        child: Text(context.tr('Close')),
                       ),
                     ],
                   ),
@@ -1311,7 +1327,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
       borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
-      '$count sales',
+      context.isArabic ? '$count مبيعات' : '$count sales',
       style: const TextStyle(
         color: AppColors.primary,
         fontSize: 11,
@@ -1324,17 +1340,17 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 20),
     color: const Color(0xFFF6F8F7),
-    child: const Row(
+    child: Row(
       children: [
-        Expanded(flex: 2, child: _TableLabel('Invoice')),
-        Expanded(flex: 3, child: _TableLabel('Customer')),
-        Expanded(flex: 2, child: _TableLabel('Date & time')),
-        SizedBox(width: 108, child: _TableLabel('Payment')),
-        SizedBox(
+        const Expanded(flex: 2, child: _TableLabel('Invoice')),
+        const Expanded(flex: 3, child: _TableLabel('Customer')),
+        const Expanded(flex: 2, child: _TableLabel('Date & time')),
+        const SizedBox(width: 108, child: _TableLabel('Payment')),
+        const SizedBox(
           width: 105,
           child: _TableLabel('Total', textAlign: TextAlign.end),
         ),
-        SizedBox(
+        const SizedBox(
           width: 118,
           child: _TableLabel('Actions', textAlign: TextAlign.end),
         ),
@@ -1373,12 +1389,12 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   IconButton(
-                    tooltip: 'Print',
+                    tooltip: context.tr('Print'),
                     onPressed: () => _printSale(sale),
                     icon: const Icon(Icons.print_outlined, size: 20),
                   ),
                   IconButton(
-                    tooltip: 'View sale',
+                    tooltip: context.tr('View sale'),
                     onPressed: () => _showSaleDetails(sale),
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
@@ -1478,12 +1494,12 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     IconButton(
-                      tooltip: 'Print',
+                      tooltip: context.tr('Print'),
                       onPressed: () => _printSale(sale),
                       icon: const Icon(Icons.print_outlined, size: 19),
                     ),
                     IconButton(
-                      tooltip: 'View sale',
+                      tooltip: context.tr('View sale'),
                       onPressed: () => _showSaleDetails(sale),
                       icon: const Icon(Icons.visibility_outlined, size: 19),
                     ),
@@ -1505,7 +1521,9 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
       borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
-      method.trim().isEmpty ? 'Unknown' : _titleCase(method),
+      method.trim().isEmpty
+          ? context.tr('Unknown')
+          : context.tr(_titleCase(method)),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -1526,7 +1544,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     width: 34,
     child: PopupMenuButton<String>(
       padding: EdgeInsets.zero,
-      tooltip: 'Sale actions',
+      tooltip: context.tr('Sale actions'),
       onSelected: (value) async {
         if (value == 'view') {
           await _showSaleDetails(sale);
@@ -1564,7 +1582,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
             leading: Icon(Icons.assignment_return_outlined),
             title: Text(
               sale.serverId == null
-                  ? 'Return (available after sync)'
+                  ? context.tr('Return (available after sync)')
                   : context.tr('Return'),
             ),
           ),
@@ -1650,27 +1668,67 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
   );
 
   Future<void> _printSale(Sale sale) async {
+    if (_printing) return;
+    final isArabic = context.isArabic;
+    final businessName =
+        ref.read(appStoreProvider).business?.displayName(isArabic) ??
+        'GreenMart';
+    setState(() => _printing = true);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 16),
+                Flexible(
+                  child: Text(
+                    context.tr(
+                      'Preparing invoice and sending it to the printer…',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    await WidgetsBinding.instance.endOfFrame;
     final printerState = ref.read(printerControllerProvider);
+    Object? failure;
     try {
       await ref
           .read(invoiceLayoutControllerProvider.notifier)
           .printSale(
             sale: sale,
-            businessName:
-                ref
-                    .read(appStoreProvider)
-                    .business
-                    ?.displayName(context.isArabic) ??
-                'GreenMart',
+            businessName: businessName,
             settings: printerState.settings,
             printer: printerState.selectedPrinter,
-            arabic: context.isArabic,
+            arabic: isArabic,
           );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Print failed: $error')));
+      failure = error;
+    } finally {
+      navigator.pop();
+      if (mounted) setState(() => _printing = false);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
+      );
     }
   }
 
@@ -1678,7 +1736,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     final completed = await showSaleReturnDialog(context, sale);
     if (!mounted || completed != true) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sale return created successfully.')),
+      SnackBar(content: Text(context.tr('Sale return created successfully.'))),
     );
   }
 }
@@ -1691,7 +1749,7 @@ class _TableLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text.toUpperCase(),
+    context.tr(text).toUpperCase(),
     textAlign: textAlign,
     style: const TextStyle(
       color: AppColors.muted,
@@ -1769,9 +1827,9 @@ class _CartLineActionsDialogState extends State<_CartLineActionsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Use ↑ / ↓ to choose an action, then press Enter.',
-              style: TextStyle(color: AppColors.muted, fontSize: 12),
+            Text(
+              context.tr('Use ↑ / ↓ to choose an action, then press Enter.'),
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
             ),
             const SizedBox(height: 12),
             for (var index = 0; index < _actions.length; index++) ...[
@@ -1795,7 +1853,7 @@ class _CartLineActionsDialogState extends State<_CartLineActionsDialog> {
                         ? AppColors.danger
                         : AppColors.primary,
                   ),
-                  title: Text(_actions[index].label),
+                  title: Text(context.tr(_actions[index].label)),
                   trailing: index == _selectedIndex
                       ? const Icon(Icons.keyboard_return_rounded, size: 18)
                       : null,
@@ -1892,7 +1950,7 @@ class _KeyboardPaymentGridState extends State<_KeyboardPaymentGrid> {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       if (widget.options.isEmpty) {
-        return const Center(child: Text('No payment methods available.'));
+        return Center(child: Text(context.tr('No payment methods available.')));
       }
       final columns = constraints.maxWidth >= 480 ? 2 : 1;
       final selected = widget.options[_selectedIndex];
@@ -1976,9 +2034,9 @@ class _KeyboardPaymentGridState extends State<_KeyboardPaymentGrid> {
                                 ),
                               ),
                             if (isArmed)
-                              const Text(
-                                'Press Enter again to confirm',
-                                style: TextStyle(
+                              Text(
+                                context.tr('Press Enter again to confirm'),
+                                style: const TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -2566,7 +2624,7 @@ class _CurrentOrder extends ConsumerWidget {
     final remove = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Remove item?'),
+        title: Text(context.tr('Remove item?')),
         content: Text(
           'Remove ${line.product.displayName(context.isArabic)} from the order?',
         ),
@@ -2578,7 +2636,7 @@ class _CurrentOrder extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Remove'),
+            child: Text(context.tr('Remove')),
           ),
         ],
       ),
@@ -2741,7 +2799,7 @@ class _CurrentOrder extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Remove item',
+                        tooltip: context.tr('Remove item'),
                         visualDensity: VisualDensity.compact,
                         constraints: const BoxConstraints.tightFor(
                           width: 30,
@@ -2889,9 +2947,9 @@ class _CurrentOrder extends ConsumerWidget {
                 ref.read(appStoreProvider.notifier).holdCart();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: const Text('Sale held.'),
+                    content: Text(context.tr('Sale held.')),
                     action: SnackBarAction(
-                      label: 'Resume',
+                      label: context.tr('Resume'),
                       onPressed: () => ref
                           .read(appStoreProvider.notifier)
                           .resumeLastHeldCart(),
@@ -2948,7 +3006,9 @@ class _CurrentOrder extends ConsumerWidget {
             key: const ValueKey('pos-pay-keyboard-target'),
             button: true,
             selected: paySelected,
-            label: 'Pay now ${money(state.cartTotal)}',
+            label: context.isArabic
+                ? 'ادفع الآن ${money(state.cartTotal)}'
+                : 'Pay now ${money(state.cartTotal)}',
             hint: paySelected
                 ? 'Selected. Press Enter to choose a payment method.'
                 : 'Press the down arrow after the last cart item to select.',
@@ -3627,15 +3687,17 @@ class _CurrentOrder extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Select payment method',
-                                style: TextStyle(
+                              Text(
+                                context.tr('Select payment method'),
+                                style: const TextStyle(
                                   color: AppColors.muted,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               Text(
-                                'Collect ${money(state.cartTotal)}',
+                                context.isArabic
+                                    ? 'تحصيل ${money(state.cartTotal)}'
+                                    : 'Collect ${money(state.cartTotal)}',
                                 style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(fontWeight: FontWeight.w900),
                               ),
@@ -3994,7 +4056,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                 children: [
                   if (mobile)
                     IconButton(
-                      tooltip: 'Back',
+                      tooltip: context.tr('Back'),
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
@@ -4040,7 +4102,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                   ],
                   if (!mobile)
                     IconButton(
-                      tooltip: 'Close',
+                      tooltip: context.tr('Close'),
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
@@ -4062,7 +4124,7 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
-                            tooltip: 'Clear search',
+                            tooltip: context.tr('Clear search'),
                             onPressed: () {
                               _searchController.clear();
                               setState(() => _query = '');

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../apis/api.dart';
@@ -59,7 +60,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             'Reports',
             subtitle: request.kind.description,
             action: IconButton(
-              tooltip: 'Refresh',
+              tooltip: context.tr('Refresh'),
               onPressed: () => ref.invalidate(reportProvider(request)),
               icon: const Icon(Icons.refresh),
             ),
@@ -133,8 +134,8 @@ class _ReportFilters extends ConsumerWidget {
             width: 220,
             child: DropdownButtonFormField<String>(
               initialValue: request.locationId,
-              decoration: const InputDecoration(
-                labelText: 'Location',
+              decoration: InputDecoration(
+                labelText: context.tr('Location'),
                 isDense: true,
               ),
               items: [
@@ -416,13 +417,13 @@ class _Pagination extends StatelessWidget {
       Text('${result.total} records'),
       const Spacer(),
       IconButton(
-        tooltip: 'Previous page',
+        tooltip: context.tr('Previous page'),
         onPressed: result.page > 1 ? () => onChanged(result.page - 1) : null,
         icon: const Icon(Icons.chevron_left),
       ),
       Text('Page ${result.page} of ${result.lastPage}'),
       IconButton(
-        tooltip: 'Next page',
+        tooltip: context.tr('Next page'),
         onPressed: result.page < result.lastPage
             ? () => onChanged(result.page + 1)
             : null,

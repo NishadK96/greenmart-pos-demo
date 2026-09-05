@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/ui.dart';
 import '../cash_register/domain/cash_register_entities.dart';
@@ -179,7 +179,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               icon: const Icon(Icons.switch_account_outlined),
                             ),
                             IconButton(
-                              tooltip: 'Notifications',
+                              tooltip: context.tr('Notifications'),
                               onPressed: () {},
                               icon: const Icon(Icons.notifications_none),
                             ),

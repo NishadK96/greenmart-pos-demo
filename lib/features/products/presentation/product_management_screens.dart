@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:collection/collection.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../apis/api.dart';
-import '../../../core/localization/app_localizations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
@@ -251,12 +251,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   child: TextFormField(
                     controller: _sku,
                     decoration: InputDecoration(
-                      labelText: 'SKU',
-                      hintText: 'Leave blank to auto-generate',
+                      labelText: context.tr('SKU'),
+                      hintText: context.tr('Leave blank to auto-generate'),
                       suffixIcon: _sku.text.trim().isEmpty
                           ? null
                           : IconButton(
-                              tooltip: 'Check SKU availability',
+                              tooltip: context.tr('Check SKU availability'),
                               onPressed: _checkSkuAvailability,
                               icon: const Icon(Icons.fact_check_outlined),
                             ),
@@ -417,12 +417,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   child: TextFormField(
                     controller: _sku,
                     decoration: InputDecoration(
-                      labelText: 'SKU',
-                      hintText: 'Leave blank to auto-generate',
+                      labelText: context.tr('SKU'),
+                      hintText: context.tr('Leave blank to auto-generate'),
                       suffixIcon: _sku.text.trim().isEmpty
                           ? null
                           : IconButton(
-                              tooltip: 'Check SKU availability',
+                              tooltip: context.tr('Check SKU availability'),
                               onPressed: _checkSkuAvailability,
                               icon: const Icon(Icons.fact_check_outlined),
                             ),
@@ -494,7 +494,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         child: SizedBox.square(
                           dimension: 38,
                           child: IconButton.outlined(
-                            tooltip: 'Create unit of measure',
+                            tooltip: context.tr('Create unit of measure'),
                             padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
                               foregroundColor: AppColors.primary,
@@ -620,9 +620,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           minLines: 4,
           maxLines: 7,
           maxLength: 1000,
-          decoration: const InputDecoration(
-            hintText:
-                'Add product details, specifications or internal notes...',
+          decoration: InputDecoration(
+            hintText: context.tr(
+              'Add product details, specifications or internal notes...',
+            ),
           ),
         ),
       ),
@@ -1197,8 +1198,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   controller: _description,
                   minLines: 4,
                   maxLines: 7,
-                  decoration: const InputDecoration(
-                    labelText: 'Product description',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Product description'),
                     alignLabelWithHint: true,
                   ),
                 ),
@@ -1583,10 +1584,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   signed: true,
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Margin (%) — optional',
+                decoration: InputDecoration(
+                  labelText: context.tr('Margin (%) — optional'),
                   suffixText: '%',
-                  helperText: 'Leave empty to enter the selling price directly',
+                  helperText: context.tr(
+                    'Leave empty to enter the selling price directly',
+                  ),
                 ),
                 onChanged: (_) => _recalculatePrices(state),
                 validator: (value) {
@@ -1970,7 +1973,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Opening quantity'),
+              decoration: InputDecoration(
+                labelText: context.tr('Opening quantity'),
+              ),
             ),
             actions: [
               TextButton(
@@ -2087,7 +2092,7 @@ class _CreateUnitDialogState extends ConsumerState<_CreateUnitDialog> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Close',
+                      tooltip: context.tr('Close'),
                       onPressed: _saving ? null : () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded),
                     ),
@@ -2100,9 +2105,9 @@ class _CreateUnitDialogState extends ConsumerState<_CreateUnitDialog> {
                   controller: _name,
                   autofocus: true,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Unit name *',
-                    hintText: 'e.g. Kilogram, Box, Litre',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Unit name *'),
+                    hintText: context.tr('e.g. Kilogram, Box, Litre'),
                     prefixIcon: Icon(Icons.inventory_2_outlined),
                   ),
                   validator: (value) => value == null || value.trim().isEmpty
@@ -2112,9 +2117,9 @@ class _CreateUnitDialogState extends ConsumerState<_CreateUnitDialog> {
                 const SizedBox(height: 18),
                 TextFormField(
                   controller: _shortName,
-                  decoration: const InputDecoration(
-                    labelText: 'Symbol / short name *',
-                    hintText: 'e.g. kg, box, L',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Symbol / short name *'),
+                    hintText: context.tr('e.g. kg, box, L'),
                     prefixIcon: Icon(Icons.short_text_rounded),
                   ),
                   validator: (value) => value == null || value.trim().isEmpty
@@ -2284,8 +2289,8 @@ class _BulkProductUpdateScreenState
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
                     initialValue: categoryId,
-                    decoration: const InputDecoration(
-                      labelText: 'New category',
+                    decoration: InputDecoration(
+                      labelText: context.tr('New category'),
                     ),
                     items: s.categories
                         .map(
@@ -2300,8 +2305,8 @@ class _BulkProductUpdateScreenState
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: locationId,
-                    decoration: const InputDecoration(
-                      labelText: 'Business location',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Business location'),
                     ),
                     items: s.locations
                         .map(
@@ -2319,8 +2324,8 @@ class _BulkProductUpdateScreenState
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'New selling price',
+                    decoration: InputDecoration(
+                      labelText: context.tr('New selling price'),
                     ),
                   ),
                   const Spacer(),

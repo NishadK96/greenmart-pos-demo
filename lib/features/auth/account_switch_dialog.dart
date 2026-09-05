@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../apis/api.dart';
@@ -224,7 +225,7 @@ class _AccountSwitchDialogState extends ConsumerState<AccountSwitchDialog> {
                                     ),
                                   ),
                                   IconButton(
-                                    tooltip: 'Remove saved user',
+                                    tooltip: context.tr('Remove saved user'),
                                     onPressed: submitting
                                         ? null
                                         : () => _remove(item),
@@ -249,8 +250,8 @@ class _AccountSwitchDialogState extends ConsumerState<AccountSwitchDialog> {
               const SizedBox(height: 12),
               TextField(
                 controller: _username,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
+                decoration: InputDecoration(
+                  labelText: context.tr('Username'),
                   prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
@@ -260,7 +261,7 @@ class _AccountSwitchDialogState extends ConsumerState<AccountSwitchDialog> {
                 obscureText: obscure,
                 onSubmitted: (_) => _login(),
                 decoration: InputDecoration(
-                  labelText: 'Password',
+                  labelText: context.tr('Password'),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
                     onPressed: () => setState(() => obscure = !obscure),

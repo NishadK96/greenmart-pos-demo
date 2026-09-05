@@ -30,12 +30,20 @@ class PrinterDocumentService {
           onLayout: (_) async => bytes,
         );
         if (printed) return true;
-      } catch (_) {
-        // Fall through to the system dialog when direct printing is unavailable.
+        throw StateError(
+          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
+        );
+      } catch (error) {
+        if (error is StateError) rethrow;
+        throw StateError(
+          'Unable to print to ${printer.name}. Check the printer connection and try again.',
+        );
       }
     }
-    if (_usesExternalWindowsPreview) {
-      return openDesktopPdfPreview(bytes, fileName: name);
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      throw StateError(
+        'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.',
+      );
     }
     return Printing.layoutPdf(
       name: name,
@@ -793,21 +801,19 @@ class PrinterDocumentService {
               receipt(sale, businessName, settings, format, arabic: arabic),
         );
         if (printed) return true;
-      } catch (_) {
-        // Fall through to the system dialog when direct printing is unavailable.
+        throw StateError(
+          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
+        );
+      } catch (error) {
+        if (error is StateError) rethrow;
+        throw StateError(
+          'Unable to print to ${printer.name}. Check the printer connection and try again.',
+        );
       }
     }
-    if (_usesExternalWindowsPreview) {
-      final bytes = await receipt(
-        sale,
-        businessName,
-        settings,
-        format,
-        arabic: arabic,
-      );
-      return openDesktopPdfPreview(
-        bytes,
-        fileName: 'Invoice ${sale.invoiceNo}.pdf',
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      throw StateError(
+        'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.',
       );
     }
     return await printReceipt(sale, businessName, settings, arabic: arabic);

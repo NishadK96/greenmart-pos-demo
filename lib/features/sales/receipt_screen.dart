@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/localization/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
@@ -11,10 +11,18 @@ import '../zatca/presentation/zatca_screen.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
 
-class ReceiptScreen extends ConsumerWidget {
+class ReceiptScreen extends ConsumerStatefulWidget {
   const ReceiptScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReceiptScreen> createState() => _ReceiptScreenState();
+}
+
+class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
+  bool _printing = false;
+
+  @override
+  Widget build(BuildContext context) {
     final sale = ref.watch(appStoreProvider).lastSale;
     if (sale == null)
       return Scaffold(
@@ -159,41 +167,21 @@ class ReceiptScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final printerState = ref.read(
-                              printerControllerProvider,
-                            );
-                            try {
-                              await ref
-                                  .read(
-                                    invoiceLayoutControllerProvider.notifier,
-                                  )
-                                  .printSale(
-                                    sale: sale,
-                                    businessName:
-                                        ref
-                                            .read(appStoreProvider)
-                                            .business
-                                            ?.displayName(context.isArabic) ??
-                                        'GreenMart',
-                                    settings: printerState.settings,
-                                    printer: printerState.selectedPrinter,
-                                    arabic:
-                                        ref.read(localeProvider).languageCode ==
-                                        'ar',
-                                  );
-                            } catch (error) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Print failed: $error'),
+                          onPressed: _printing ? null : () => _printSale(sale),
+                          icon: _printing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
                                   ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.print_outlined),
-                          label: Text(context.tr('Print')),
+                                )
+                              : const Icon(Icons.print_outlined),
+                          label: Text(
+                            _printing
+                                ? context.tr('Sending to printer…')
+                                : context.tr('Print'),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -229,7 +217,9 @@ class ReceiptScreen extends ConsumerWidget {
                         onPressed: () =>
                             showZatcaInvoiceDialog(context, ref, sale),
                         icon: const Icon(Icons.verified_user_outlined),
-                        label: const Text('ZATCA invoice status & documents'),
+                        label: Text(
+                          context.tr('ZATCA invoice status & documents'),
+                        ),
                       ),
                     ),
                   ],
@@ -244,6 +234,37 @@ class ReceiptScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _printSale(Sale sale) async {
+    if (_printing) return;
+    final isArabic = context.isArabic;
+    final businessName =
+        ref.read(appStoreProvider).business?.displayName(isArabic) ??
+        'GreenMart';
+    setState(() => _printing = true);
+    final printerState = ref.read(printerControllerProvider);
+    Object? failure;
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: sale,
+            businessName: businessName,
+            settings: printerState.settings,
+            printer: printerState.selectedPrinter,
+            arabic: isArabic,
+          );
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
+      );
+    }
   }
 
   Widget _row(BuildContext context, String label, int value) => Padding(

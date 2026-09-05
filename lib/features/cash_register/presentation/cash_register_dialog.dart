@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
@@ -98,8 +99,8 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
       const SizedBox(height: 24),
       DropdownButtonFormField<String>(
         initialValue: locationId,
-        decoration: const InputDecoration(
-          labelText: 'Business location',
+        decoration: InputDecoration(
+          labelText: context.tr('Business location'),
           prefixIcon: Icon(Icons.storefront_outlined),
         ),
         items: locations
@@ -116,10 +117,10 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
       TextField(
         controller: openingController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Opening cash',
+        decoration: InputDecoration(
+          labelText: context.tr('Opening cash'),
           prefixIcon: Icon(Icons.payments_outlined),
-          helperText: 'Cash physically available in the drawer.',
+          helperText: context.tr('Cash physically available in the drawer.'),
         ),
       ),
       const SizedBox(height: 28),
@@ -268,7 +269,7 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Amount'),
+              decoration: InputDecoration(labelText: context.tr('Amount')),
             ),
           ],
         ),
@@ -320,7 +321,9 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(labelText: 'Actual cash *'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('Actual cash *'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -328,8 +331,8 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Actual card total',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Actual card total'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -338,15 +341,17 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Actual cheque total',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Actual cheque total'),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: note,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Closing note'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('Closing note'),
+                  ),
                 ),
               ],
             ),
@@ -442,12 +447,12 @@ class _Header extends StatelessWidget {
           ),
         ),
         IconButton(
-          tooltip: 'Refresh',
+          tooltip: context.tr('Refresh'),
           onPressed: onRefresh,
           icon: const Icon(Icons.refresh),
         ),
         IconButton(
-          tooltip: 'Close',
+          tooltip: context.tr('Close'),
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.close),
         ),

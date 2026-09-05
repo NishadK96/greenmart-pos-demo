@@ -1,7 +1,7 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/localization/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -1162,13 +1162,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   page = 0;
                 }),
                 decoration: InputDecoration(
-                  hintText: 'Search name, SKU or barcode',
+                  hintText: context.tr('Search name, SKU or barcode'),
                   prefixIcon: const Icon(Icons.search_rounded),
                   isDense: true,
                   suffixIcon: query.isEmpty
                       ? null
                       : IconButton(
-                          tooltip: 'Clear search',
+                          tooltip: context.tr('Clear search'),
                           onPressed: () => setState(() {
                             _searchController.clear();
                             query = '';
@@ -1395,8 +1395,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   Widget _categoryFilter(AppState state) => DropdownButtonFormField<String>(
     initialValue: categoryId,
     isExpanded: true,
-    decoration: const InputDecoration(
-      labelText: 'Category',
+    decoration: InputDecoration(
+      labelText: context.tr('Category'),
       prefixIcon: Icon(Icons.category_outlined, size: 19),
       isDense: true,
     ),
@@ -1417,8 +1417,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   Widget _statusFilter() => DropdownButtonFormField<String>(
     initialValue: status,
     isExpanded: true,
-    decoration: const InputDecoration(
-      labelText: 'Status',
+    decoration: InputDecoration(
+      labelText: context.tr('Status'),
       prefixIcon: Icon(Icons.flag_outlined, size: 19),
       isDense: true,
     ),
@@ -1480,7 +1480,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     end: -8,
                     top: -8,
                     child: PopupMenuButton<String>(
-                      tooltip: 'Product actions',
+                      tooltip: context.tr('Product actions'),
                       onSelected: (action) => _productAction(product, action),
                       itemBuilder: (_) => [
                         const PopupMenuItem(value: 'edit', child: Text('Edit')),
@@ -1808,7 +1808,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: TextField(
               controller: minimum,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: 'Min'),
+              decoration: InputDecoration(hintText: context.tr('Min')),
             ),
           ),
           const Padding(
@@ -1819,7 +1819,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: TextField(
               controller: maximum,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: 'Max'),
+              decoration: InputDecoration(hintText: context.tr('Max')),
             ),
           ),
         ],
@@ -1914,7 +1914,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     ),
                   ),
                   PopupMenuButton<String>(
-                    tooltip: 'Product actions',
+                    tooltip: context.tr('Product actions'),
                     padding: EdgeInsets.zero,
                     onSelected: (action) => _productAction(product, action),
                     itemBuilder: (_) => [
@@ -1962,7 +1962,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   ),
                   const SizedBox(width: 9),
                   IconButton(
-                    tooltip: 'Edit product',
+                    tooltip: context.tr('Edit product'),
                     onPressed: () =>
                         context.go('/products/edit', extra: product),
                     visualDensity: VisualDensity.compact,
@@ -2064,7 +2064,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               ),
               const Spacer(),
               IconButton(
-                tooltip: 'Previous page',
+                tooltip: context.tr('Previous page'),
                 onPressed: currentPage == 0
                     ? null
                     : () => setState(() => page = currentPage - 1),
@@ -2089,7 +2089,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 ),
               ),
               IconButton(
-                tooltip: 'Next page',
+                tooltip: context.tr('Next page'),
                 onPressed: currentPage >= totalPages - 1
                     ? null
                     : () => setState(() => page = currentPage + 1),
@@ -2305,14 +2305,16 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               TextField(
                 controller: name,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: 'English name *'),
+                decoration: InputDecoration(
+                  labelText: context.tr('English name *'),
+                ),
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: arabic,
                 textDirection: TextDirection.rtl,
-                decoration: const InputDecoration(
-                  labelText: 'Arabic name (optional)',
+                decoration: InputDecoration(
+                  labelText: context.tr('Arabic name (optional)'),
                 ),
               ),
               if (parent != null)
@@ -2400,8 +2402,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: replacementId,
-                  decoration: const InputDecoration(
-                    labelText: 'Replacement (if required)',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Replacement (if required)'),
                   ),
                   items: options
                       .map(
@@ -3237,8 +3239,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                     width: fieldWidth,
                                     child: DropdownButtonFormField<String>(
                                       initialValue: payTermType,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Payment term unit',
+                                      decoration: InputDecoration(
+                                        labelText: context.tr(
+                                          'Payment term unit',
+                                        ),
                                         prefixIcon: Icon(
                                           Icons.schedule_outlined,
                                           size: 20,
@@ -4217,8 +4221,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Min amount',
+                            decoration: InputDecoration(
+                              hintText: context.tr('Min amount'),
                             ),
                             onChanged: (value) => minimum = value,
                           ),
@@ -4233,8 +4237,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Max amount',
+                            decoration: InputDecoration(
+                              hintText: context.tr('Max amount'),
                             ),
                             onChanged: (value) => maximum = value,
                           ),
@@ -4670,7 +4674,7 @@ class _SaleReturnHistoryRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     IconButton.outlined(
-                      tooltip: 'Submit return to ZATCA',
+                      tooltip: context.tr('Submit return to ZATCA'),
                       visualDensity: VisualDensity.compact,
                       onPressed: onZatca,
                       icon: const Icon(Icons.verified_user_outlined, size: 18),

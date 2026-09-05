@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
@@ -74,7 +75,7 @@ class _ZatcaScreenState extends ConsumerState<ZatcaScreen> {
                             ),
                           ),
                           IconButton.outlined(
-                            tooltip: 'Refresh status',
+                            tooltip: context.tr('Refresh status'),
                             onPressed: () => ref
                                 .read(zatcaControllerProvider.notifier)
                                 .refreshStatus(),
@@ -409,7 +410,7 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                   controller: search,
                   onSubmitted: (_) => _reload(firstPage: true),
                   decoration: InputDecoration(
-                    hintText: 'Search invoice, customer or mobile',
+                    hintText: context.tr('Search invoice, customer or mobile'),
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: IconButton(
                       onPressed: () => _reload(firstPage: true),
@@ -422,7 +423,9 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                 width: 190,
                 child: DropdownButtonFormField<String>(
                   initialValue: status,
-                  decoration: const InputDecoration(labelText: 'ZATCA status'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('ZATCA status'),
+                  ),
                   items: const [
                     DropdownMenuItem(value: '', child: Text('All statuses')),
                     DropdownMenuItem(value: 'pending', child: Text('Pending')),
@@ -443,7 +446,7 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                 ),
               ),
               IconButton.outlined(
-                tooltip: 'Refresh',
+                tooltip: context.tr('Refresh'),
                 onPressed: _reload,
                 icon: const Icon(Icons.refresh),
               ),
@@ -551,7 +554,7 @@ class _TransactionsTabState extends ConsumerState<_TransactionsTab> {
                             '${item.customerName ?? 'Walk-in Customer'} • ${item.locationName ?? 'Location unavailable'}\n${item.transactionDate} • ${money(toPaise(item.total))}',
                           ),
                           secondary: IconButton(
-                            tooltip: 'Open ZATCA record',
+                            tooltip: context.tr('Open ZATCA record'),
                             onPressed: () => showDialog<void>(
                               context: context,
                               builder: (_) => _TransactionDialog(
@@ -732,8 +735,7 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
                     file.bytes,
                     name: file.fileName,
                     printer: printerState.selectedPrinter,
-                    previewBeforePrinting:
-                        printerState.settings.previewBeforePrinting,
+                    previewBeforePrinting: false,
                   );
                 }),
           child: const Text('Print PDF/A-3'),
@@ -898,8 +900,8 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: value.syncFrequency,
-                  decoration: const InputDecoration(
-                    labelText: 'Auto sync frequency',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Auto sync frequency'),
                   ),
                   items: const [
                     DropdownMenuItem(
@@ -1274,8 +1276,8 @@ class _OnboardingDialogState extends ConsumerState<_OnboardingDialog> {
                   _grid([
                     DropdownButtonFormField<String>(
                       initialValue: portalMode,
-                      decoration: const InputDecoration(
-                        labelText: 'Portal environment *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Portal environment *'),
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -1298,10 +1300,10 @@ class _OnboardingDialogState extends ConsumerState<_OnboardingDialog> {
                       obscureText: true,
                       keyboardType: TextInputType.number,
                       maxLength: 6,
-                      decoration: const InputDecoration(
-                        labelText: 'Fatoora OTP *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Fatoora OTP *'),
                         counterText: '',
-                        helperText: 'Used once and never stored',
+                        helperText: context.tr('Used once and never stored'),
                       ),
                       validator: (value) =>
                           RegExp(r'^\d{6}$').hasMatch(value ?? '')
@@ -1311,8 +1313,8 @@ class _OnboardingDialogState extends ConsumerState<_OnboardingDialog> {
                     TextFormField(
                       controller: fields['email'],
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Device contact email *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Device contact email *'),
                       ),
                       validator: required,
                     ),
@@ -1331,8 +1333,8 @@ class _OnboardingDialogState extends ConsumerState<_OnboardingDialog> {
                       controller: fields['vat'],
                       keyboardType: TextInputType.number,
                       maxLength: 15,
-                      decoration: const InputDecoration(
-                        labelText: 'Saudi VAT number *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Saudi VAT number *'),
                         counterText: '',
                       ),
                       validator: (value) =>
@@ -1344,8 +1346,8 @@ class _OnboardingDialogState extends ConsumerState<_OnboardingDialog> {
                     _field('crn', 'Commercial registration no.'),
                     DropdownButtonFormField<String>(
                       initialValue: invoiceType,
-                      decoration: const InputDecoration(
-                        labelText: 'Invoice type *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Invoice type *'),
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -1647,7 +1649,7 @@ class _ReturnSyncDialogState extends ConsumerState<_ReturnSyncDialog> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Close',
+                      tooltip: context.tr('Close'),
                       onPressed: working ? null : () => Navigator.pop(context),
                       icon: const Icon(Icons.close),
                     ),
@@ -1958,7 +1960,7 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Close',
+                          tooltip: context.tr('Close'),
                           onPressed: working
                               ? null
                               : () => Navigator.pop(context),
@@ -2266,7 +2268,7 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
       file.bytes,
       name: file.fileName,
       printer: printerState.selectedPrinter,
-      previewBeforePrinting: printerState.settings.previewBeforePrinting,
+      previewBeforePrinting: false,
     );
   });
 }

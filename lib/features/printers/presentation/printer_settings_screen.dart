@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
@@ -238,7 +239,7 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
               ),
             ),
             IconButton.outlined(
-              tooltip: 'Reload ERP layouts',
+              tooltip: context.tr('Reload ERP layouts'),
               onPressed: state.isLoading ? null : onRefresh,
               icon: const Icon(Icons.refresh),
             ),
@@ -256,8 +257,8 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
                   key: ValueKey(state.asData?.value?.locationId),
                   initialValue:
                       state.asData?.value?.locationId ?? locations.first.id,
-                  decoration: const InputDecoration(
-                    labelText: 'Business location',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Business location'),
                   ),
                   items: locations
                       .map(
@@ -279,7 +280,9 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   key: ValueKey(state.asData?.value?.documentType),
                   initialValue: state.asData?.value?.documentType ?? 'pos',
-                  decoration: const InputDecoration(labelText: 'Document type'),
+                  decoration: InputDecoration(
+                    labelText: context.tr('Document type'),
+                  ),
                   items: const [
                     DropdownMenuItem(value: 'pos', child: Text('POS sale')),
                     DropdownMenuItem(
@@ -567,7 +570,7 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
                     ),
                   const SizedBox(width: 8),
                   IconButton(
-                    tooltip: 'Close preview',
+                    tooltip: context.tr('Close preview'),
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close),
                   ),
@@ -984,8 +987,8 @@ class _DocumentSettings extends StatelessWidget {
                 width: 300,
                 child: DropdownButtonFormField<String>(
                   initialValue: currentPaper,
-                  decoration: const InputDecoration(
-                    labelText: 'Paper / label size',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Paper / label size'),
                   ),
                   items: papers
                       .map(
@@ -1005,9 +1008,11 @@ class _DocumentSettings extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   key: ValueKey('$key-$currentTemplate'),
                   initialValue: currentTemplate,
-                  decoration: const InputDecoration(
-                    labelText: 'Default print template',
-                    helperText: 'Used automatically for this document type',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Default print template'),
+                    helperText: context.tr(
+                      'Used automatically for this document type',
+                    ),
                   ),
                   items: templates
                       .map(
@@ -1130,13 +1135,13 @@ class _PreviewBeforePrintingToggle extends StatelessWidget {
         onChanged(settings.copyWith(previewBeforePrinting: value)),
     secondary: const Icon(Icons.preview_outlined),
     title: const Text(
-      'Preview before printing',
+      'Preview test document',
       style: TextStyle(fontWeight: FontWeight.w800),
     ),
     subtitle: Text(
       settings.previewBeforePrinting
-          ? 'Open the system print preview before printing.'
-          : 'Send documents directly to the saved default printer when supported.',
+          ? 'The Test print button opens a preview. Regular Print actions still use the saved printer directly.'
+          : 'The Test print button uses the saved printer directly.',
     ),
   );
 }

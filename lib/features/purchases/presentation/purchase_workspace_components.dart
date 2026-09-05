@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -262,11 +263,11 @@ class PurchaseToolbar extends StatelessWidget {
         onChanged: onSearchChanged,
         decoration: InputDecoration(
           prefixIcon: const Icon(Icons.search_rounded, size: 21),
-          hintText: 'Search reference, supplier or status',
+          hintText: context.tr('Search reference, supplier or status'),
           suffixIcon: search.isEmpty
               ? null
               : IconButton(
-                  tooltip: 'Clear search',
+                  tooltip: context.tr('Clear search'),
                   onPressed: onClear,
                   icon: const Icon(Icons.close, size: 18),
                 ),
@@ -281,14 +282,14 @@ class PurchaseToolbar extends StatelessWidget {
               isLabelVisible: hasActiveFilters,
               smallSize: 8,
               child: IconButton.outlined(
-                tooltip: 'Filters',
+                tooltip: context.tr('Filters'),
                 onPressed: () => _showFilters(context),
                 icon: const Icon(Icons.tune_rounded),
               ),
             ),
             const SizedBox(width: 6),
             IconButton.outlined(
-              tooltip: 'Refresh purchases',
+              tooltip: context.tr('Refresh purchases'),
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh_rounded),
             ),
@@ -323,7 +324,7 @@ class PurchaseToolbar extends StatelessWidget {
           ],
           const SizedBox(width: 6),
           IconButton.outlined(
-            tooltip: 'Refresh purchases',
+            tooltip: context.tr('Refresh purchases'),
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh_rounded),
           ),
@@ -884,7 +885,7 @@ class PurchasePagination extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               IconButton(
-                tooltip: 'Previous page',
+                tooltip: context.tr('Previous page'),
                 onPressed: page > 0 ? () => onPageChanged(page - 1) : null,
                 icon: const Icon(Icons.chevron_left_rounded),
               ),
@@ -906,7 +907,7 @@ class PurchasePagination extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'Next page',
+                tooltip: context.tr('Next page'),
                 onPressed: page + 1 < pages
                     ? () => onPageChanged(page + 1)
                     : null,

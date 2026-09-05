@@ -18,6 +18,7 @@ final invoiceLayoutControllerProvider =
 class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   String _locationId = '';
   String _documentType = 'pos';
+  final Map<String, ErpInvoicePdf> _salePdfCache = {};
 
   @override
   Future<ErpInvoiceLayoutCatalog?> build() async {
@@ -63,6 +64,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
               documentType: _documentType,
             ),
       );
+      _salePdfCache.clear();
       state = AsyncData(catalog);
     } catch (error, stackTrace) {
       state = previous == null
@@ -93,22 +95,29 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     bool arabic = false,
   }) async {
     if (sale.serverId != null) {
-      final file = await _authorized(
-        (token) => ref
-            .read(apiProvider)
-            .finalizedSaleInvoicePdf(token, sale.serverId!),
-      );
+      final saleId = sale.serverId!;
+      final cachedFile = _salePdfCache[saleId];
+      late final ErpInvoicePdf file;
+      if (cachedFile == null) {
+        file = await _authorized<ErpInvoicePdf>(
+          (token) =>
+              ref.read(apiProvider).finalizedSaleInvoicePdf(token, saleId),
+        );
+        _salePdfCache[saleId] = file;
+      } else {
+        file = cachedFile;
+      }
       return PrinterDocumentService.printPdfBytes(
         file.bytes,
         name: file.fileName,
         printer: printer,
-        previewBeforePrinting: settings.previewBeforePrinting,
+        previewBeforePrinting: false,
       );
     }
     return PrinterDocumentService.printReceiptTo(
       sale,
       businessName,
-      settings,
+      settings.copyWith(previewBeforePrinting: false),
       printer: printer,
       arabic: arabic,
     );

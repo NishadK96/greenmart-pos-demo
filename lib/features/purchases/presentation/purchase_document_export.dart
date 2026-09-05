@@ -212,7 +212,7 @@ Future<void> printPurchaseOrder(
     name: '${document.reference}.pdf',
     printer: printerState.selectedPrinter,
     format: PdfPageFormat.a4,
-    previewBeforePrinting: printerState.settings.previewBeforePrinting,
+    previewBeforePrinting: false,
   );
 }
 

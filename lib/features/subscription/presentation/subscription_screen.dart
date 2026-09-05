@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../apis/api.dart';
@@ -32,7 +33,7 @@ class SubscriptionScreen extends ConsumerWidget {
             'Subscription & users',
             subtitle: 'Review your package and login-user allowance.',
             action: IconButton(
-              tooltip: 'Refresh',
+              tooltip: context.tr('Refresh'),
               onPressed: () => ref.invalidate(subscriptionSummaryProvider),
               icon: const Icon(Icons.refresh),
             ),

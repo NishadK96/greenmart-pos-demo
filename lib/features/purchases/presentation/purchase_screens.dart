@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:retailflow_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/localization/app_localizations.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
@@ -255,7 +255,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen>
     PurchaseDocument document,
     PurchaseWorkspaceState workspace,
   ) => PopupMenuButton<String>(
-    tooltip: 'Purchase actions',
+    tooltip: context.tr('Purchase actions'),
     icon: const Icon(Icons.more_vert_rounded),
     onSelected: (action) async {
       if (action == 'view') _showDetail(document);
@@ -623,8 +623,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                                 _valid(supplierId, suppliers.map((e) => e.id))
                                 ? supplierId
                                 : null,
-                            decoration: const InputDecoration(
-                              labelText: 'Supplier *',
+                            decoration: InputDecoration(
+                              labelText: context.tr('Supplier *'),
                             ),
                             items: suppliers
                                 .map(
@@ -644,7 +644,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         ),
                         const SizedBox(width: 6),
                         IconButton.filledTonal(
-                          tooltip: 'Add supplier',
+                          tooltip: context.tr('Add supplier'),
                           onPressed: _addSupplier,
                           icon: const Icon(Icons.person_add_alt_1_outlined),
                         ),
@@ -657,8 +657,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                           _valid(locationId, app.locations.map((e) => e.id))
                           ? locationId
                           : null,
-                      decoration: const InputDecoration(
-                        labelText: 'Business location *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Business location *'),
                       ),
                       items: app.locations
                           .map(
@@ -676,9 +676,9 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   _field(
                     TextFormField(
                       controller: reference,
-                      decoration: const InputDecoration(
-                        labelText: 'Reference number',
-                        hintText: 'Auto-generated if empty',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Reference number'),
+                        hintText: context.tr('Auto-generated if empty'),
                       ),
                     ),
                   ),
@@ -694,8 +694,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         if (value != null) setState(() => date = value);
                       },
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Date *',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Date *'),
                           suffixIcon: Icon(Icons.calendar_today_outlined),
                         ),
                         child: Text(
@@ -710,7 +710,9 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                       initialValue: _valid(status, _statuses(widget.type))
                           ? status
                           : null,
-                      decoration: const InputDecoration(labelText: 'Status *'),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Status *'),
+                      ),
                       items: _statuses(widget.type)
                           .map(
                             (item) => DropdownMenuItem(
@@ -726,8 +728,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                     _field(
                       DropdownButtonFormField<String>(
                         initialValue: shippingStatus,
-                        decoration: const InputDecoration(
-                          labelText: 'Shipping status',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Shipping status'),
                         ),
                         items:
                             const [
@@ -753,8 +755,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Exchange rate',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Exchange rate'),
                       ),
                       validator: (value) =>
                           (double.tryParse(value ?? '') ?? 0) <= 0
@@ -769,8 +771,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                           child: TextFormField(
                             controller: payTermNumber,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Pay term',
+                            decoration: InputDecoration(
+                              labelText: context.tr('Pay term'),
                             ),
                           ),
                         ),
@@ -810,8 +812,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         }
                       },
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Expected delivery',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Expected delivery'),
                           suffixIcon: Icon(Icons.event_available_outlined),
                         ),
                         child: Text(
@@ -828,7 +830,9 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                     child: TextFormField(
                       controller: notes,
                       maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Notes'),
+                      decoration: InputDecoration(
+                        labelText: context.tr('Notes'),
+                      ),
                     ),
                   ),
                 ],
@@ -856,9 +860,11 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         TextField(
                           controller: controller,
                           focusNode: focus,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             prefixIcon: Icon(Icons.search),
-                            labelText: 'Search and add product by name or SKU',
+                            labelText: context.tr(
+                              'Search and add product by name or SKU',
+                            ),
                           ),
                         ),
                   ),
@@ -885,8 +891,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   _field(
                     DropdownButtonFormField<String>(
                       initialValue: discountType,
-                      decoration: const InputDecoration(
-                        labelText: 'Discount type',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Discount type'),
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -908,8 +914,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Discount amount',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Discount amount'),
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
@@ -917,8 +923,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   _field(
                     DropdownButtonFormField<String?>(
                       initialValue: taxId,
-                      decoration: const InputDecoration(
-                        labelText: 'Purchase tax',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Purchase tax'),
                       ),
                       items: [
                         const DropdownMenuItem<String?>(
@@ -952,8 +958,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         width: 584,
                         child: TextFormField(
                           controller: shippingDetails,
-                          decoration: const InputDecoration(
-                            labelText: 'Shipping details',
+                          decoration: InputDecoration(
+                            labelText: context.tr('Shipping details'),
                           ),
                         ),
                       ),
@@ -963,8 +969,10 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          decoration: const InputDecoration(
-                            labelText: 'Additional shipping charges',
+                          decoration: InputDecoration(
+                            labelText: context.tr(
+                              'Additional shipping charges',
+                            ),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -994,8 +1002,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                                   const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
-                              decoration: const InputDecoration(
-                                labelText: 'Amount',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Amount'),
                               ),
                               onChanged: (_) => setState(() {}),
                             ),
@@ -1021,14 +1029,16 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        decoration: const InputDecoration(labelText: 'Amount'),
+                        decoration: InputDecoration(
+                          labelText: context.tr('Amount'),
+                        ),
                       ),
                     ),
                     _field(
                       DropdownButtonFormField<String>(
                         initialValue: paymentMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment method',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Payment method'),
                         ),
                         items: app.checkoutPaymentOptions
                             .map(
@@ -1044,8 +1054,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                     _field(
                       DropdownButtonFormField<String?>(
                         initialValue: paymentAccountId,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment account',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Payment account'),
                         ),
                         items: [
                           const DropdownMenuItem<String?>(
@@ -1066,8 +1076,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                       width: 584,
                       child: TextFormField(
                         controller: paymentNote,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment note',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Payment note'),
                         ),
                       ),
                     ),
@@ -1172,7 +1182,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
     child: Row(
       children: [
         IconButton(
-          tooltip: 'Back to purchases',
+          tooltip: context.tr('Back to purchases'),
           onPressed: saving ? null : () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
         ),
@@ -1252,8 +1262,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                             _valid(supplierId, suppliers.map((e) => e.id))
                             ? supplierId
                             : null,
-                        decoration: const InputDecoration(
-                          labelText: 'Supplier *',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Supplier *'),
                         ),
                         items: suppliers
                             .map(
@@ -1285,8 +1295,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                         _valid(locationId, app.locations.map((e) => e.id))
                         ? locationId
                         : null,
-                    decoration: const InputDecoration(
-                      labelText: 'Business location *',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Business location *'),
                     ),
                     items: app.locations
                         .map(
@@ -1306,9 +1316,9 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   width: fieldWidth,
                   child: TextFormField(
                     controller: reference,
-                    decoration: const InputDecoration(
-                      labelText: 'Reference number',
-                      hintText: 'e.g. PO-2026-00124',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Reference number'),
+                      hintText: context.tr('e.g. PO-2026-00124'),
                     ),
                   ),
                 ),
@@ -1316,8 +1326,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   width: fieldWidth,
                   child: DropdownButtonFormField<String>(
                     initialValue: status,
-                    decoration: const InputDecoration(
-                      labelText: 'Order status *',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Order status *'),
                     ),
                     items: _statuses(widget.type)
                         .map(
@@ -1334,8 +1344,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   width: fieldWidth,
                   child: DropdownButtonFormField<String>(
                     initialValue: shippingStatus,
-                    decoration: const InputDecoration(
-                      labelText: 'Shipping status',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Shipping status'),
                     ),
                     items:
                         const [
@@ -1365,8 +1375,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Exchange rate',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Exchange rate'),
                     ),
                     validator: (value) =>
                         (double.tryParse(value ?? '') ?? 0) <= 0
@@ -1409,9 +1419,11 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
               fieldViewBuilder: (_, controller, focus, submit) => TextField(
                 controller: controller,
                 focusNode: focus,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   prefixIcon: Icon(Icons.search_rounded),
-                  hintText: 'Search products by name, SKU or barcode',
+                  hintText: context.tr(
+                    'Search products by name, SKU or barcode',
+                  ),
                 ),
               ),
             ),
@@ -1493,9 +1505,10 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           minLines: 3,
           maxLines: 5,
           maxLength: 500,
-          decoration: const InputDecoration(
-            hintText:
-                'Add supplier instructions, delivery notes, or internal comments...',
+          decoration: InputDecoration(
+            hintText: context.tr(
+              'Add supplier instructions, delivery notes, or internal comments...',
+            ),
           ),
         ),
       ),
@@ -1554,13 +1567,15 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Amount'),
+              decoration: InputDecoration(labelText: context.tr('Amount')),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String?>(
               initialValue: taxId,
-              decoration: const InputDecoration(labelText: 'Purchase tax'),
+              decoration: InputDecoration(
+                labelText: context.tr('Purchase tax'),
+              ),
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
@@ -1616,8 +1631,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
               children: [
                 TextFormField(
                   controller: shippingDetails,
-                  decoration: const InputDecoration(
-                    labelText: 'Shipping details',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Shipping details'),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1626,8 +1641,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Shipping charges',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Shipping charges'),
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -1651,8 +1666,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          decoration: const InputDecoration(
-                            labelText: 'Amount',
+                          decoration: InputDecoration(
+                            labelText: context.tr('Amount'),
                           ),
                           onChanged: (_) => setState(() {}),
                         ),
@@ -1679,8 +1694,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
       if (value != null) setState(() => date = value);
     },
     child: InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Order date *',
+      decoration: InputDecoration(
+        labelText: context.tr('Order date *'),
         suffixIcon: Icon(Icons.calendar_today_outlined),
       ),
       child: Text(DateFormat.yMMMd().format(date)),
@@ -1698,8 +1713,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
       if (value != null) setState(() => deliveryDate = value);
     },
     child: InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Expected delivery',
+      decoration: InputDecoration(
+        labelText: context.tr('Expected delivery'),
         suffixIcon: Icon(Icons.calendar_today_outlined),
       ),
       child: Text(
@@ -1716,7 +1731,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
         child: TextFormField(
           controller: payTermNumber,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Payment term'),
+          decoration: InputDecoration(labelText: context.tr('Payment term')),
           onChanged: (_) => setState(() {}),
         ),
       ),
@@ -1863,7 +1878,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           child: TextFormField(
             initialValue: _compact(line.quantity),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Quantity'),
+            decoration: InputDecoration(labelText: context.tr('Quantity')),
             onChanged: (v) => _replace(index, quantity: double.tryParse(v)),
           ),
         ),
@@ -1873,7 +1888,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           child: TextFormField(
             initialValue: (line.unitCost / 100).toStringAsFixed(2),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Unit cost'),
+            decoration: InputDecoration(labelText: context.tr('Unit cost')),
             onChanged: (v) =>
                 _replace(index, unitCost: (double.tryParse(v) ?? 0) * 100),
           ),
@@ -1884,7 +1899,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           child: TextFormField(
             initialValue: _compact(line.discountPercent),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Discount %'),
+            decoration: InputDecoration(labelText: context.tr('Discount %')),
             onChanged: (v) =>
                 _replace(index, discountPercent: double.tryParse(v)),
           ),
@@ -2059,7 +2074,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Close',
+                          tooltip: context.tr('Close'),
                           onPressed: () => Navigator.pop(dialogContext),
                           icon: const Icon(Icons.close_rounded, size: 30),
                         ),
@@ -2180,7 +2195,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                                     const SizedBox(height: 8),
                                     DropdownButtonFormField<String>(
                                       initialValue: termType,
-                                      decoration: const InputDecoration(
+                                      decoration: InputDecoration(
                                         prefixIcon: Icon(
                                           Icons.calendar_today_outlined,
                                         ),

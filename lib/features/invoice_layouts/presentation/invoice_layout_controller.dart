@@ -111,14 +111,42 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
         file.bytes,
         name: file.fileName,
         printer: printer,
-        previewBeforePrinting: false,
       );
     }
     return PrinterDocumentService.printReceiptTo(
       sale,
       businessName,
-      settings.copyWith(previewBeforePrinting: false),
+      settings,
       printer: printer,
+      arabic: arabic,
+    );
+  }
+
+  Future<bool> previewSale({
+    required Sale sale,
+    required String businessName,
+    required PrinterSettings settings,
+    bool arabic = false,
+  }) async {
+    if (sale.serverId != null) {
+      final saleId = sale.serverId!;
+      final cachedFile = _salePdfCache[saleId];
+      final file =
+          cachedFile ??
+          await _authorized<ErpInvoicePdf>(
+            (token) =>
+                ref.read(apiProvider).finalizedSaleInvoicePdf(token, saleId),
+          );
+      _salePdfCache[saleId] = file;
+      return PrinterDocumentService.previewPdfBytes(
+        file.bytes,
+        name: file.fileName,
+      );
+    }
+    return PrinterDocumentService.previewReceipt(
+      sale,
+      businessName,
+      settings,
       arabic: arabic,
     );
   }

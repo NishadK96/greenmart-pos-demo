@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/features/reports/domain/report_models.dart';
+import 'package:eazy_pos/features/reports/domain/report_models.dart';
 
 void main() {
   test('sales report maps pagination, summary and trends', () {

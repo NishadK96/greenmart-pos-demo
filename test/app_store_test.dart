@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/features/store/app_store.dart';
-import 'package:retailflow_pos/shared/models/entities.dart';
+import 'package:eazy_pos/features/store/app_store.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
   test('checkout payment options exclude custom payment slots', () {

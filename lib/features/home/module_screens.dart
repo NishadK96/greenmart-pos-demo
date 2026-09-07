@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -4321,14 +4321,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Future<void> _exportSales(List<Sale> sales) async {
-    final document = pw.Document(title: 'GreenMart Sales History');
+    final document = pw.Document(title: 'Eazy POS Sales History');
     final theme = await PdfFonts.arabicTheme();
     document.addPage(
       pw.MultiPage(
         theme: theme,
         build: (_) => [
           pw.Text(
-            'GreenMart - Sales History',
+            'Eazy POS - Sales History',
             style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 18),
@@ -4361,7 +4361,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     );
     await Printing.sharePdf(
       bytes: await document.save(),
-      filename: 'greenmart-sales-history.pdf',
+      filename: 'eazy_pos-sales-history.pdf',
     );
   }
 
@@ -4431,6 +4431,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       ),
       actions: [
         OutlinedButton.icon(
+          onPressed: () async {
+            try {
+              await ref
+                  .read(invoiceLayoutControllerProvider.notifier)
+                  .previewSale(
+                    sale: sale,
+                    businessName:
+                        ref
+                            .read(appStoreProvider)
+                            .business
+                            ?.displayName(context.isArabic) ??
+                        'Eazy POS',
+                    settings: ref.read(printerControllerProvider).settings,
+                    arabic: ref.read(localeProvider).languageCode == 'ar',
+                  );
+            } catch (error) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Preview failed: $error')),
+                );
+              }
+            }
+          },
+          icon: const Icon(Icons.preview_outlined),
+          label: Text(context.tr('Preview')),
+        ),
+        OutlinedButton.icon(
           onPressed:
               sale.serverId == null ||
                   sale.items.every(
@@ -4472,7 +4499,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             .read(appStoreProvider)
                             .business
                             ?.displayName(context.isArabic) ??
-                        'GreenMart',
+                        'Eazy POS',
                     settings: printerState.settings,
                     printer: printerState.selectedPrinter,
                     arabic: ref.read(localeProvider).languageCode == 'ar',

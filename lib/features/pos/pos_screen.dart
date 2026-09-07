@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1389,6 +1389,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   IconButton(
+                    tooltip: context.tr('Preview'),
+                    onPressed: () => _previewSale(sale),
+                    icon: const Icon(Icons.preview_outlined, size: 20),
+                  ),
+                  IconButton(
                     tooltip: context.tr('Print'),
                     onPressed: () => _printSale(sale),
                     icon: const Icon(Icons.print_outlined, size: 20),
@@ -1489,10 +1494,15 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                 ),
               ),
               SizedBox(
-                width: 118,
+                width: 152,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    IconButton(
+                      tooltip: context.tr('Preview'),
+                      onPressed: () => _previewSale(sale),
+                      icon: const Icon(Icons.preview_outlined, size: 19),
+                    ),
                     IconButton(
                       tooltip: context.tr('Print'),
                       onPressed: () => _printSale(sale),
@@ -1548,6 +1558,8 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
       onSelected: (value) async {
         if (value == 'view') {
           await _showSaleDetails(sale);
+        } else if (value == 'preview') {
+          await _previewSale(sale);
         } else if (value == 'print') {
           await _printSale(sale);
         } else if (value == 'return') {
@@ -1562,6 +1574,15 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.visibility_outlined),
             title: Text(context.tr('View sale')),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'preview',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.preview_outlined),
+            title: Text(context.tr('Preview')),
           ),
         ),
         PopupMenuItem(
@@ -1645,6 +1666,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
       ),
       actions: [
         OutlinedButton.icon(
+          onPressed: () => _previewSale(sale),
+          icon: const Icon(Icons.preview_outlined),
+          label: Text(context.tr('Preview')),
+        ),
+        OutlinedButton.icon(
           onPressed: () => _printSale(sale),
           icon: const Icon(Icons.print_outlined),
           label: Text(context.tr('Print')),
@@ -1672,7 +1698,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     final isArabic = context.isArabic;
     final businessName =
         ref.read(appStoreProvider).business?.displayName(isArabic) ??
-        'GreenMart';
+        'Eazy POS';
     setState(() => _printing = true);
     final navigator = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
@@ -1728,6 +1754,35 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     if (failure != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
+      );
+    }
+  }
+
+  Future<void> _previewSale(Sale sale) async {
+    if (_printing) return;
+    final isArabic = context.isArabic;
+    final businessName =
+        ref.read(appStoreProvider).business?.displayName(isArabic) ??
+        'Eazy POS';
+    setState(() => _printing = true);
+    Object? failure;
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .previewSale(
+            sale: sale,
+            businessName: businessName,
+            settings: ref.read(printerControllerProvider).settings,
+            arabic: isArabic,
+          );
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
       );
     }
   }

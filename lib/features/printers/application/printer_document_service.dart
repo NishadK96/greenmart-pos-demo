@@ -9,24 +9,34 @@ import '../../offline_pos/domain/provisional_receipt_qr.dart';
 import '../../../core/utils/pdf_fonts.dart';
 
 class PrinterDocumentService {
+  static Future<bool> previewPdfBytes(
+    Uint8List bytes, {
+    required String name,
+    PdfPageFormat format = PdfPageFormat.a4,
+  }) {
+    if (_usesExternalWindowsPreview) {
+      return openDesktopPdfPreview(bytes, fileName: name);
+    }
+    return Printing.layoutPdf(
+      name: name,
+      format: format,
+      onLayout: (_) async => bytes,
+    );
+  }
+
   static Future<bool> printPdfBytes(
     Uint8List bytes, {
     required String name,
     Printer? printer,
     PdfPageFormat format = PdfPageFormat.a4,
-    bool previewBeforePrinting = false,
   }) async {
-    if (_usesExternalWindowsPreview && previewBeforePrinting) {
-      return openDesktopPdfPreview(bytes, fileName: name);
-    }
-    if (!previewBeforePrinting &&
-        printer != null &&
-        printer.url != 'system-print-dialog') {
+    if (printer != null && printer.url != 'system-print-dialog') {
       try {
         final printed = await Printing.directPrintPdf(
           printer: printer,
           name: name,
           format: format,
+          usePrinterSettings: _usesExternalWindowsPreview,
           onLayout: (_) async => bytes,
         );
         if (printed) return true;
@@ -87,7 +97,7 @@ class PrinterDocumentService {
             children: [
               if (settings.showStoreName)
                 pw.Text(
-                  'GREENMART',
+                  'EAZY POS',
                   style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                 ),
               pw.Text('Sample Product', maxLines: 1),
@@ -193,7 +203,7 @@ class PrinterDocumentService {
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    pw.Text('Supplier: GREENMART'),
+                    pw.Text('Supplier: EAZY POS'),
                     pw.Text('VAT number: 300000000000003'),
                   ],
                 ),
@@ -201,7 +211,7 @@ class PrinterDocumentService {
               pw.SizedBox(height: 8),
             ],
             pw.Text(
-              'GREENMART',
+              'EAZY POS',
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
@@ -252,7 +262,7 @@ class PrinterDocumentService {
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           pw.Text(
-            'GREENMART',
+            'EAZY POS',
             textAlign: pw.TextAlign.center,
             style: pw.TextStyle(fontSize: 17, fontWeight: pw.FontWeight.bold),
           ),
@@ -290,7 +300,7 @@ class PrinterDocumentService {
           pw.Center(
             child: pw.BarcodeWidget(
               barcode: pw.Barcode.qrCode(),
-              data: 'GREENMART|TEST-0001|129.15|6.15',
+              data: 'EAZY POS|TEST-0001|129.15|6.15',
               width: 66,
               height: 66,
             ),
@@ -327,7 +337,7 @@ class PrinterDocumentService {
                   ),
                   PdfFonts.text('فاتورة ضريبية تفصيلية'),
                   pw.SizedBox(height: 5),
-                  pw.Text('GREENMART'),
+                  pw.Text('EAZY POS'),
                   pw.Text('VAT: 300000000000003'),
                 ],
               ),
@@ -701,7 +711,7 @@ class PrinterDocumentService {
 
   static Future<bool> printSample(PrinterSettings settings) =>
       Printing.layoutPdf(
-        name: 'GreenMart ${settings.profileKey} test',
+        name: 'Eazy POS ${settings.profileKey} test',
         format: formatFor(settings.paperSizes[settings.profileKey] ?? '80mm'),
         onLayout: (format) => sample(settings, format),
       );
@@ -713,36 +723,44 @@ class PrinterDocumentService {
     final format = formatFor(
       settings.paperSizes[settings.profileKey] ?? '80mm',
     );
-    if (_usesExternalWindowsPreview && settings.previewBeforePrinting) {
-      final bytes = await sample(settings, format);
-      return openDesktopPdfPreview(
-        bytes,
-        fileName: 'GreenMart ${settings.profileKey} test.pdf',
-      );
-    }
-    if (!settings.previewBeforePrinting &&
-        printer != null &&
-        printer.url != 'system-print-dialog') {
+    if (printer != null && printer.url != 'system-print-dialog') {
       try {
         final printed = await Printing.directPrintPdf(
           printer: printer,
-          name: 'GreenMart ${settings.profileKey} test',
+          name: 'Eazy POS ${settings.profileKey} test',
           format: format,
+          usePrinterSettings: _usesExternalWindowsPreview,
           onLayout: (requested) => sample(settings, requested),
         );
         if (printed) return true;
-      } catch (_) {
-        // Fall through to the system dialog when direct printing is unavailable.
+        throw StateError(
+          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
+        );
+      } catch (error) {
+        if (error is StateError) rethrow;
+        throw StateError(
+          'Unable to print to ${printer.name}. Check the printer connection and try again.',
+        );
       }
     }
-    if (_usesExternalWindowsPreview) {
-      final bytes = await sample(settings, format);
-      return openDesktopPdfPreview(
-        bytes,
-        fileName: 'GreenMart ${settings.profileKey} test.pdf',
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      throw StateError(
+        'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.',
       );
     }
     return await printSample(settings);
+  }
+
+  static Future<bool> previewSample(PrinterSettings settings) async {
+    final format = formatFor(
+      settings.paperSizes[settings.profileKey] ?? '80mm',
+    );
+    final bytes = await sample(settings, format);
+    return previewPdfBytes(
+      bytes,
+      name: 'Eazy POS ${settings.profileKey} test.pdf',
+      format: format,
+    );
   }
 
   static Future<bool> printReceipt(
@@ -776,27 +794,13 @@ class PrinterDocumentService {
         ? 'billing-business'
         : 'billing-retail';
     final format = formatFor(settings.paperSizes[profile] ?? '80mm');
-    if (_usesExternalWindowsPreview && settings.previewBeforePrinting) {
-      final bytes = await receipt(
-        sale,
-        businessName,
-        settings,
-        format,
-        arabic: arabic,
-      );
-      return openDesktopPdfPreview(
-        bytes,
-        fileName: 'Invoice ${sale.invoiceNo}.pdf',
-      );
-    }
-    if (!settings.previewBeforePrinting &&
-        printer != null &&
-        printer.url != 'system-print-dialog') {
+    if (printer != null && printer.url != 'system-print-dialog') {
       try {
         final printed = await Printing.directPrintPdf(
           printer: printer,
           name: 'Invoice ${sale.invoiceNo}',
           format: format,
+          usePrinterSettings: _usesExternalWindowsPreview,
           onLayout: (format) =>
               receipt(sale, businessName, settings, format, arabic: arabic),
         );
@@ -817,6 +821,30 @@ class PrinterDocumentService {
       );
     }
     return await printReceipt(sale, businessName, settings, arabic: arabic);
+  }
+
+  static Future<bool> previewReceipt(
+    Sale sale,
+    String businessName,
+    PrinterSettings settings, {
+    bool arabic = false,
+  }) async {
+    final profile = sale.customer.isBusiness
+        ? 'billing-business'
+        : 'billing-retail';
+    final format = formatFor(settings.paperSizes[profile] ?? '80mm');
+    final bytes = await receipt(
+      sale,
+      businessName,
+      settings,
+      format,
+      arabic: arabic,
+    );
+    return previewPdfBytes(
+      bytes,
+      name: 'Invoice ${sale.invoiceNo}.pdf',
+      format: format,
+    );
   }
 
   static bool get _usesExternalWindowsPreview =>

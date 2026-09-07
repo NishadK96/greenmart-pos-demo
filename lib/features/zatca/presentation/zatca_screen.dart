@@ -1,6 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
@@ -697,6 +697,20 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
           onPressed: busy
               ? null
               : () => _run((controller) async {
+                  final file = await controller.downloadReturnPdf(
+                    widget.item.id,
+                  );
+                  await PrinterDocumentService.previewPdfBytes(
+                    file.bytes,
+                    name: file.fileName,
+                  );
+                }),
+          child: const Text('Preview PDF/A-3'),
+        ),
+        OutlinedButton(
+          onPressed: busy
+              ? null
+              : () => _run((controller) async {
                   final qr = await controller.returnQr(widget.item.id);
                   if (context.mounted)
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -735,7 +749,6 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
                     file.bytes,
                     name: file.fileName,
                     printer: printerState.selectedPrinter,
-                    previewBeforePrinting: false,
                   );
                 }),
           child: const Text('Print PDF/A-3'),
@@ -2092,11 +2105,18 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
                                   : _downloadXml,
                             ),
                             _documentButton(
-                              icon: Icons.picture_as_pdf_outlined,
-                              label: 'Download PDF/A-3',
+                              icon: Icons.preview_outlined,
+                              label: 'Preview PDF/A-3',
                               onPressed: document == null || working
                                   ? null
-                                  : _downloadPdf,
+                                  : _previewPdf,
+                            ),
+                            _documentButton(
+                              icon: Icons.print_outlined,
+                              label: 'Print PDF/A-3',
+                              onPressed: document == null || working
+                                  ? null
+                                  : _printPdf,
                             ),
                           ],
                         ),
@@ -2259,7 +2279,16 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
       bytes: file.bytes,
     );
   });
-  Future<void> _downloadPdf() => _run(() async {
+  Future<void> _previewPdf() => _run(() async {
+    final file = await ref
+        .read(zatcaControllerProvider.notifier)
+        .downloadPdf(widget.sale.serverId!);
+    await PrinterDocumentService.previewPdfBytes(
+      file.bytes,
+      name: file.fileName,
+    );
+  });
+  Future<void> _printPdf() => _run(() async {
     final file = await ref
         .read(zatcaControllerProvider.notifier)
         .downloadPdf(widget.sale.serverId!);
@@ -2268,7 +2297,6 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
       file.bytes,
       name: file.fileName,
       printer: printerState.selectedPrinter,
-      previewBeforePrinting: false,
     );
   });
 }

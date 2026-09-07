@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../apis/api.dart';

@@ -2,7 +2,7 @@ import 'dart:convert';
 import '../../../shared/models/entities.dart';
 
 String provisionalReceiptQrData(Sale sale, String businessName) => jsonEncode({
-  'type': 'retailflow_offline_provisional_receipt',
+  'type': 'eazy_pos_offline_provisional_receipt',
   'reference': sale.invoiceNo,
   'seller': businessName,
   'issued_at': sale.createdAt.toUtc().toIso8601String(),

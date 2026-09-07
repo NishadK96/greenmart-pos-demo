@@ -116,6 +116,8 @@ const Map<String, String> _ar = {
   'Partially received': 'مستلم جزئياً',
   'Percentage': 'نسبة مئوية',
   'Preview': 'معاينة',
+  'Preview test': 'معاينة تجريبية',
+  'Preview failed': 'فشلت المعاينة',
   'Price': 'السعر',
   'Purchase cost': 'تكلفة الشراء',
   'Qty': 'الكمية',
@@ -300,7 +302,7 @@ const Map<String, String> _ar = {
   'Product deleted.': 'تم حذف المنتج.',
   'Fields marked required are used to produce a standard B2B tax invoice.':
       'تُستخدم الحقول المطلوبة لإصدار فاتورة ضريبية قياسية للشركات.',
-  'GreenMart - Sales History': 'جرين مارت - سجل المبيعات',
+  'Eazy POS - Sales History': 'إيزي بوس - سجل المبيعات',
   'API-backed mode': 'وضع الاتصال بواجهة API',
   'Products, categories, customers, sales, stock, and reports are loaded from EazyERP.':
       'يتم تحميل المنتجات والفئات والعملاء والمبيعات والمخزون والتقارير من EazyERP.',
@@ -463,7 +465,6 @@ const Map<String, String> _ar = {
   'Resume': 'استئناف',
   'ZATCA invoice status & documents': 'حالة ومستندات فاتورة هيئة الزكاة',
   'Eazy POS': 'إيزي بوس',
-  'GreenMart': 'جرين مارت',
   'Point of Sale': 'نقطة البيع',
   'POS': 'نقطة البيع',
   'Dashboard': 'لوحة التحكم',

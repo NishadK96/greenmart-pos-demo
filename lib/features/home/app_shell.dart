@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,7 +50,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Future<void> _loadSidebarPreference() async {
     final preferences = await SharedPreferences.getInstance();
-    final saved = preferences.getBool('greenmart_sidebar_expanded');
+    final saved = preferences.getBool('eazy_pos_sidebar_expanded');
     if (!mounted || saved == null) return;
     setState(() {
       expanded = saved;
@@ -61,7 +61,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Future<void> _setExpanded(bool value) async {
     setState(() => expanded = value);
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool('greenmart_sidebar_expanded', value);
+    await preferences.setBool('eazy_pos_sidebar_expanded', value);
   }
 
   @override

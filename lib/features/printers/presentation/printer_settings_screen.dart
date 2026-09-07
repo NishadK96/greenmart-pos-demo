@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
@@ -37,6 +37,36 @@ class PrinterSettingsScreen extends ConsumerWidget {
                   padding: EdgeInsets.all(constraints.maxWidth < 600 ? 16 : 24),
                   children: [
                     _Header(
+                      onPreview: () async {
+                        try {
+                          if (settings.section == PrinterSection.billing) {
+                            final selected =
+                                layoutState.asData?.value?.selectedLayout;
+                            if (selected == null ||
+                                previewTransactionId == null) {
+                              throw const ApiException(
+                                'Select an ERP layout and synchronize at least one sale before previewing.',
+                              );
+                            }
+                            final file = await layoutController.preview(
+                              selected.id,
+                              transactionId: previewTransactionId,
+                            );
+                            await PrinterDocumentService.previewPdfBytes(
+                              file.bytes,
+                              name: file.fileName,
+                            );
+                          } else {
+                            await PrinterDocumentService.previewSample(
+                              settings,
+                            );
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            _message(context, 'Preview failed: $error');
+                          }
+                        }
+                      },
                       onTest: () async {
                         try {
                           if (settings.section == PrinterSection.billing) {
@@ -60,8 +90,6 @@ class PrinterSettingsScreen extends ConsumerWidget {
                               file.bytes,
                               name: file.fileName,
                               printer: state.selectedPrinter,
-                              previewBeforePrinting:
-                                  settings.previewBeforePrinting,
                             );
                             return;
                           }
@@ -135,11 +163,6 @@ class PrinterSettingsScreen extends ConsumerWidget {
                             }
                           }
                         },
-                      ),
-                      const SizedBox(height: 14),
-                      _PrintBehaviorSettings(
-                        settings: settings,
-                        onChanged: controller.update,
                       ),
                       const SizedBox(height: 14),
                       _DocumentSettings(
@@ -827,11 +850,12 @@ class _InvoicePreviewError extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   const _Header({
+    required this.onPreview,
     required this.onTest,
     required this.onReload,
     required this.onClear,
   });
-  final VoidCallback onTest, onReload, onClear;
+  final VoidCallback onPreview, onTest, onReload, onClear;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) => Wrap(
@@ -851,6 +875,11 @@ class _Header extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            OutlinedButton.icon(
+              onPressed: onPreview,
+              icon: const Icon(Icons.preview_outlined),
+              label: const Text('Preview test'),
+            ),
             OutlinedButton.icon(
               onPressed: onTest,
               icon: const Icon(Icons.print_outlined),
@@ -1038,13 +1067,6 @@ class _DocumentSettings extends StatelessWidget {
               ),
             ],
           ),
-          if (!billingFallback) ...[
-            const SizedBox(height: 12),
-            _PreviewBeforePrintingToggle(
-              settings: settings,
-              onChanged: onChanged,
-            ),
-          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1089,61 +1111,6 @@ class _DocumentSettings extends StatelessWidget {
     PrinterSection.kitchen => 'kitchen tickets',
     PrinterSection.barcode => 'barcode labels',
   };
-}
-
-class _PrintBehaviorSettings extends StatelessWidget {
-  const _PrintBehaviorSettings({
-    required this.settings,
-    required this.onChanged,
-  });
-
-  final PrinterSettings settings;
-  final ValueChanged<PrinterSettings> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Surface(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Print behavior',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        _PreviewBeforePrintingToggle(settings: settings, onChanged: onChanged),
-      ],
-    ),
-  );
-}
-
-class _PreviewBeforePrintingToggle extends StatelessWidget {
-  const _PreviewBeforePrintingToggle({
-    required this.settings,
-    required this.onChanged,
-  });
-
-  final PrinterSettings settings;
-  final ValueChanged<PrinterSettings> onChanged;
-
-  @override
-  Widget build(BuildContext context) => SwitchListTile.adaptive(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 2),
-    value: settings.previewBeforePrinting,
-    onChanged: (value) =>
-        onChanged(settings.copyWith(previewBeforePrinting: value)),
-    secondary: const Icon(Icons.preview_outlined),
-    title: const Text(
-      'Preview test document',
-      style: TextStyle(fontWeight: FontWeight.w800),
-    ),
-    subtitle: Text(
-      settings.previewBeforePrinting
-          ? 'The Test print button opens a preview. Regular Print actions still use the saved printer directly.'
-          : 'The Test print button uses the saved printer directly.',
-    ),
-  );
 }
 
 class _BarcodeSettings extends StatelessWidget {

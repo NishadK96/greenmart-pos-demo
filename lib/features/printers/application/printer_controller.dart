@@ -23,7 +23,10 @@ class PrinterState {
     for (final printer in printers) {
       if (printer.url == url) return printer;
     }
-    return null;
+    // Printer discovery can be delayed or temporarily unavailable on Windows.
+    // The platform printer URL is the stable identifier directPrintPdf needs,
+    // so keep the user's persisted selection usable between scans/restarts.
+    return Printer(url: url, name: settings.defaultPrinterName);
   }
 
   PrinterState copyWith({
@@ -98,15 +101,18 @@ class PrinterController extends Notifier<PrinterState> {
         scanning: false,
         printers: printers.where((printer) => printer.isAvailable).toList(),
         message: printers.isEmpty
-            ? 'Printer discovery is not supported on this device. Test print will open the system dialog.'
+            ? state.settings.defaultPrinterUrl == null
+                  ? 'No available printer was found. Connect a printer, scan again, and set it as default.'
+                  : 'Printer discovery returned no devices. The saved default printer will still be used for direct printing.'
             : null,
       );
     } catch (_) {
       state = state.copyWith(
         scanning: false,
         printers: const [],
-        message:
-            'Could not discover printers. Test print will use the system print dialog.',
+        message: state.settings.defaultPrinterUrl == null
+            ? 'Could not discover printers. Connect a printer and scan again.'
+            : 'Could not refresh printers. The saved default printer will still be used for direct printing.',
       );
     }
   }
@@ -115,16 +121,13 @@ class PrinterController extends Notifier<PrinterState> {
     await update(
       state.settings.copyWith(
         defaultPrinterUrl: printer.url,
+        defaultPrinterName: printer.name,
       ),
     );
   }
 
   Future<void> clearDefaults() async {
-    await update(
-      state.settings.copyWith(
-        clearDefaultPrinter: true,
-      ),
-    );
+    await update(state.settings.copyWith(clearDefaultPrinter: true));
   }
 
   Future<void> reset() async {

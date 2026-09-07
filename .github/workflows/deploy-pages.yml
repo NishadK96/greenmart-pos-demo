@@ -1,4 +1,4 @@
-name: Deploy GreenMart POS to GitHub Pages
+name: Deploy Eazy POS to GitHub Pages
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
         run: flutter test --dart-define=use_arabic=true
 
       - name: Build web application
-        run: flutter build web --release --base-href "/greenmart-pos-demo/" --dart-define=use_arabic=true
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/" --dart-define=use_arabic=true
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:retailflow_pos/app.dart';
-import 'package:retailflow_pos/core/localization/app_localizations.dart';
-import 'package:retailflow_pos/features/auth/auth_controller.dart';
-import 'package:retailflow_pos/features/home/module_screens.dart';
-import 'package:retailflow_pos/features/pos/pos_screen.dart';
-import 'package:retailflow_pos/features/store/app_store.dart';
-import 'package:retailflow_pos/shared/models/entities.dart';
+import 'package:eazy_pos/app.dart';
+import 'package:eazy_pos/core/localization/app_localizations.dart';
+import 'package:eazy_pos/features/auth/auth_controller.dart';
+import 'package:eazy_pos/features/home/module_screens.dart';
+import 'package:eazy_pos/features/pos/pos_screen.dart';
+import 'package:eazy_pos/features/store/app_store.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -21,7 +21,7 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedOutAuthController.new),
         ],
-        child: const RetailFlowApp(),
+        child: const EazyPosApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -37,7 +37,7 @@ void main() {
         overrides: [
           authControllerProvider.overrideWith(_SignedOutAuthController.new),
         ],
-        child: const RetailFlowApp(),
+        child: const EazyPosApp(),
       ),
     );
     await tester.pumpAndSettle();

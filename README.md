@@ -1,4 +1,4 @@
-# retailflow_pos
+# Eazy POS
 
 A new Flutter project.
 

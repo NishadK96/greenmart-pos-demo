@@ -1,4 +1,4 @@
-name: Build GreenMart POS for Windows
+name: Build Eazy POS for Windows
 
 on:
   workflow_dispatch:
@@ -42,12 +42,12 @@ jobs:
 
       - name: Package Windows application
         shell: pwsh
-        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "GreenMart-POS-Windows.zip"
+        run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "Eazy-POS-Windows.zip"
 
       - name: Upload Windows application
         uses: actions/upload-artifact@v4
         with:
-          name: GreenMart-POS-Windows
-          path: GreenMart-POS-Windows.zip
+          name: Eazy-POS-Windows
+          path: Eazy-POS-Windows.zip
           if-no-files-found: error
           retention-days: 30

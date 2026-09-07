@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/core/utils/money.dart';
+import 'package:eazy_pos/core/utils/money.dart';
 
 void main() {
   test('text-only money output uses SAR instead of a legacy glyph', () {

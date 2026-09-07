@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
@@ -167,6 +167,16 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
+                          onPressed: _printing
+                              ? null
+                              : () => _previewSale(sale),
+                          icon: const Icon(Icons.preview_outlined),
+                          label: Text(context.tr('Preview')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
                           onPressed: _printing ? null : () => _printSale(sale),
                           icon: _printing
                               ? const SizedBox(
@@ -241,7 +251,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final isArabic = context.isArabic;
     final businessName =
         ref.read(appStoreProvider).business?.displayName(isArabic) ??
-        'GreenMart';
+        'Eazy POS';
     setState(() => _printing = true);
     final printerState = ref.read(printerControllerProvider);
     Object? failure;
@@ -263,6 +273,35 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     if (failure != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
+      );
+    }
+  }
+
+  Future<void> _previewSale(Sale sale) async {
+    if (_printing) return;
+    final isArabic = context.isArabic;
+    final businessName =
+        ref.read(appStoreProvider).business?.displayName(isArabic) ??
+        'Eazy POS';
+    setState(() => _printing = true);
+    Object? failure;
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .previewSale(
+            sale: sale,
+            businessName: businessName,
+            settings: ref.read(printerControllerProvider).settings,
+            arabic: isArabic,
+          );
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
       );
     }
   }

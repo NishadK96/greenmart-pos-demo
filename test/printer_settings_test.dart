@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:retailflow_pos/features/printers/application/printer_document_service.dart';
-import 'package:retailflow_pos/features/printers/data/printer_settings_repository.dart';
-import 'package:retailflow_pos/features/printers/domain/printer_settings.dart';
+import 'package:eazy_pos/features/printers/application/printer_controller.dart';
+import 'package:eazy_pos/features/printers/application/printer_document_service.dart';
+import 'package:eazy_pos/features/printers/data/printer_settings_repository.dart';
+import 'package:eazy_pos/features/printers/domain/printer_settings.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,13 +43,18 @@ void main() {
     () async {
       final repository = PrinterSettingsRepository();
       const printerUrl = r'windows-printer://office-receipt-printer';
+      const printerName = 'Office receipt printer';
 
       await repository.save(
-        const PrinterSettings().copyWith(defaultPrinterUrl: printerUrl),
+        const PrinterSettings().copyWith(
+          defaultPrinterUrl: printerUrl,
+          defaultPrinterName: printerName,
+        ),
       );
       final restored = await repository.load();
 
       expect(restored.defaultPrinterUrl, printerUrl);
+      expect(restored.defaultPrinterName, printerName);
       for (final section in PrinterSection.values) {
         expect(
           restored.copyWith(section: section).defaultPrinterUrl,
@@ -68,18 +75,20 @@ void main() {
     },
   );
 
-  test('preview-before-printing preference persists globally', () async {
-    final repository = PrinterSettingsRepository();
-
-    await repository.save(
-      const PrinterSettings().copyWith(previewBeforePrinting: true),
+  test('saved Windows printer remains usable before discovery completes', () {
+    const printerUrl = r'windows-printer://office-receipt-printer';
+    const printerName = 'Office receipt printer';
+    final state = PrinterState(
+      settings: const PrinterSettings().copyWith(
+        defaultPrinterUrl: printerUrl,
+        defaultPrinterName: printerName,
+      ),
+      printers: const <Printer>[],
+      loading: false,
     );
-    final restored = await repository.load();
 
-    expect(restored.previewBeforePrinting, isTrue);
-    for (final section in PrinterSection.values) {
-      expect(restored.copyWith(section: section).previewBeforePrinting, isTrue);
-    }
+    expect(state.selectedPrinter?.url, printerUrl);
+    expect(state.selectedPrinter?.name, printerName);
   });
 
   test('billing templates generate distinct print layouts', () async {

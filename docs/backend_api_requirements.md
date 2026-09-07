@@ -1,4 +1,4 @@
-# GreenMart POS Backend API Requirements
+# Eazy POS Backend API Requirements
 
 Version 1.2 - 12 August 2026
 Target backend: EazyERP Laravel application
@@ -6,7 +6,7 @@ Target clients: Flutter Web, Windows, Android and iOS
 
 ## Purpose
 
-This is the maintainable backend handoff and implementation tracker for GreenMart POS. It separates Connector APIs already available to the OAuth-authenticated Flutter client from capabilities that exist only in the session-based Laravel web application.
+This is the maintainable backend handoff and implementation tracker for Eazy POS. It separates Connector APIs already available to the OAuth-authenticated Flutter client from capabilities that exist only in the session-based Laravel web application.
 
 Routes marked **Proposed** are requirements, not confirmed production endpoints. Existing Laravel web routes must not be called directly from Flutter because they depend on sessions, CSRF, Blade views or DataTables HTML.
 

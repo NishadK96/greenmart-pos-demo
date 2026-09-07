@@ -1,4 +1,4 @@
-package com.example.retailflow_pos
+package com.eazy.pos
 
 import io.flutter.embedding.android.FlutterActivity
 

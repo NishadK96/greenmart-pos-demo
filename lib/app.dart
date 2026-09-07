@@ -131,8 +131,8 @@ final _router = GoRouter(
   ],
 );
 
-class RetailFlowApp extends ConsumerWidget {
-  const RetailFlowApp({super.key});
+class EazyPosApp extends ConsumerWidget {
+  const EazyPosApp({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
     title: 'Eazy POS',

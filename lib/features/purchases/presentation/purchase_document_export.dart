@@ -35,7 +35,7 @@ Future<Uint8List> buildPurchaseOrderPdf(PurchaseDocument document) async {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                'GreenMart',
+                'Eazy POS',
                 style: pw.TextStyle(
                   fontSize: 22,
                   fontWeight: pw.FontWeight.bold,
@@ -212,7 +212,15 @@ Future<void> printPurchaseOrder(
     name: '${document.reference}.pdf',
     printer: printerState.selectedPrinter,
     format: PdfPageFormat.a4,
-    previewBeforePrinting: false,
+  );
+}
+
+Future<void> previewPurchaseOrder(PurchaseDocument document) async {
+  final bytes = await buildPurchaseOrderPdf(document);
+  await PrinterDocumentService.previewPdfBytes(
+    bytes,
+    name: '${document.reference}.pdf',
+    format: PdfPageFormat.a4,
   );
 }
 

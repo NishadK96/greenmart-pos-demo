@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/features/offline_pos/data/offline_pos_storage.dart';
-import 'package:retailflow_pos/features/offline_pos/domain/offline_pos_entities.dart';
-import 'package:retailflow_pos/shared/models/entities.dart';
+import 'package:eazy_pos/features/offline_pos/data/offline_pos_storage.dart';
+import 'package:eazy_pos/features/offline_pos/domain/offline_pos_entities.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

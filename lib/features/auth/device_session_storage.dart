@@ -22,7 +22,7 @@ class DeviceSessionStorage {
       'X-Connector-Device-Id': id,
       'X-Connector-Device-Secret': secret,
       'X-Connector-Platform': defaultTargetPlatform.name,
-      'X-Connector-Device-Name': 'GreenMart POS',
+      'X-Connector-Device-Name': 'Eazy POS',
     };
   }
 

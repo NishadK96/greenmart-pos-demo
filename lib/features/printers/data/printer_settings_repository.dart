@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/printer_settings.dart';
 
 class PrinterSettingsRepository {
-  static const _key = 'greenmart_printer_settings_v1';
+  static const _key = 'eazy_pos_printer_settings_v1';
 
   Future<PrinterSettings> load() async {
     final value = (await SharedPreferences.getInstance()).getString(_key);

@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:retailflow_pos/apis/api.dart';
-import 'package:retailflow_pos/shared/models/entities.dart';
-import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart';
-import 'package:retailflow_pos/features/zatca/domain/zatca_entities.dart';
+import 'package:eazy_pos/apis/api.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
+import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
+import 'package:eazy_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
   test('business details maps the POS overselling setting', () async {
@@ -1113,7 +1113,7 @@ void main() {
           email: 'zatca@example.test',
           commonName: 'Main Store Device',
           organizationUnitName: 'Main Store',
-          organizationName: 'GreenMart LLC',
+          organizationName: 'Eazy POS LLC',
           vatNumber: '300000000000003',
           invoiceType: '1100',
           registeredAddress: 'RRRD2929',

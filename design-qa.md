@@ -13,7 +13,7 @@
 
 ## Full-view comparison evidence
 
-The final implementation matches the reference's central two-panel composition, 47/53 panel split, card placement, emerald/white palette, rounded frame, shadow, form hierarchy, language control, offline status callout, and security footer. The brand copy is intentionally changed from RetailFlow to Eazy POS.
+The final implementation matches the reference's central two-panel composition, 47/53 panel split, card placement, emerald/white palette, rounded frame, shadow, form hierarchy, language control, offline status callout, and security footer. The interface consistently uses the Eazy POS brand.
 
 ## Focused region evidence
 
@@ -25,7 +25,7 @@ The form and left marketing panel remain fully legible in the full-size side-by-
 - Spacing and layout rhythm: desktop card dimensions, split, alignment, padding, radii, shadow, and vertical rhythm match the target; the responsive layout intentionally condenses to one panel.
 - Colors and visual tokens: the existing Eazy POS emerald palette is used with the reference's white and pale-gray surfaces and accessible foreground contrast.
 - Image quality and asset fidelity: the client-supplied Eazy POS icon is used in the login, application shell, web manifest, and native platform icon sets. Decorative wave and dot artwork remains intentionally omitted rather than replaced with fake drawn artwork.
-- Copy and content: RetailFlow is replaced with Eazy POS. Authentication, recovery, language, offline-readiness, and security copy are preserved.
+- Copy and content: Eazy POS branding is used consistently. Authentication, recovery, language, offline-readiness, and security copy are preserved.
 
 ## Findings
 

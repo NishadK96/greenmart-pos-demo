@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
-import 'package:retailflow_pos/shared/widgets/localized_text.dart';
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
@@ -2592,6 +2592,12 @@ class PurchaseDetailDialog extends ConsumerWidget {
               child: Row(
                 children: [
                   OutlinedButton.icon(
+                    onPressed: () => _previewDocument(context, document),
+                    icon: const Icon(Icons.preview_outlined),
+                    label: const Text('Preview'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
                     onPressed: () => _printDocument(context, ref, document),
                     icon: const Icon(Icons.print_outlined),
                     label: const Text('Print'),
@@ -2869,6 +2875,20 @@ Future<void> _printDocument(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Unable to print this purchase order: $error')),
+    );
+  }
+}
+
+Future<void> _previewDocument(
+  BuildContext context,
+  PurchaseDocument document,
+) async {
+  try {
+    await previewPurchaseOrder(document);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Unable to preview this purchase order: $error')),
     );
   }
 }

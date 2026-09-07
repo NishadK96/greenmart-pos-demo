@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/apis/api.dart';
-import 'package:retailflow_pos/core/network/api_provider.dart';
-import 'package:retailflow_pos/features/auth/auth_controller.dart';
-import 'package:retailflow_pos/features/offline_pos/presentation/offline_pos_controller.dart';
-import 'package:retailflow_pos/features/store/app_store.dart';
+import 'package:eazy_pos/apis/api.dart';
+import 'package:eazy_pos/core/network/api_provider.dart';
+import 'package:eazy_pos/features/auth/auth_controller.dart';
+import 'package:eazy_pos/features/offline_pos/presentation/offline_pos_controller.dart';
+import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeAuthController extends AuthController {

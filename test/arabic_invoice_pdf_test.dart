@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:retailflow_pos/core/utils/pdf_fonts.dart';
-import 'package:retailflow_pos/features/printers/application/printer_document_service.dart';
-import 'package:retailflow_pos/features/printers/domain/printer_settings.dart';
-import 'package:retailflow_pos/features/purchases/domain/purchase_entities.dart';
-import 'package:retailflow_pos/features/purchases/presentation/purchase_document_export.dart';
-import 'package:retailflow_pos/shared/models/entities.dart';
+import 'package:eazy_pos/core/utils/pdf_fonts.dart';
+import 'package:eazy_pos/features/printers/application/printer_document_service.dart';
+import 'package:eazy_pos/features/printers/domain/printer_settings.dart';
+import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
+import 'package:eazy_pos/features/purchases/presentation/purchase_document_export.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

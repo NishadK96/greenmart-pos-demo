@@ -177,6 +177,21 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _printing ? null : () => _printSale(sale),
+                          icon: _printing
+                              ? const SizedBox.square(
+                                  dimension: 17,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.print_outlined),
+                          label: Text(context.tr('Print')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () =>
                               ScaffoldMessenger.of(context).showSnackBar(

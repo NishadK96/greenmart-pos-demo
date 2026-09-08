@@ -3961,15 +3961,10 @@ class _CurrentOrder extends ConsumerWidget {
   ) async {
     submitting(true);
     try {
-      final sale = await ref
-          .read(backendControllerProvider.notifier)
-          .checkout(code);
+      await ref.read(backendControllerProvider.notifier).checkout(code);
       if (!sheetContext.mounted) return;
-      final successMessage =
-          '${sheetContext.tr('Sale complete')} • ${sale.invoiceNo} • ${sheetContext.tr('New sale ready')}';
       Navigator.pop(sheetContext);
-      router.go('/pos');
-      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+      router.go('/receipt');
     } catch (error) {
       if (!sheetContext.mounted) return;
       submitting(false);

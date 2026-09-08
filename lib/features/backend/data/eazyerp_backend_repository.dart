@@ -100,10 +100,10 @@ class EazyErpBackendRepository implements BackendRepository {
 
   @override
   Future<BackendSnapshot> load(String accessToken) async {
-    final products = await _api.products(accessToken);
-    final results = await Future.wait<Object>([
+    final productsFuture = _api.products(accessToken);
+    final customersFuture = _api.customers(accessToken);
+    final supportingDataFuture = Future.wait<Object>([
       _api.categories(accessToken),
-      _api.customers(accessToken),
       _api.locations(accessToken),
       _api.paymentOptions(accessToken),
       _api.businessDetails(accessToken),
@@ -114,21 +114,25 @@ class EazyErpBackendRepository implements BackendRepository {
       _api.taxes(accessToken),
       _api.brands(accessToken),
     ]);
-    final customers = results[1] as List<Customer>;
+    final products = await productsFuture;
+    final customers = await customersFuture;
+    final salesFuture = _api.sales(accessToken, products, customers);
+    final results = await supportingDataFuture;
+    final sales = await salesFuture;
     return BackendSnapshot(
       products: products,
       categories: results[0] as List<Category>,
       customers: customers,
-      sales: await _api.sales(accessToken, products, customers),
-      locations: results[2] as List<BusinessLocation>,
-      paymentOptions: results[3] as List<PaymentOption>,
-      business: results[4] as BusinessProfile,
-      user: results[5] as UserProfile,
-      profitLoss: results[6] as ProfitLoss,
-      stockItems: results[7] as List<StockItem>,
-      units: results[8] as List<LookupOption>,
-      taxes: results[9] as List<LookupOption>,
-      brands: results[10] as List<LookupOption>,
+      sales: sales,
+      locations: results[1] as List<BusinessLocation>,
+      paymentOptions: results[2] as List<PaymentOption>,
+      business: results[3] as BusinessProfile,
+      user: results[4] as UserProfile,
+      profitLoss: results[5] as ProfitLoss,
+      stockItems: results[6] as List<StockItem>,
+      units: results[7] as List<LookupOption>,
+      taxes: results[8] as List<LookupOption>,
+      brands: results[9] as List<LookupOption>,
     );
   }
 

@@ -344,6 +344,7 @@ class CartLine {
     int? discount,
     int? unitPriceOverride,
     bool clearUnitPriceOverride = false,
+    int? quantityReturned,
   }) => CartLine(
     product: product,
     quantity: quantity ?? this.quantity,
@@ -352,7 +353,7 @@ class CartLine {
         ? null
         : unitPriceOverride ?? this.unitPriceOverride,
     sellLineId: sellLineId,
-    quantityReturned: quantityReturned,
+    quantityReturned: quantityReturned ?? this.quantityReturned,
     saleUnitPriceIncTax: saleUnitPriceIncTax,
   );
 }
@@ -404,6 +405,7 @@ class Sale {
   Sale copyWith({
     String? serverId,
     String? invoiceNo,
+    List<CartLine>? items,
     SyncStatus? syncStatus,
     String? zatcaStatus,
   }) => Sale(
@@ -413,7 +415,7 @@ class Sale {
     createdAt: createdAt,
     updatedAt: DateTime.now(),
     customer: customer,
-    items: items,
+    items: items ?? this.items,
     paymentMethod: paymentMethod,
     total: total,
     tax: tax,

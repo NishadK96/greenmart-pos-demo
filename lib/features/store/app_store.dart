@@ -291,6 +291,51 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(products: byId.values.toList(growable: false));
   }
 
+  void applySaleReturn(Sale sale, Map<String, int> quantities) {
+    final returnedByProduct = <String, int>{};
+    final updatedItems = sale.items
+        .map((line) {
+          final returnedNow = quantities[line.sellLineId] ?? 0;
+          if (returnedNow <= 0) return line;
+          returnedByProduct.update(
+            line.product.id,
+            (value) => value + returnedNow,
+            ifAbsent: () => returnedNow,
+          );
+          return line.copyWith(
+            quantityReturned: (line.quantityReturned + returnedNow).clamp(
+              0,
+              line.quantity,
+            ),
+          );
+        })
+        .toList(growable: false);
+    final updatedSale = sale.copyWith(items: updatedItems);
+    final sales = state.sales
+        .map(
+          (item) =>
+              item.localId == sale.localId ||
+                  (sale.serverId != null && item.serverId == sale.serverId)
+              ? updatedSale
+              : item,
+        )
+        .toList(growable: false);
+    final products = state.products
+        .map(
+          (product) => returnedByProduct.containsKey(product.id)
+              ? product.copyWith(
+                  stock: product.stock + returnedByProduct[product.id]!,
+                )
+              : product,
+        )
+        .toList(growable: false);
+    state = state.copyWith(
+      sales: sales,
+      products: products,
+      lastSale: state.lastSale?.localId == sale.localId ? updatedSale : null,
+    );
+  }
+
   void replaceCatalog(List<Product> products, List<Category> categories) =>
       state = state.copyWith(products: products, categories: categories);
 

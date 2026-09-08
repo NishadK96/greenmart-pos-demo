@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
+import '../../shared/widgets/document_preview_actions.dart';
 import '../store/app_store.dart';
 import '../zatca/presentation/zatca_screen.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
@@ -177,26 +178,6 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _printing ? null : () => _printSale(sale),
-                          icon: _printing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.2,
-                                  ),
-                                )
-                              : const Icon(Icons.print_outlined),
-                          label: Text(
-                            _printing
-                                ? context.tr('Sending to printer…')
-                                : context.tr('Print'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
                           onPressed: () =>
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -302,6 +283,12 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     if (failure != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
+      );
+    } else if (mounted) {
+      await showDocumentPreviewPrintAction(
+        context,
+        title: sale.invoiceNo,
+        onPrint: () => _printSale(sale),
       );
     }
   }

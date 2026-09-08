@@ -12,10 +12,13 @@ import '../../core/utils/money.dart';
 import '../../core/utils/pdf_fonts.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
+import '../../shared/widgets/document_preview_actions.dart';
 import '../store/app_store.dart';
 import '../backend/presentation/backend_controller.dart';
 import '../printers/application/printer_controller.dart';
+import '../printers/application/printer_document_service.dart';
 import '../zatca/presentation/zatca_screen.dart';
+import '../zatca/presentation/zatca_controller.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
 import '../offline_pos/presentation/offline_pos_controller.dart';
@@ -3491,6 +3494,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   DateTimeRange? customRange;
   int page = 1;
   int rowsPerPage = 10;
+  String? printingReturnId;
 
   @override
   Widget build(BuildContext context) {
@@ -3954,6 +3958,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                             _SaleReturnHistoryRow(
                               record: record,
                               compact: mobile,
+                              printing: printingReturnId == record.id,
+                              onPrint: () => _previewReturn(record),
                               onZatca: () =>
                                   showZatcaReturnDialog(context, ref, record),
                             ),
@@ -3968,6 +3974,45 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _previewReturn(SaleReturnRecord record) async {
+    if (printingReturnId != null) return;
+    setState(() => printingReturnId = record.id);
+    Object? failure;
+    try {
+      final file = await ref
+          .read(zatcaControllerProvider.notifier)
+          .downloadReturnPdf(record.id);
+      await PrinterDocumentService.previewPdfBytes(
+        file.bytes,
+        name: file.fileName,
+      );
+      if (!mounted) return;
+      await showDocumentPreviewPrintAction(
+        context,
+        title: record.invoiceNo.isEmpty
+            ? 'Return #${record.id}'
+            : record.invoiceNo,
+        onPrint: () async {
+          final printer = ref.read(printerControllerProvider).selectedPrinter;
+          await PrinterDocumentService.printPdfBytes(
+            file.bytes,
+            name: file.fileName,
+            printer: printer,
+          );
+        },
+      );
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (mounted) setState(() => printingReturnId = null);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
+      );
+    }
   }
 
   DateTimeRange _periodRange(DateTime now) {
@@ -4374,6 +4419,62 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   static String _dateTime(DateTime value) => '${_date(value)} ${_time(value)}';
 
+  Future<void> _previewSaleDocument(Sale sale) async {
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .previewSale(
+            sale: sale,
+            businessName:
+                ref
+                    .read(appStoreProvider)
+                    .business
+                    ?.displayName(context.isArabic) ??
+                'Eazy POS',
+            settings: ref.read(printerControllerProvider).settings,
+            arabic: ref.read(localeProvider).languageCode == 'ar',
+          );
+      if (!mounted) return;
+      await showDocumentPreviewPrintAction(
+        context,
+        title: sale.invoiceNo,
+        onPrint: () => _printSaleDocument(sale),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Preview failed: $error')));
+      }
+    }
+  }
+
+  Future<void> _printSaleDocument(Sale sale) async {
+    final printerState = ref.read(printerControllerProvider);
+    try {
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: sale,
+            businessName:
+                ref
+                    .read(appStoreProvider)
+                    .business
+                    ?.displayName(context.isArabic) ??
+                'Eazy POS',
+            settings: printerState.settings,
+            printer: printerState.selectedPrinter,
+            arabic: ref.read(localeProvider).languageCode == 'ar',
+          );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Print failed: $error')));
+      }
+    }
+  }
+
   void _details(BuildContext context, Sale sale) => showDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -4431,29 +4532,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       ),
       actions: [
         OutlinedButton.icon(
-          onPressed: () async {
-            try {
-              await ref
-                  .read(invoiceLayoutControllerProvider.notifier)
-                  .previewSale(
-                    sale: sale,
-                    businessName:
-                        ref
-                            .read(appStoreProvider)
-                            .business
-                            ?.displayName(context.isArabic) ??
-                        'Eazy POS',
-                    settings: ref.read(printerControllerProvider).settings,
-                    arabic: ref.read(localeProvider).languageCode == 'ar',
-                  );
-            } catch (error) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Preview failed: $error')),
-                );
-              }
-            }
-          },
+          onPressed: () => _previewSaleDocument(sale),
           icon: const Icon(Icons.preview_outlined),
           label: Text(context.tr('Preview')),
         ),
@@ -4485,35 +4564,6 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         TextButton(
           onPressed: () => Navigator.pop(dialogContext),
           child: Text(context.tr('Close')),
-        ),
-        FilledButton.icon(
-          onPressed: () async {
-            final printerState = ref.read(printerControllerProvider);
-            try {
-              await ref
-                  .read(invoiceLayoutControllerProvider.notifier)
-                  .printSale(
-                    sale: sale,
-                    businessName:
-                        ref
-                            .read(appStoreProvider)
-                            .business
-                            ?.displayName(context.isArabic) ??
-                        'Eazy POS',
-                    settings: printerState.settings,
-                    printer: printerState.selectedPrinter,
-                    arabic: ref.read(localeProvider).languageCode == 'ar',
-                  );
-            } catch (error) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text('Print failed: $error')));
-              }
-            }
-          },
-          icon: const Icon(Icons.print_outlined),
-          label: Text(context.tr('Print')),
         ),
       ],
     ),
@@ -4625,11 +4675,15 @@ class _SaleReturnHistoryRow extends StatelessWidget {
   const _SaleReturnHistoryRow({
     required this.record,
     required this.compact,
+    required this.printing,
+    required this.onPrint,
     required this.onZatca,
   });
 
   final SaleReturnRecord record;
   final bool compact;
+  final bool printing;
+  final VoidCallback onPrint;
   final VoidCallback onZatca;
 
   @override
@@ -4700,11 +4754,33 @@ class _SaleReturnHistoryRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    IconButton.outlined(
-                      tooltip: context.tr('Submit return to ZATCA'),
-                      visualDensity: VisualDensity.compact,
-                      onPressed: onZatca,
-                      icon: const Icon(Icons.verified_user_outlined, size: 18),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton.outlined(
+                          tooltip: context.tr('Preview'),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: printing ? null : onPrint,
+                          icon: printing
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.preview_outlined, size: 18),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton.outlined(
+                          tooltip: context.tr('Submit return to ZATCA'),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: printing ? null : onZatca,
+                          icon: const Icon(
+                            Icons.verified_user_outlined,
+                            size: 18,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -4757,7 +4833,18 @@ class _SaleReturnHistoryRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 14),
                 OutlinedButton.icon(
-                  onPressed: onZatca,
+                  onPressed: printing ? null : onPrint,
+                  icon: printing
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.print_outlined, size: 18),
+                  label: Text(context.tr(printing ? 'Loading…' : 'Preview')),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: printing ? null : onZatca,
                   icon: const Icon(Icons.verified_user_outlined, size: 18),
                   label: const Text('ZATCA'),
                 ),
@@ -5052,7 +5139,6 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
           .read(backendControllerProvider.notifier)
           .createSaleReturn(sale: widget.sale, quantities: quantities);
       ref.invalidate(saleReturnsProvider);
-      await ref.read(backendControllerProvider.future);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (exception) {
       if (mounted) {

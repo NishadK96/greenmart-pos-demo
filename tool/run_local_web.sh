@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-frontend_port="${EAZY POS_WEB_PORT:-8081}"
+frontend_port="${EAZY_POS_WEB_PORT:-8081}"
 backend_port="${EAZYERP_BACKEND_PORT:-8080}"
 
 flutter build web --pwa-strategy=none --dart-define="EAZYERP_BASE_URL="

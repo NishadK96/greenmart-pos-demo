@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
+import '../../shared/widgets/document_preview_actions.dart';
 import '../backend/presentation/backend_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
@@ -1394,11 +1395,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     icon: const Icon(Icons.preview_outlined, size: 20),
                   ),
                   IconButton(
-                    tooltip: context.tr('Print'),
-                    onPressed: () => _printSale(sale),
-                    icon: const Icon(Icons.print_outlined, size: 20),
-                  ),
-                  IconButton(
                     tooltip: context.tr('View sale'),
                     onPressed: () => _showSaleDetails(sale),
                     icon: const Icon(Icons.chevron_right_rounded),
@@ -1494,7 +1490,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                 ),
               ),
               SizedBox(
-                width: 152,
+                width: 118,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -1502,11 +1498,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                       tooltip: context.tr('Preview'),
                       onPressed: () => _previewSale(sale),
                       icon: const Icon(Icons.preview_outlined, size: 19),
-                    ),
-                    IconButton(
-                      tooltip: context.tr('Print'),
-                      onPressed: () => _printSale(sale),
-                      icon: const Icon(Icons.print_outlined, size: 19),
                     ),
                     IconButton(
                       tooltip: context.tr('View sale'),
@@ -1560,8 +1551,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
           await _showSaleDetails(sale);
         } else if (value == 'preview') {
           await _previewSale(sale);
-        } else if (value == 'print') {
-          await _printSale(sale);
         } else if (value == 'return') {
           await _returnSale(sale);
         }
@@ -1583,15 +1572,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.preview_outlined),
             title: Text(context.tr('Preview')),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'print',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.print_outlined),
-            title: Text(context.tr('Print')),
           ),
         ),
         PopupMenuItem(
@@ -1669,11 +1649,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
           onPressed: () => _previewSale(sale),
           icon: const Icon(Icons.preview_outlined),
           label: Text(context.tr('Preview')),
-        ),
-        OutlinedButton.icon(
-          onPressed: () => _printSale(sale),
-          icon: const Icon(Icons.print_outlined),
-          label: Text(context.tr('Print')),
         ),
         OutlinedButton.icon(
           onPressed: sale.serverId == null
@@ -1783,6 +1758,12 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     if (failure != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
+      );
+    } else if (mounted) {
+      await showDocumentPreviewPrintAction(
+        context,
+        title: sale.invoiceNo,
+        onPrint: () => _printSale(sale),
       );
     }
   }

@@ -249,7 +249,6 @@ class BackendController extends AsyncNotifier<void> {
             serverId: created.id,
             invoiceNo: created.invoiceNo,
           );
-      ref.invalidateSelf();
       return sale;
     } on ApiException catch (error) {
       if (error.statusCode == 401 && allowTokenRefresh) {
@@ -332,7 +331,7 @@ class BackendController extends AsyncNotifier<void> {
             sale: sale,
             quantities: quantities,
           );
-      ref.invalidateSelf();
+      ref.read(appStoreProvider.notifier).applySaleReturn(sale, quantities);
       return reference;
     } on ApiException catch (error) {
       if (error.statusCode != 401 || !allowTokenRefresh) rethrow;

@@ -4534,6 +4534,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           icon: const Icon(Icons.preview_outlined),
           label: Text(context.tr('Preview')),
         ),
+        FilledButton.icon(
+          onPressed: () => _printSaleDocument(sale),
+          icon: const Icon(Icons.print_outlined),
+          label: Text(context.tr('Print')),
+        ),
         OutlinedButton.icon(
           onPressed:
               sale.serverId == null ||

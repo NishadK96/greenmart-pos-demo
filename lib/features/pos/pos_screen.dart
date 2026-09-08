@@ -1352,7 +1352,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
           child: _TableLabel('Total', textAlign: TextAlign.end),
         ),
         const SizedBox(
-          width: 118,
+          width: 158,
           child: _TableLabel('Actions', textAlign: TextAlign.end),
         ),
       ],
@@ -1393,6 +1393,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     tooltip: context.tr('Preview'),
                     onPressed: () => _previewSale(sale),
                     icon: const Icon(Icons.preview_outlined, size: 20),
+                  ),
+                  IconButton(
+                    tooltip: context.tr('Print'),
+                    onPressed: () => _printSale(sale),
+                    icon: const Icon(Icons.print_outlined, size: 20),
                   ),
                   IconButton(
                     tooltip: context.tr('View sale'),
@@ -1490,7 +1495,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                 ),
               ),
               SizedBox(
-                width: 118,
+                width: 158,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -1498,6 +1503,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                       tooltip: context.tr('Preview'),
                       onPressed: () => _previewSale(sale),
                       icon: const Icon(Icons.preview_outlined, size: 19),
+                    ),
+                    IconButton(
+                      tooltip: context.tr('Print'),
+                      onPressed: () => _printSale(sale),
+                      icon: const Icon(Icons.print_outlined, size: 19),
                     ),
                     IconButton(
                       tooltip: context.tr('View sale'),
@@ -1649,6 +1659,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
           onPressed: () => _previewSale(sale),
           icon: const Icon(Icons.preview_outlined),
           label: Text(context.tr('Preview')),
+        ),
+        FilledButton.icon(
+          onPressed: () => _printSale(sale),
+          icon: const Icon(Icons.print_outlined),
+          label: Text(context.tr('Print')),
         ),
         OutlinedButton.icon(
           onPressed: sale.serverId == null
@@ -3961,10 +3976,45 @@ class _CurrentOrder extends ConsumerWidget {
   ) async {
     submitting(true);
     try {
-      await ref.read(backendControllerProvider.notifier).checkout(code);
+      final isArabic = sheetContext.isArabic;
+      final saleCompleteLabel = sheetContext.tr('Sale complete');
+      final printingLabel = sheetContext.tr('Printing…');
+      final printFailedLabel = sheetContext.tr('Print failed');
+      final sale = await ref
+          .read(backendControllerProvider.notifier)
+          .checkout(code);
       if (!sheetContext.mounted) return;
       Navigator.pop(sheetContext);
-      router.go('/receipt');
+      router.go('/pos');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '$saleCompleteLabel • ${sale.invoiceNo} • $printingLabel',
+          ),
+        ),
+      );
+      final printerState = ref.read(printerControllerProvider);
+      try {
+        await ref
+            .read(invoiceLayoutControllerProvider.notifier)
+            .printSale(
+              sale: sale,
+              businessName:
+                  ref.read(appStoreProvider).business?.displayName(isArabic) ??
+                  'Eazy POS',
+              settings: printerState.settings,
+              printer: printerState.selectedPrinter,
+              arabic: isArabic,
+            );
+      } catch (printError) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '$saleCompleteLabel • $printFailedLabel: $printError',
+            ),
+          ),
+        );
+      }
     } catch (error) {
       if (!sheetContext.mounted) return;
       submitting(false);

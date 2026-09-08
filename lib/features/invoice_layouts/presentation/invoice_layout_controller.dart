@@ -151,6 +151,40 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     );
   }
 
+  Future<ErpInvoicePdf> salePdf({
+    required Sale sale,
+    required String businessName,
+    required PrinterSettings settings,
+    bool arabic = false,
+  }) async {
+    if (sale.serverId != null) {
+      final saleId = sale.serverId!;
+      final cachedFile = _salePdfCache[saleId];
+      if (cachedFile != null) return cachedFile;
+      final file = await _authorized<ErpInvoicePdf>(
+        (token) => ref.read(apiProvider).finalizedSaleInvoicePdf(token, saleId),
+      );
+      _salePdfCache[saleId] = file;
+      return file;
+    }
+    final profile = sale.customer.isBusiness
+        ? 'billing-business'
+        : 'billing-retail';
+    final format = PrinterDocumentService.formatFor(
+      settings.paperSizes[profile] ?? '80mm',
+    );
+    return ErpInvoicePdf(
+      bytes: await PrinterDocumentService.receipt(
+        sale,
+        businessName,
+        settings,
+        format,
+        arabic: arabic,
+      ),
+      fileName: 'Invoice ${sale.invoiceNo}.pdf',
+    );
+  }
+
   Future<ErpInvoiceLayoutCatalog> _load() => _authorized(
     (token) => ref
         .read(apiProvider)

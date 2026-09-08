@@ -3984,16 +3984,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       final file = await ref
           .read(zatcaControllerProvider.notifier)
           .downloadReturnPdf(record.id);
-      await PrinterDocumentService.previewPdfBytes(
-        file.bytes,
-        name: file.fileName,
-      );
       if (!mounted) return;
       await showDocumentPreviewPrintAction(
         context,
         title: record.invoiceNo.isEmpty
             ? 'Return #${record.id}'
             : record.invoiceNo,
+        bytes: file.bytes,
         onPrint: () async {
           final printer = ref.read(printerControllerProvider).selectedPrinter;
           await PrinterDocumentService.printPdfBytes(
@@ -4421,9 +4418,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   Future<void> _previewSaleDocument(Sale sale) async {
     try {
-      await ref
+      final file = await ref
           .read(invoiceLayoutControllerProvider.notifier)
-          .previewSale(
+          .salePdf(
             sale: sale,
             businessName:
                 ref
@@ -4438,6 +4435,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       await showDocumentPreviewPrintAction(
         context,
         title: sale.invoiceNo,
+        bytes: file.bytes,
         onPrint: () => _printSaleDocument(sale),
       );
     } catch (error) {

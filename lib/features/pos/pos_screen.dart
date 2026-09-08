@@ -1742,14 +1742,22 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     setState(() => _printing = true);
     Object? failure;
     try {
-      await ref
+      final file = await ref
           .read(invoiceLayoutControllerProvider.notifier)
-          .previewSale(
+          .salePdf(
             sale: sale,
             businessName: businessName,
             settings: ref.read(printerControllerProvider).settings,
             arabic: isArabic,
           );
+      if (!mounted) return;
+      setState(() => _printing = false);
+      await showDocumentPreviewPrintAction(
+        context,
+        title: sale.invoiceNo,
+        bytes: file.bytes,
+        onPrint: () => _printSale(sale),
+      );
     } catch (error) {
       failure = error;
     } finally {
@@ -1758,12 +1766,6 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
     if (failure != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${context.tr('Preview failed')}: $failure')),
-      );
-    } else if (mounted) {
-      await showDocumentPreviewPrintAction(
-        context,
-        title: sale.invoiceNo,
-        onPrint: () => _printSale(sale),
       );
     }
   }

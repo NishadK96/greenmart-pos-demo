@@ -8,6 +8,9 @@ class ErpInvoiceLayout {
     required this.designName,
     required this.isSelected,
     required this.previewUrl,
+    this.offlineSupported = false,
+    this.offlineConfigUrl = '',
+    this.rendererProfile = '',
   });
 
   final String id;
@@ -16,6 +19,26 @@ class ErpInvoiceLayout {
   final String designName;
   final bool isSelected;
   final String previewUrl;
+  final bool offlineSupported;
+  final String offlineConfigUrl;
+  final String rendererProfile;
+}
+
+class OfflineInvoiceLayoutBundle {
+  const OfflineInvoiceLayoutBundle({
+    required this.manifest,
+    this.assets = const {},
+  });
+
+  final Map<String, dynamic> manifest;
+  final Map<String, Uint8List> assets;
+
+  String get revision =>
+      (manifest['layout'] as Map?)?['revision']?.toString() ?? '';
+  String get locationId =>
+      (manifest['layout'] as Map?)?['location_id']?.toString() ?? '';
+  String get documentType =>
+      (manifest['layout'] as Map?)?['document_type']?.toString() ?? 'pos';
 }
 
 class ErpInvoiceLayoutCatalog {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
@@ -1377,12 +1378,50 @@ class Api {
                     isSelected:
                         item['is_selected'] == true || item['is_selected'] == 1,
                     previewUrl: item['preview_url']?.toString() ?? '',
+                    offlineSupported:
+                        item['offline_supported'] == true ||
+                        item['offline_supported'] == 1,
+                    offlineConfigUrl:
+                        item['offline_config_url']?.toString() ?? '',
+                    rendererProfile: item['renderer_profile']?.toString() ?? '',
                   );
                 })
                 .where((layout) => layout.id.isNotEmpty)
                 .toList(growable: false)
           : const [],
     );
+  }
+
+  Future<Map<String, dynamic>> offlineInvoiceLayoutConfig({
+    required String accessToken,
+    required String layoutId,
+    required String locationId,
+    String documentType = 'pos',
+  }) => _getDataObject(
+    Uri.parse(ApiEndPoints.invoiceLayoutOfflineConfigUrl(layoutId)).replace(
+      queryParameters: {
+        'location_id': locationId,
+        'document_type': documentType,
+      },
+    ),
+    accessToken,
+    'offline invoice layout',
+  );
+
+  Future<Uint8List> authenticatedAsset(String accessToken, String url) async {
+    final response = await _client
+        .get(Uri.parse(url), headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _apiMessage(
+          _decodeAny(response.body),
+          'Unable to download layout asset.',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    return response.bodyBytes;
   }
 
   Future<ErpInvoiceLayoutCatalog> assignInvoiceLayout({

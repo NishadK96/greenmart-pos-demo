@@ -953,7 +953,7 @@ void main() {
         expect(request.url.queryParameters['document_type'], 'pos');
         expect(request.headers['Authorization'], 'Bearer token-123');
         return http.Response(
-          '{"data":{"location_id":3,"document_type":"pos","current_layout_id":8,"layouts":[{"id":8,"name":"Arabic Tax Invoice","design":"english-arabic-copy","design_name":"Arabic-English Letterhead","is_selected":true,"preview_url":"https://example.test/preview"}]}}',
+          '{"data":{"location_id":3,"document_type":"pos","current_layout_id":8,"layouts":[{"id":8,"name":"Arabic Tax Invoice","design":"english-arabic-copy","design_name":"Arabic-English Letterhead","is_selected":true,"offline_supported":true,"renderer_profile":"a4-bilingual-v1","offline_config_url":"https://example.test/offline","preview_url":"https://example.test/preview"}]}}',
           200,
         );
       }),
@@ -967,7 +967,45 @@ void main() {
     expect(catalog.currentLayoutId, '8');
     expect(catalog.selectedLayout?.name, 'Arabic Tax Invoice');
     expect(catalog.layouts.single.design, 'english-arabic-copy');
+    expect(catalog.layouts.single.offlineSupported, isTrue);
+    expect(catalog.layouts.single.rendererProfile, 'a4-bilingual-v1');
   });
+
+  test(
+    'offline invoice manifest and assets use authenticated endpoints',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.headers['Authorization'], 'Bearer token-123');
+          if (request.url.path.endsWith('/offline-config')) {
+            expect(request.url.queryParameters['location_id'], '3');
+            return http.Response(
+              '{"data":{"contract_version":"1.0","layout":{"id":8,"location_id":3,"document_type":"pos","revision":"sha256:test"}}}',
+              200,
+            );
+          }
+          expect(
+            request.url.path,
+            '/connector/api/invoice-layouts/8/assets/logo',
+          );
+          return http.Response.bytes([1, 2, 3], 200);
+        }),
+      );
+
+      final manifest = await api.offlineInvoiceLayoutConfig(
+        accessToken: 'token-123',
+        layoutId: '8',
+        locationId: '3',
+      );
+      final asset = await api.authenticatedAsset(
+        'token-123',
+        'https://example.test/connector/api/invoice-layouts/8/assets/logo',
+      );
+
+      expect((manifest['layout'] as Map)['revision'], 'sha256:test');
+      expect(asset, [1, 2, 3]);
+    },
+  );
 
   test(
     'assigning an invoice layout updates then reloads the ERP catalog',

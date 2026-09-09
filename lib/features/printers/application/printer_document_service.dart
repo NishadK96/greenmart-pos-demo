@@ -7,6 +7,7 @@ import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
 import '../../../core/utils/pdf_fonts.dart';
+import '../../invoice_layouts/domain/invoice_layout_entities.dart';
 
 class PrinterDocumentService {
   static Future<bool> previewPdfBytes(
@@ -579,6 +580,186 @@ class PrinterDocumentService {
     );
     return doc.save();
   }
+
+  static Future<Uint8List> offlineLayoutReceipt(
+    Sale sale,
+    OfflineInvoiceLayoutBundle bundle, {
+    bool arabic = false,
+  }) async {
+    final manifest = bundle.manifest;
+    final page = _map(manifest['page']);
+    final labels = _map(manifest['labels']);
+    final business = _map(manifest['business']);
+    final location = _map(manifest['location']);
+    final visible = _map(manifest['visible_fields']);
+    final money = _map(manifest['money']);
+    final header = _map(manifest['header']);
+    final footer = _map(manifest['footer']);
+    final provisional = _map(manifest['provisional_document']);
+    final width = _number(page['width_mm'], 80) * PdfPageFormat.mm;
+    final height = _number(page['height_mm'], 297) * PdfPageFormat.mm;
+    final margins = _map(page['margins_mm']);
+    final format = PdfPageFormat(width, height);
+    final symbol = money['currency_symbol']?.toString().trim();
+    final currency = symbol?.isNotEmpty == true
+        ? symbol!
+        : money['currency_code']?.toString() ?? 'SAR';
+    final decimals = (_number(money['decimal_places'], 2)).round();
+    String amount(int value) =>
+        '$currency ${(value / 100).toStringAsFixed(decimals)}';
+    String label(String key, String fallback) {
+      final value = labels[key]?.toString().trim() ?? '';
+      return value.isEmpty ? fallback : value;
+    }
+
+    final nameAr = business['name_ar']?.toString().trim() ?? '';
+    final nameEn = business['name_en']?.toString().trim() ?? '';
+    final businessName = arabic && nameAr.isNotEmpty
+        ? nameAr
+        : nameEn.isNotEmpty
+        ? nameEn
+        : business['name']?.toString() ?? '';
+    final address = _map(location['address']);
+    final addressText = arabic
+        ? address['override_ar']?.toString() ?? ''
+        : address['override_en']?.toString() ?? '';
+    final fallbackAddress = [
+      address['landmark'],
+      address['city'],
+      address['state'],
+      address['zip_code'],
+      address['country'],
+    ].where((value) => value?.toString().trim().isNotEmpty == true).join(', ');
+    final logo = bundle.assets['logo'];
+    final document = pw.Document();
+    final theme = await PdfFonts.arabicTheme();
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: format,
+        theme: theme,
+        margin: pw.EdgeInsets.fromLTRB(
+          _number(margins['left'], 2) * PdfPageFormat.mm,
+          _number(margins['top'], 2) * PdfPageFormat.mm,
+          _number(margins['right'], 2) * PdfPageFormat.mm,
+          _number(margins['bottom'], 2) * PdfPageFormat.mm,
+        ),
+        build: (_) => [
+          if (logo != null && visible['logo'] == true)
+            pw.Center(
+              child: pw.Image(
+                pw.MemoryImage(logo),
+                width: format.width < PdfPageFormat.a4.width ? 70 : 120,
+                height: 70,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          if (visible['business_name'] != false)
+            PdfFonts.text(
+              businessName,
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+          if (visible['location_name'] == true)
+            PdfFonts.text(
+              location['name']?.toString() ?? '',
+              textAlign: pw.TextAlign.center,
+            ),
+          if ((addressText.isNotEmpty || fallbackAddress.isNotEmpty))
+            PdfFonts.text(
+              addressText.isNotEmpty ? addressText : fallbackAddress,
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          if (header['text']?.toString().trim().isNotEmpty == true)
+            PdfFonts.text(
+              header['text'].toString(),
+              textAlign: pw.TextAlign.center,
+            ),
+          pw.SizedBox(height: 8),
+          PdfFonts.text(
+            label('invoice_heading', 'PROVISIONAL INVOICE'),
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Divider(),
+          _documentFact(label('invoice_number', 'Invoice'), sale.invoiceNo),
+          _documentFact(label('date', 'Date'), sale.createdAt.toString()),
+          if (visible['customer'] != false)
+            _documentFact(label('customer', 'Customer'), sale.customer.name),
+          if (sale.customer.taxNumber?.isNotEmpty == true)
+            _documentFact(
+              label('client_tax', 'Customer VAT'),
+              sale.customer.taxNumber!,
+            ),
+          _documentFact('Payment', _paymentLabel(sale.paymentMethod, arabic)),
+          pw.Divider(),
+          pw.TableHelper.fromTextArray(
+            headers: [
+              label('product', 'Product'),
+              label('quantity', 'Qty'),
+              label('unit_price', 'Unit price'),
+              label('line_subtotal', 'Total'),
+            ],
+            data: sale.items
+                .map(
+                  (item) => [
+                    item.product.displayName(arabic),
+                    item.quantity.toString(),
+                    amount(item.unitPrice),
+                    amount(item.total),
+                  ],
+                )
+                .toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+            border: pw.TableBorder.all(width: .4),
+            cellPadding: const pw.EdgeInsets.all(4),
+          ),
+          pw.SizedBox(height: 8),
+          _line(
+            label('subtotal', 'Subtotal'),
+            amount(sale.total - sale.tax + sale.discount),
+          ),
+          if (sale.discount != 0)
+            _line(label('discount', 'Discount'), amount(sale.discount)),
+          if (sale.tax != 0) _line(label('tax', 'Tax'), amount(sale.tax)),
+          _line(label('total', 'Total'), amount(sale.total), bold: true),
+          if (_map(manifest['payments'])['visible'] == true)
+            _line(label('paid', 'Paid'), amount(sale.total)),
+          pw.SizedBox(height: 12),
+          pw.Center(
+            child: pw.BarcodeWidget(
+              barcode: pw.Barcode.qrCode(),
+              data: provisionalReceiptQrData(sale, businessName),
+              width: 72,
+              height: 72,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          PdfFonts.text(
+            _map(provisional['watermark'])[arabic ? 'ar' : 'en']?.toString() ??
+                'PROVISIONAL - PENDING SYNCHRONIZATION',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+          ),
+          if (footer['text']?.toString().trim().isNotEmpty == true) ...[
+            pw.Divider(),
+            PdfFonts.text(
+              footer['text'].toString(),
+              textAlign: pw.TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+    return document.save();
+  }
+
+  static Map<String, dynamic> _map(dynamic value) =>
+      value is Map ? Map<String, dynamic>.from(value) : const {};
+
+  static double _number(dynamic value, double fallback) =>
+      value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
 
   static pw.Widget _line(String label, String value, {bool bold = false}) =>
       pw.Padding(

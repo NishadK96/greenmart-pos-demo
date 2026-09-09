@@ -55,6 +55,8 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/invoice-layouts';
   static String invoiceLayoutPreviewUrl(String layoutId) =>
       '$invoiceLayoutsUrl/$layoutId/preview';
+  static String invoiceLayoutOfflineConfigUrl(String layoutId) =>
+      '$invoiceLayoutsUrl/$layoutId/offline-config';
   static String locationInvoiceLayoutUrl(String locationId) =>
       '${Config.baseUrl}/connector/api/business-location/$locationId/invoice-layout';
   static String saleInvoicePdfUrl(String transactionId) =>

@@ -196,6 +196,14 @@ class EazyErpBackendRepository implements BackendRepository {
     String state = '',
     String country = '',
     String zipCode = '',
+    String landmark = '',
+    String streetName = '',
+    String buildingNumber = '',
+    String additionalNumber = '',
+    String customField1 = '',
+    String customField2 = '',
+    String customField3 = '',
+    String customField4 = '',
     String contactId = '',
     String prefix = '',
     String middleName = '',
@@ -222,6 +230,14 @@ class EazyErpBackendRepository implements BackendRepository {
     state: state,
     country: country,
     zipCode: zipCode,
+    landmark: landmark,
+    streetName: streetName,
+    buildingNumber: buildingNumber,
+    additionalNumber: additionalNumber,
+    customField1: customField1,
+    customField2: customField2,
+    customField3: customField3,
+    customField4: customField4,
     contactId: contactId,
     prefix: prefix,
     middleName: middleName,
@@ -252,6 +268,14 @@ class EazyErpBackendRepository implements BackendRepository {
     String state = '',
     String country = '',
     String zipCode = '',
+    String landmark = '',
+    String streetName = '',
+    String buildingNumber = '',
+    String additionalNumber = '',
+    String customField1 = '',
+    String customField2 = '',
+    String customField3 = '',
+    String customField4 = '',
     String contactId = '',
     String prefix = '',
     String middleName = '',
@@ -279,6 +303,14 @@ class EazyErpBackendRepository implements BackendRepository {
     state: state,
     country: country,
     zipCode: zipCode,
+    landmark: landmark,
+    streetName: streetName,
+    buildingNumber: buildingNumber,
+    additionalNumber: additionalNumber,
+    customField1: customField1,
+    customField2: customField2,
+    customField3: customField3,
+    customField4: customField4,
     contactId: contactId,
     prefix: prefix,
     middleName: middleName,
@@ -346,9 +378,9 @@ class EazyErpBackendRepository implements BackendRepository {
       sale: sale,
       quantities: quantities,
     );
-    return result['invoice_no']?.toString() ??
+    return result['id']?.toString() ??
+        result['invoice_no']?.toString() ??
         result['ref_no']?.toString() ??
-        result['id']?.toString() ??
         '';
   }
 

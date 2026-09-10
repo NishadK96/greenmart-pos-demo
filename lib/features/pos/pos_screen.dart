@@ -15,7 +15,9 @@ import '../backend/presentation/backend_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
+import '../printers/application/printer_document_service.dart';
 import '../store/app_store.dart';
+import '../zatca/presentation/zatca_controller.dart';
 
 final _posPaymentShortcutProvider =
     NotifierProvider.autoDispose<_PaymentShortcutNotifier, String?>(
@@ -540,8 +542,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           onSubmitted: (_) {
             if (products.length == 1 && _canSell(products.first)) {
               _addProduct(products.first);
-              _searchController.clear();
-              setState(() => _query = '');
             }
           },
           decoration: InputDecoration(
@@ -1077,13 +1077,27 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   );
 
   void _addProduct(Product product) {
+    final previousQuantity = ref
+        .read(appStoreProvider)
+        .cart
+        .where((line) => line.product.id == product.id)
+        .fold<double>(0, (total, line) => total + line.quantity);
     ref.read(appStoreProvider.notifier).addToCart(product);
+    final updatedQuantity = ref
+        .read(appStoreProvider)
+        .cart
+        .where((line) => line.product.id == product.id)
+        .fold<double>(0, (total, line) => total + line.quantity);
+    if (updatedQuantity <= previousQuantity) return;
+    _searchController.clear();
     ref.read(_posCartKeyboardProvider.notifier).select(product.id);
     setState(() {
+      _query = '';
       _recent.remove(product.id);
       _recent.insert(0, product.id);
       if (_recent.length > 12) _recent.removeLast();
     });
+    _focusProductSearch();
   }
 
   bool _canSell(Product product) =>
@@ -1786,11 +1800,38 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
   }
 
   Future<void> _returnSale(Sale sale) async {
-    final completed = await showSaleReturnDialog(context, sale);
-    if (!mounted || completed != true) return;
+    final returnId = await showSaleReturnDialog(context, sale);
+    if (!mounted || returnId == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(context.tr('Sale return created successfully.'))),
     );
+    await _printCreatedReturn(returnId);
+  }
+
+  Future<void> _printCreatedReturn(String returnId) async {
+    if (_printing) return;
+    setState(() => _printing = true);
+    Object? failure;
+    try {
+      final file = await ref
+          .read(zatcaControllerProvider.notifier)
+          .downloadReturnPdf(returnId);
+      final printer = ref.read(printerControllerProvider).selectedPrinter;
+      await PrinterDocumentService.printPdfBytes(
+        file.bytes,
+        name: file.fileName,
+        printer: printer,
+      );
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
+      );
+    }
   }
 }
 

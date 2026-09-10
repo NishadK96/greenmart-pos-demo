@@ -27,8 +27,8 @@ final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
 );
 
-Future<bool?> showSaleReturnDialog(BuildContext context, Sale sale) =>
-    showDialog<bool>(
+Future<String?> showSaleReturnDialog(BuildContext context, Sale sale) =>
+    showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _SaleReturnDialog(sale: sale),
@@ -2798,6 +2798,18 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
           : 'Saudi Arabia',
     );
     final zipCode = TextEditingController(text: existing?.zipCode);
+    final landmark = TextEditingController(text: existing?.landmark);
+    final streetName = TextEditingController(text: existing?.streetName);
+    final buildingNumber = TextEditingController(
+      text: existing?.buildingNumber,
+    );
+    final additionalNumber = TextEditingController(
+      text: existing?.additionalNumber,
+    );
+    final customField1 = TextEditingController(text: existing?.customField1);
+    final customField2 = TextEditingController(text: existing?.customField2);
+    final customField3 = TextEditingController(text: existing?.customField3);
+    final customField4 = TextEditingController(text: existing?.customField4);
     final contactId = TextEditingController(text: existing?.contactId);
     final prefix = TextEditingController(text: existing?.prefix);
     final middleName = TextEditingController(text: existing?.middleName);
@@ -3128,52 +3140,103 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
-                            const _CustomerFormSectionTitle(
-                              icon: Icons.location_on_outlined,
-                              title: 'Registered address',
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: [
-                                field(
-                                  addressLine1,
-                                  'Address line 1',
-                                  Icons.location_on_outlined,
-                                  validator: requiredValue,
-                                ),
-                                field(
-                                  addressLine2,
-                                  'Address line 2',
-                                  Icons.location_on_outlined,
-                                ),
-                                field(
-                                  city,
-                                  'City',
-                                  Icons.location_city_outlined,
-                                  validator: requiredValue,
-                                ),
-                                field(
-                                  state,
-                                  'State / Province',
-                                  Icons.map_outlined,
-                                ),
-                                field(
-                                  country,
-                                  'Country',
-                                  Icons.public_outlined,
-                                  validator: requiredValue,
-                                ),
-                                field(
-                                  zipCode,
-                                  'Postal code',
-                                  Icons.markunread_mailbox_outlined,
-                                ),
-                              ],
-                            ),
                           ],
+                          const SizedBox(height: 20),
+                          const _CustomerFormSectionTitle(
+                            icon: Icons.location_on_outlined,
+                            title: 'Address details',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              field(
+                                addressLine1,
+                                'Address line 1',
+                                Icons.location_on_outlined,
+                                validator: isBusiness ? requiredValue : null,
+                              ),
+                              field(
+                                addressLine2,
+                                'Address line 2',
+                                Icons.location_on_outlined,
+                              ),
+                              field(
+                                city,
+                                'City',
+                                Icons.location_city_outlined,
+                                validator: isBusiness ? requiredValue : null,
+                              ),
+                              field(
+                                state,
+                                'State / Province',
+                                Icons.map_outlined,
+                              ),
+                              field(
+                                country,
+                                'Country',
+                                Icons.public_outlined,
+                                validator: isBusiness ? requiredValue : null,
+                              ),
+                              field(
+                                zipCode,
+                                'Zip / postal code',
+                                Icons.markunread_mailbox_outlined,
+                                keyboardType: TextInputType.number,
+                              ),
+                              field(landmark, 'Landmark', Icons.place_outlined),
+                              field(
+                                streetName,
+                                'Street name',
+                                Icons.signpost_outlined,
+                              ),
+                              field(
+                                buildingNumber,
+                                'Building number',
+                                Icons.apartment_outlined,
+                                keyboardType: TextInputType.number,
+                              ),
+                              field(
+                                additionalNumber,
+                                'Additional / secondary number',
+                                Icons.numbers_outlined,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const _CustomerFormSectionTitle(
+                            icon: Icons.tune_outlined,
+                            title: 'Custom fields',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              field(
+                                customField1,
+                                'Custom field 1',
+                                Icons.edit_note,
+                              ),
+                              field(
+                                customField2,
+                                'Custom field 2',
+                                Icons.edit_note,
+                              ),
+                              field(
+                                customField3,
+                                'Custom field 3',
+                                Icons.edit_note,
+                              ),
+                              field(
+                                customField4,
+                                'Custom field 4',
+                                Icons.edit_note,
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: 20),
                           const Divider(),
                           const SizedBox(height: 8),
@@ -3340,16 +3403,20 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               commercialRegistrationNumber: isBusiness
                                   ? registrationNumber.text.trim()
                                   : '',
-                              addressLine1: isBusiness
-                                  ? addressLine1.text.trim()
-                                  : '',
-                              addressLine2: isBusiness
-                                  ? addressLine2.text.trim()
-                                  : '',
-                              city: isBusiness ? city.text.trim() : '',
-                              state: isBusiness ? state.text.trim() : '',
-                              country: isBusiness ? country.text.trim() : '',
-                              zipCode: isBusiness ? zipCode.text.trim() : '',
+                              addressLine1: addressLine1.text.trim(),
+                              addressLine2: addressLine2.text.trim(),
+                              city: city.text.trim(),
+                              state: state.text.trim(),
+                              country: country.text.trim(),
+                              zipCode: zipCode.text.trim(),
+                              landmark: landmark.text.trim(),
+                              streetName: streetName.text.trim(),
+                              buildingNumber: buildingNumber.text.trim(),
+                              additionalNumber: additionalNumber.text.trim(),
+                              customField1: customField1.text.trim(),
+                              customField2: customField2.text.trim(),
+                              customField3: customField3.text.trim(),
+                              customField4: customField4.text.trim(),
                               contactId: contactId.text.trim(),
                               prefix: isBusiness ? '' : prefix.text.trim(),
                               middleName: isBusiness
@@ -3382,16 +3449,20 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               commercialRegistrationNumber: isBusiness
                                   ? registrationNumber.text.trim()
                                   : '',
-                              addressLine1: isBusiness
-                                  ? addressLine1.text.trim()
-                                  : '',
-                              addressLine2: isBusiness
-                                  ? addressLine2.text.trim()
-                                  : '',
-                              city: isBusiness ? city.text.trim() : '',
-                              state: isBusiness ? state.text.trim() : '',
-                              country: isBusiness ? country.text.trim() : '',
-                              zipCode: isBusiness ? zipCode.text.trim() : '',
+                              addressLine1: addressLine1.text.trim(),
+                              addressLine2: addressLine2.text.trim(),
+                              city: city.text.trim(),
+                              state: state.text.trim(),
+                              country: country.text.trim(),
+                              zipCode: zipCode.text.trim(),
+                              landmark: landmark.text.trim(),
+                              streetName: streetName.text.trim(),
+                              buildingNumber: buildingNumber.text.trim(),
+                              additionalNumber: additionalNumber.text.trim(),
+                              customField1: customField1.text.trim(),
+                              customField2: customField2.text.trim(),
+                              customField3: customField3.text.trim(),
+                              customField4: customField4.text.trim(),
                               contactId: contactId.text.trim(),
                               prefix: isBusiness ? '' : prefix.text.trim(),
                               middleName: isBusiness
@@ -3445,6 +3516,14 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     state.dispose();
     country.dispose();
     zipCode.dispose();
+    landmark.dispose();
+    streetName.dispose();
+    buildingNumber.dispose();
+    additionalNumber.dispose();
+    customField1.dispose();
+    customField2.dispose();
+    customField3.dispose();
+    customField4.dispose();
     contactId.dispose();
     prefix.dispose();
     middleName.dispose();
@@ -3470,7 +3549,10 @@ class _CustomerFormSectionTitle extends StatelessWidget {
     children: [
       Icon(icon, size: 20, color: AppColors.primary),
       const SizedBox(width: 8),
-      Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      Text(
+        context.tr(title),
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
     ],
   );
 }
@@ -4573,11 +4655,34 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   );
 
   Future<void> _showSaleReturn(BuildContext context, Sale sale) async {
-    final completed = await showSaleReturnDialog(context, sale);
+    final returnId = await showSaleReturnDialog(context, sale);
     if (!mounted) return;
-    if (completed == true) {
+    if (returnId != null) {
       ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(content: Text('Sale return created successfully.')),
+      );
+      await _printCreatedReturn(returnId);
+    }
+  }
+
+  Future<void> _printCreatedReturn(String returnId) async {
+    Object? failure;
+    try {
+      final file = await ref
+          .read(zatcaControllerProvider.notifier)
+          .downloadReturnPdf(returnId);
+      final printer = ref.read(printerControllerProvider).selectedPrinter;
+      await PrinterDocumentService.printPdfBytes(
+        file.bytes,
+        name: file.fileName,
+        printer: printer,
+      );
+    } catch (error) {
+      failure = error;
+    }
+    if (failure != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Print failed')}: $failure')),
       );
     }
   }
@@ -5138,11 +5243,11 @@ class _SaleReturnDialogState extends ConsumerState<_SaleReturnDialog> {
       error = null;
     });
     try {
-      await ref
+      final returnId = await ref
           .read(backendControllerProvider.notifier)
           .createSaleReturn(sale: widget.sale, quantities: quantities);
       ref.invalidate(saleReturnsProvider);
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, returnId);
     } on ApiException catch (exception) {
       if (mounted) {
         setState(() {

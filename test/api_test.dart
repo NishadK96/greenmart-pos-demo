@@ -75,6 +75,14 @@ void main() {
         expect(body['address_line_1'], 'King Fahd Road');
         expect(body['city'], 'Riyadh');
         expect(body['country'], 'Saudi Arabia');
+        expect(body['land_mark'], 'Near Kingdom Centre');
+        expect(body['street_name'], 'King Fahd Road');
+        expect(body['building_number'], '1234');
+        expect(body['additional_number'], '5678');
+        expect(body['custom_field1'], 'Wholesale');
+        expect(body['custom_field2'], 'North region');
+        expect(body['custom_field3'], 'Priority');
+        expect(body['custom_field4'], 'Arabic invoices');
         expect(body['contact_id'], 'CUST-42');
         expect(body['prefix'], 'Mr');
         expect(body['middle_name'], 'Hassan');
@@ -99,6 +107,14 @@ void main() {
               'address_line_1': 'King Fahd Road',
               'city': 'Riyadh',
               'country': 'Saudi Arabia',
+              'land_mark': 'Near Kingdom Centre',
+              'street_name': 'King Fahd Road',
+              'building_number': '1234',
+              'additional_number': '5678',
+              'custom_field1': 'Wholesale',
+              'custom_field2': 'North region',
+              'custom_field3': 'Priority',
+              'custom_field4': 'Arabic invoices',
               'contact_id': 'CUST-42',
               'prefix': 'Mr',
               'middle_name': 'Hassan',
@@ -128,6 +144,14 @@ void main() {
       addressLine1: 'King Fahd Road',
       city: 'Riyadh',
       country: 'Saudi Arabia',
+      landmark: 'Near Kingdom Centre',
+      streetName: 'King Fahd Road',
+      buildingNumber: '1234',
+      additionalNumber: '5678',
+      customField1: 'Wholesale',
+      customField2: 'North region',
+      customField3: 'Priority',
+      customField4: 'Arabic invoices',
       contactId: 'CUST-42',
       prefix: 'Mr',
       middleName: 'Hassan',
@@ -144,10 +168,19 @@ void main() {
 
     expect(customer.isBusiness, isTrue);
     expect(customer.businessName, 'Acme Trading');
-    expect(customer.address, 'King Fahd Road, Riyadh, Saudi Arabia');
+    expect(
+      customer.address,
+      'King Fahd Road, Riyadh, Saudi Arabia, Near Kingdom Centre, '
+      'King Fahd Road, 1234, 5678',
+    );
     expect(customer.contactId, 'CUST-42');
     expect(customer.middleName, 'Hassan');
     expect(customer.shippingAddress, 'Warehouse 4, Riyadh');
+    expect(customer.landmark, 'Near Kingdom Centre');
+    expect(customer.streetName, 'King Fahd Road');
+    expect(customer.buildingNumber, '1234');
+    expect(customer.additionalNumber, '5678');
+    expect(customer.customField1, 'Wholesale');
   });
 
   test('sale return sends selected backend sell-line quantities', () async {

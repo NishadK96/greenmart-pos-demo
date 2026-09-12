@@ -89,13 +89,13 @@ class PrinterSettingsScreen extends ConsumerWidget {
                             await PrinterDocumentService.printPdfBytes(
                               file.bytes,
                               name: file.fileName,
-                              printer: state.selectedPrinter,
+                              printers: state.selectedPrinters,
                             );
                             return;
                           }
                           await PrinterDocumentService.printSampleTo(
                             settings,
-                            printer: state.selectedPrinter,
+                            printers: state.selectedPrinters,
                           );
                         } catch (error) {
                           if (context.mounted)
@@ -189,7 +189,7 @@ class PrinterSettingsScreen extends ConsumerWidget {
                       scanning: state.scanning,
                       message: state.message,
                       onScan: controller.scan,
-                      onSelect: controller.selectPrinter,
+                      onToggle: controller.toggleAdditionalPrinter,
                     ),
                   ],
                 ),
@@ -1267,17 +1267,21 @@ class _PrinterList extends StatelessWidget {
     required this.scanning,
     required this.message,
     required this.onScan,
-    required this.onSelect,
+    required this.onToggle,
   });
   final List<Printer> printers;
   final PrinterSettings settings;
   final bool scanning;
   final String? message;
   final VoidCallback onScan;
-  final ValueChanged<Printer> onSelect;
+  final ValueChanged<Printer> onToggle;
   @override
   Widget build(BuildContext context) {
     final selectedUrl = settings.defaultPrinterUrl;
+    final selectedCount = {
+      if (selectedUrl != null) selectedUrl,
+      ...settings.additionalPrinters.keys,
+    }.length;
     return Surface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1289,14 +1293,14 @@ class _PrinterList extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Default printer for this app',
+                      'Select printers',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Text(
-                      'Used automatically for sales, purchases, ZATCA and all other print actions',
-                      style: const TextStyle(color: AppColors.muted),
+                    const Text(
+                      'Choose every printer that should receive your documents.',
+                      style: TextStyle(color: AppColors.muted),
                     ),
                   ],
                 ),
@@ -1312,6 +1316,46 @@ class _PrinterList extends StatelessWidget {
                 label: const Text('Scan for printers'),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: selectedCount == 0
+                  ? const Color(0xFFFFF8E8)
+                  : const Color(0xFFEAF6F2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selectedCount == 0
+                    ? const Color(0xFFF0D49A)
+                    : const Color(0xFFB8D9CF),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  selectedCount == 0
+                      ? Icons.info_outline
+                      : Icons.check_circle_outline,
+                  color: selectedCount == 0
+                      ? const Color(0xFFB96A00)
+                      : AppColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    selectedCount == 0
+                        ? context.tr(
+                            'No printer selected. Select at least one printer to enable direct printing.',
+                          )
+                        : context.isArabic
+                        ? 'تم اختيار $selectedCount. سترسل كل عملية طباعة نسخة واحدة إلى كل طابعة محددة.'
+                        : '$selectedCount selected. Every print action will send one copy to each selected printer.',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
           ),
           if (message != null) ...[
             const SizedBox(height: 12),
@@ -1332,45 +1376,95 @@ class _PrinterList extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           for (final printer in printers)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFDDE5E2)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: Color(0xFFE4F2EE),
-                    child: Icon(Icons.print_outlined, color: AppColors.primary),
+            Builder(
+              builder: (context) {
+                final primary = selectedUrl == printer.url;
+                final additional = settings.additionalPrinters.containsKey(
+                  printer.url,
+                );
+                final selected = primary || additional;
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFDDE5E2)),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          printer.name,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        if (printer.model?.isNotEmpty == true)
-                          Text(
-                            printer.model!,
-                            style: const TextStyle(color: AppColors.muted),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final identity = Row(
+                        children: [
+                          const CircleAvatar(
+                            backgroundColor: Color(0xFFE4F2EE),
+                            child: Icon(
+                              Icons.print_outlined,
+                              color: AppColors.primary,
+                            ),
                           ),
-                      ],
-                    ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  printer.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                if (printer.model?.isNotEmpty == true)
+                                  Text(
+                                    printer.model!,
+                                    style: const TextStyle(
+                                      color: AppColors.muted,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                      final actions = Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            value: selected,
+                            onChanged: (_) => onToggle(printer),
+                          ),
+                          TextButton(
+                            onPressed: () => onToggle(printer),
+                            child: Text(
+                              selected
+                                  ? 'Selected for printing'
+                                  : 'Select printer',
+                            ),
+                          ),
+                        ],
+                      );
+                      if (constraints.maxWidth < 560) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            identity,
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: actions,
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: identity),
+                          const SizedBox(width: 12),
+                          actions,
+                        ],
+                      );
+                    },
                   ),
-                  if (selectedUrl == printer.url)
-                    const StatusBadge('Default')
-                  else
-                    OutlinedButton(
-                      onPressed: () => onSelect(printer),
-                      child: const Text('Set as default'),
-                    ),
-                ],
-              ),
+                );
+              },
             ),
         ],
       ),

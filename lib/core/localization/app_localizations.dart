@@ -179,6 +179,20 @@ const Map<String, String> _ar = {
   'Customer: Walk-in Customer': 'العميل: عميل نقدي',
   'Daily — B2C reporting queue': 'يومي — قائمة إبلاغ فواتير الأفراد',
   'Default printer for this app': 'الطابعة الافتراضية لهذا التطبيق',
+  'Printers for this app': 'طابعات هذا التطبيق',
+  'Select printers': 'اختر الطابعات',
+  'Choose every printer that should receive your documents.':
+      'اختر كل طابعة يجب أن تستقبل مستنداتك.',
+  'No printer selected. Select at least one printer to enable direct printing.':
+      'لم يتم اختيار طابعة. اختر طابعة واحدة على الأقل لتفعيل الطباعة المباشرة.',
+  'Selected for printing': 'محددة للطباعة',
+  'Select printer': 'اختر الطابعة',
+  'Select one or more printers for sales, purchases, ZATCA and all other print actions':
+      'اختر طابعة واحدة أو أكثر للمبيعات والمشتريات وزاتكا وجميع عمليات الطباعة',
+  'Primary': 'الأساسية',
+  'Print here': 'الطباعة هنا',
+  'Printer options': 'خيارات الطابعة',
+  'Make primary printer': 'تعيينها طابعة أساسية',
   'Delete / replace': 'حذف / استبدال',
   'Delete or replace category': 'حذف الفئة أو استبدالها',
   'Delete product': 'حذف المنتج',

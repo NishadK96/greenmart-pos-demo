@@ -91,6 +91,28 @@ void main() {
     expect(state.selectedPrinter?.name, printerName);
   });
 
+  test('multiple print destinations persist and remain usable', () async {
+    const primaryUrl = r'windows-printer://receipt';
+    const additionalUrl = r'windows-printer://office-copy';
+    final repository = PrinterSettingsRepository();
+    await repository.save(
+      const PrinterSettings().copyWith(
+        defaultPrinterUrl: primaryUrl,
+        defaultPrinterName: 'Receipt printer',
+        additionalPrinters: const {additionalUrl: 'Office copy'},
+      ),
+    );
+
+    final restored = await repository.load();
+    final state = PrinterState(settings: restored, loading: false);
+
+    expect(restored.additionalPrinters, const {additionalUrl: 'Office copy'});
+    expect(state.selectedPrinters.map((printer) => printer.url), [
+      primaryUrl,
+      additionalUrl,
+    ]);
+  });
+
   test('billing templates generate distinct print layouts', () async {
     Future<List<int>> build(String template) {
       const defaults = PrinterSettings();

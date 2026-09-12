@@ -188,11 +188,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     await _runExportAction(() async {
       final result = await _loadCompleteReport();
       final bytes = await _buildReportPdf(request, result);
-      final printer = ref.read(printerControllerProvider).selectedPrinter;
+      final printers = ref.read(printerControllerProvider).selectedPrinters;
       await PrinterDocumentService.printPdfBytes(
         bytes,
         name: _reportFileName(request, 'pdf'),
-        printer: printer,
+        printers: printers,
         format: PdfPageFormat.a4.landscape,
       );
     }, successMessage: 'Report sent to printer');

@@ -210,7 +210,7 @@ Future<void> printPurchaseOrder(
   await PrinterDocumentService.printPdfBytes(
     bytes,
     name: '${document.reference}.pdf',
-    printer: printerState.selectedPrinter,
+    printers: printerState.selectedPrinters,
     format: PdfPageFormat.a4,
   );
 }

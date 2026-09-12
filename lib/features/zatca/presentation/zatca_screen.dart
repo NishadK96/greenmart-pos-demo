@@ -748,7 +748,7 @@ class _TransactionDialogState extends ConsumerState<_TransactionDialog> {
                   await PrinterDocumentService.printPdfBytes(
                     file.bytes,
                     name: file.fileName,
-                    printer: printerState.selectedPrinter,
+                    printers: printerState.selectedPrinters,
                   );
                 }),
           child: const Text('Print PDF/A-3'),
@@ -2296,7 +2296,7 @@ class _InvoiceDialogState extends ConsumerState<_InvoiceDialog> {
     await PrinterDocumentService.printPdfBytes(
       file.bytes,
       name: file.fileName,
-      printer: printerState.selectedPrinter,
+      printers: printerState.selectedPrinters,
     );
   });
 }

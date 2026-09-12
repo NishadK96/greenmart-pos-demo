@@ -258,7 +258,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
             sale: sale,
             businessName: businessName,
             settings: printerState.settings,
-            printer: printerState.selectedPrinter,
+            printers: printerState.selectedPrinters,
             arabic: isArabic,
           );
     } catch (error) {

@@ -1763,7 +1763,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
             sale: sale,
             businessName: businessName,
             settings: printerState.settings,
-            printer: printerState.selectedPrinter,
+            printers: printerState.selectedPrinters,
             arabic: isArabic,
           );
     } catch (error) {
@@ -1833,11 +1833,11 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
       final file = await ref
           .read(zatcaControllerProvider.notifier)
           .downloadReturnPdf(returnId);
-      final printer = ref.read(printerControllerProvider).selectedPrinter;
+      final printers = ref.read(printerControllerProvider).selectedPrinters;
       await PrinterDocumentService.printPdfBytes(
         file.bytes,
         name: file.fileName,
-        printer: printer,
+        printers: printers,
       );
     } catch (error) {
       failure = error;
@@ -4078,7 +4078,7 @@ class _CurrentOrder extends ConsumerWidget {
                   ref.read(appStoreProvider).business?.displayName(isArabic) ??
                   'Eazy POS',
               settings: printerState.settings,
-              printer: printerState.selectedPrinter,
+              printers: printerState.selectedPrinters,
               arabic: isArabic,
             );
       } catch (printError) {

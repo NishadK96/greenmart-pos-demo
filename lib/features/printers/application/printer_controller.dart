@@ -29,6 +29,24 @@ class PrinterState {
     return Printer(url: url, name: settings.defaultPrinterName);
   }
 
+  List<Printer> get selectedPrinters {
+    final destinations = <String, Printer>{};
+    final primary = selectedPrinter;
+    if (primary != null) destinations[primary.url] = primary;
+    for (final entry in settings.additionalPrinters.entries) {
+      if (entry.key == primary?.url) continue;
+      destinations[entry.key] = _printerFor(entry.key, entry.value);
+    }
+    return destinations.values.toList(growable: false);
+  }
+
+  Printer _printerFor(String url, String name) {
+    for (final printer in printers) {
+      if (printer.url == url) return printer;
+    }
+    return Printer(url: url, name: name);
+  }
+
   PrinterState copyWith({
     PrinterSettings? settings,
     List<Printer>? printers,
@@ -118,16 +136,68 @@ class PrinterController extends Notifier<PrinterState> {
   }
 
   Future<void> selectPrinter(Printer printer) async {
+    final additional = Map<String, String>.from(
+      state.settings.additionalPrinters,
+    );
+    final previousUrl = state.settings.defaultPrinterUrl;
+    final previousName = state.settings.defaultPrinterName;
+    final wasAdditional = additional.remove(printer.url) != null;
+    if (previousUrl != null && previousUrl != printer.url && wasAdditional) {
+      additional[previousUrl] = previousName ?? previousUrl;
+    }
     await update(
       state.settings.copyWith(
         defaultPrinterUrl: printer.url,
         defaultPrinterName: printer.name,
+        additionalPrinters: additional,
       ),
     );
   }
 
+  Future<void> toggleAdditionalPrinter(Printer printer) async {
+    if (state.settings.defaultPrinterUrl == null) {
+      await selectPrinter(printer);
+      return;
+    }
+    final additional = Map<String, String>.from(
+      state.settings.additionalPrinters,
+    );
+    if (printer.url == state.settings.defaultPrinterUrl) {
+      if (additional.isEmpty) {
+        await update(
+          state.settings.copyWith(
+            clearDefaultPrinter: true,
+            additionalPrinters: const {},
+          ),
+        );
+        return;
+      }
+      final replacement = additional.entries.first;
+      additional.remove(replacement.key);
+      await update(
+        state.settings.copyWith(
+          defaultPrinterUrl: replacement.key,
+          defaultPrinterName: replacement.value,
+          additionalPrinters: additional,
+        ),
+      );
+      return;
+    }
+    if (additional.containsKey(printer.url)) {
+      additional.remove(printer.url);
+    } else {
+      additional[printer.url] = printer.name;
+    }
+    await update(state.settings.copyWith(additionalPrinters: additional));
+  }
+
   Future<void> clearDefaults() async {
-    await update(state.settings.copyWith(clearDefaultPrinter: true));
+    await update(
+      state.settings.copyWith(
+        clearDefaultPrinter: true,
+        additionalPrinters: const {},
+      ),
+    );
   }
 
   Future<void> reset() async {

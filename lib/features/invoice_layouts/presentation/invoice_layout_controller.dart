@@ -100,6 +100,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     required String businessName,
     required PrinterSettings settings,
     Printer? printer,
+    Iterable<Printer>? printers,
     bool arabic = false,
   }) async {
     final file = await salePdf(
@@ -112,6 +113,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       file.bytes,
       name: file.fileName,
       printer: printer,
+      printers: printers,
     );
   }
 

@@ -4098,11 +4098,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             : record.invoiceNo,
         bytes: file.bytes,
         onPrint: () async {
-          final printer = ref.read(printerControllerProvider).selectedPrinter;
+          final printers = ref.read(printerControllerProvider).selectedPrinters;
           await PrinterDocumentService.printPdfBytes(
             file.bytes,
             name: file.fileName,
-            printer: printer,
+            printers: printers,
           );
         },
       );
@@ -4567,7 +4567,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                     ?.displayName(context.isArabic) ??
                 'Eazy POS',
             settings: printerState.settings,
-            printer: printerState.selectedPrinter,
+            printers: printerState.selectedPrinters,
             arabic: ref.read(localeProvider).languageCode == 'ar',
           );
     } catch (error) {
@@ -4622,11 +4622,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       final file = await ref
           .read(zatcaControllerProvider.notifier)
           .downloadReturnPdf(returnId);
-      final printer = ref.read(printerControllerProvider).selectedPrinter;
+      final printers = ref.read(printerControllerProvider).selectedPrinters;
       await PrinterDocumentService.printPdfBytes(
         file.bytes,
         name: file.fileName,
-        printer: printer,
+        printers: printers,
       );
     } catch (error) {
       failure = error;

@@ -37,6 +37,7 @@ class PrinterSettings {
       'barcode': PrinterTemplate.compactPriceLabel,
     },
     this.selectedPrinters = const {},
+    this.additionalPrinters = const {},
     this.defaultPrinterUrl,
     this.defaultPrinterName,
     this.barcodeColumns = 3,
@@ -53,6 +54,10 @@ class PrinterSettings {
   final Map<String, String> paperSizes;
   final Map<String, String> templates;
   final Map<String, String> selectedPrinters;
+
+  /// Additional print destinations keyed by the platform printer URL.
+  /// The primary/default destination remains in [defaultPrinterUrl].
+  final Map<String, String> additionalPrinters;
   final String? defaultPrinterUrl;
   final String? defaultPrinterName;
   final int barcodeColumns, barcodeHeight, barcodeWidthPercent, barcodeDpi;
@@ -85,6 +90,7 @@ class PrinterSettings {
     Map<String, String>? paperSizes,
     Map<String, String>? templates,
     Map<String, String>? selectedPrinters,
+    Map<String, String>? additionalPrinters,
     String? defaultPrinterUrl,
     String? defaultPrinterName,
     bool clearDefaultPrinter = false,
@@ -101,6 +107,7 @@ class PrinterSettings {
     paperSizes: paperSizes ?? this.paperSizes,
     templates: templates ?? this.templates,
     selectedPrinters: selectedPrinters ?? this.selectedPrinters,
+    additionalPrinters: additionalPrinters ?? this.additionalPrinters,
     defaultPrinterUrl: clearDefaultPrinter
         ? null
         : defaultPrinterUrl ?? this.defaultPrinterUrl,
@@ -120,6 +127,7 @@ class PrinterSettings {
     'paperSizes': paperSizes,
     'templates': templates,
     'selectedPrinters': selectedPrinters,
+    'additionalPrinters': additionalPrinters,
     'defaultPrinterUrl': defaultPrinterUrl,
     'defaultPrinterName': defaultPrinterName,
     'barcodeColumns': barcodeColumns,
@@ -144,6 +152,9 @@ class PrinterSettings {
       },
       selectedPrinters: Map<String, String>.from(
         json['selectedPrinters'] as Map? ?? const {},
+      ),
+      additionalPrinters: Map<String, String>.from(
+        json['additionalPrinters'] as Map? ?? const {},
       ),
       defaultPrinterUrl:
           json['defaultPrinterUrl']?.toString() ??

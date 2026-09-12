@@ -29,27 +29,52 @@ class PrinterDocumentService {
     Uint8List bytes, {
     required String name,
     Printer? printer,
+    Iterable<Printer>? printers,
     PdfPageFormat format = PdfPageFormat.a4,
   }) async {
-    if (printer != null && printer.url != 'system-print-dialog') {
-      try {
-        final printed = await Printing.directPrintPdf(
-          printer: printer,
-          name: name,
-          format: format,
-          usePrinterSettings: _usesExternalWindowsPreview,
-          onLayout: (_) async => bytes,
-        );
-        if (printed) return true;
+    final destinations = <String, Printer>{
+      for (final destination in printers ?? const <Printer>[])
+        if (destination.url != 'system-print-dialog')
+          destination.url: destination,
+      if (printer != null && printer.url != 'system-print-dialog')
+        printer.url: printer,
+    }.values.toList(growable: false);
+    if (destinations.isNotEmpty) {
+      final results = await Future.wait(
+        destinations.map((destination) async {
+          try {
+            final printed = await Printing.directPrintPdf(
+              printer: destination,
+              name: name,
+              format: format,
+              usePrinterSettings: _usesExternalWindowsPreview,
+              onLayout: (_) async => bytes,
+            );
+            return (printer: destination, error: printed ? null : 'rejected');
+          } catch (_) {
+            return (printer: destination, error: 'unavailable');
+          }
+        }),
+      );
+      final failures = results.where((result) => result.error != null).toList();
+      if (failures.isEmpty) return true;
+      final successes = results
+          .where((result) => result.error == null)
+          .toList();
+      final failedNames = failures
+          .map((result) => result.printer.name)
+          .join(', ');
+      if (successes.isNotEmpty) {
+        final successfulNames = successes
+            .map((result) => result.printer.name)
+            .join(', ');
         throw StateError(
-          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
-        );
-      } catch (error) {
-        if (error is StateError) rethrow;
-        throw StateError(
-          'Unable to print to ${printer.name}. Check the printer connection and try again.',
+          'Printed to $successfulNames, but failed to print to $failedNames. Check the failed printer and try again.',
         );
       }
+      throw StateError(
+        'Unable to print to $failedNames. Check the printer connections and try again.',
+      );
     }
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
       throw StateError(
@@ -900,36 +925,19 @@ class PrinterDocumentService {
   static Future<bool> printSampleTo(
     PrinterSettings settings, {
     Printer? printer,
+    Iterable<Printer>? printers,
   }) async {
     final format = formatFor(
       settings.paperSizes[settings.profileKey] ?? '80mm',
     );
-    if (printer != null && printer.url != 'system-print-dialog') {
-      try {
-        final printed = await Printing.directPrintPdf(
-          printer: printer,
-          name: 'Eazy POS ${settings.profileKey} test',
-          format: format,
-          usePrinterSettings: _usesExternalWindowsPreview,
-          onLayout: (requested) => sample(settings, requested),
-        );
-        if (printed) return true;
-        throw StateError(
-          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
-        );
-      } catch (error) {
-        if (error is StateError) rethrow;
-        throw StateError(
-          'Unable to print to ${printer.name}. Check the printer connection and try again.',
-        );
-      }
-    }
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-      throw StateError(
-        'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.',
-      );
-    }
-    return await printSample(settings);
+    final bytes = await sample(settings, format);
+    return printPdfBytes(
+      bytes,
+      name: 'Eazy POS ${settings.profileKey} test',
+      printer: printer,
+      printers: printers,
+      format: format,
+    );
   }
 
   static Future<bool> previewSample(PrinterSettings settings) async {
@@ -969,39 +977,27 @@ class PrinterDocumentService {
     String businessName,
     PrinterSettings settings, {
     Printer? printer,
+    Iterable<Printer>? printers,
     bool arabic = false,
   }) async {
     final profile = sale.customer.isBusiness
         ? 'billing-business'
         : 'billing-retail';
     final format = formatFor(settings.paperSizes[profile] ?? '80mm');
-    if (printer != null && printer.url != 'system-print-dialog') {
-      try {
-        final printed = await Printing.directPrintPdf(
-          printer: printer,
-          name: 'Invoice ${sale.invoiceNo}',
-          format: format,
-          usePrinterSettings: _usesExternalWindowsPreview,
-          onLayout: (format) =>
-              receipt(sale, businessName, settings, format, arabic: arabic),
-        );
-        if (printed) return true;
-        throw StateError(
-          'The selected printer did not accept the print job. Check that it is online and selected as the default printer.',
-        );
-      } catch (error) {
-        if (error is StateError) rethrow;
-        throw StateError(
-          'Unable to print to ${printer.name}. Check the printer connection and try again.',
-        );
-      }
-    }
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-      throw StateError(
-        'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.',
-      );
-    }
-    return await printReceipt(sale, businessName, settings, arabic: arabic);
+    final bytes = await receipt(
+      sale,
+      businessName,
+      settings,
+      format,
+      arabic: arabic,
+    );
+    return printPdfBytes(
+      bytes,
+      name: 'Invoice ${sale.invoiceNo}',
+      printer: printer,
+      printers: printers,
+      format: format,
+    );
   }
 
   static Future<bool> previewReceipt(

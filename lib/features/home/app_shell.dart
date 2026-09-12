@@ -9,7 +9,7 @@ import '../../shared/widgets/ui.dart';
 import '../cash_register/domain/cash_register_entities.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
 import '../cash_register/presentation/cash_register_dialog.dart';
-import '../auth/account_switch_dialog.dart';
+import '../auth/account_menu.dart';
 import '../store/app_store.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 
@@ -36,6 +36,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
+  final scaffoldKey = GlobalKey<ScaffoldState>();
   bool expanded = true;
   bool sidebarInitialized = false;
   late final Timer timer;
@@ -110,14 +111,26 @@ class _AppShellState extends ConsumerState<AppShell> {
         ('/settings', 'More', Icons.more_horiz),
       ];
       final phone = width < 700;
+      final mobileIndex = mobile.indexWhere((e) => path.startsWith(e.$1));
       return Scaffold(
+        key: scaffoldKey,
+        drawer: _MobileNavigationDrawer(
+          currentPath: path,
+          businessName: businessName,
+          userName: userName,
+          onAccountTap: () => showAccountMenu(context, ref),
+          onSelected: (destination) {
+            Navigator.pop(context);
+            context.go(destination);
+          },
+        ),
         appBar: phone
             ? PreferredSize(
-                preferredSize: const Size.fromHeight(112),
+                preferredSize: const Size.fromHeight(96),
                 child: SafeArea(
                   bottom: false,
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                    padding: const EdgeInsets.fromLTRB(10, 5, 8, 6),
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       border: Border(
@@ -128,59 +141,73 @@ class _AppShellState extends ConsumerState<AppShell> {
                       children: [
                         Row(
                           children: [
-                            const _EazyPosIcon(size: 42, radius: 11),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    businessName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  Text(
-                                    context.tr('Point of Sale'),
-                                    style: const TextStyle(
-                                      color: AppColors.muted,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            IconButton(
+                              tooltip: context.tr('Menu'),
+                              onPressed: () =>
+                                  scaffoldKey.currentState?.openDrawer(),
+                              icon: const Icon(Icons.menu_rounded),
                             ),
+                            const _EazyPosIcon(size: 36, radius: 9),
+                            const SizedBox(width: 8),
                             if (path == '/pos')
-                              OutlinedButton(
-                                onPressed: () =>
-                                    showCashRegisterDialog(context, ref),
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 42),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () =>
+                                      showCashRegisterDialog(context, ref),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 38),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          registerLabel,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.keyboard_arrow_down,
+                                        size: 16,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                              )
+                            else
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(registerLabel),
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.keyboard_arrow_down,
-                                      size: 18,
+                                    Text(
+                                      businessName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    Text(
+                                      context.tr('Point of Sale'),
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontSize: 10,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 2),
                             IconButton(
-                              tooltip: context.tr('Switch user'),
-                              onPressed: () =>
-                                  showAccountSwitchDialog(context, ref),
-                              icon: const Icon(Icons.switch_account_outlined),
+                              tooltip: context.tr('Account menu'),
+                              onPressed: () => showAccountMenu(context, ref),
+                              icon: const Icon(Icons.account_circle_outlined),
                             ),
                             IconButton(
                               tooltip: context.tr('Notifications'),
@@ -189,7 +216,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 9),
+                        const SizedBox(height: 3),
                         Row(
                           children: [
                             StatusBadge(context.tr('Online')),
@@ -230,9 +257,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
               )
             : AppBar(
-                leading: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: _EazyPosIcon(size: 40, radius: 10),
+                leading: IconButton(
+                  tooltip: context.tr('Menu'),
+                  onPressed: () => scaffoldKey.currentState?.openDrawer(),
+                  icon: const Icon(Icons.menu_rounded),
                 ),
                 title: Text(
                   context.tr('Eazy POS'),
@@ -257,12 +285,16 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
         body: widget.child,
         bottomNavigationBar: NavigationBar(
-          height: phone ? 66 : 72,
+          height: phone ? 60 : 72,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          selectedIndex: mobile
-              .indexWhere((e) => path.startsWith(e.$1))
-              .clamp(0, 4),
-          onDestinationSelected: (i) => context.go(mobile[i].$1),
+          selectedIndex: mobileIndex < 0 ? 4 : mobileIndex,
+          onDestinationSelected: (i) {
+            if (i == 4) {
+              scaffoldKey.currentState?.openDrawer();
+            } else {
+              context.go(mobile[i].$1);
+            }
+          },
           destinations: [
             for (final d in mobile)
               NavigationDestination(icon: Icon(d.$3), label: context.tr(d.$2)),
@@ -415,7 +447,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: InkWell(
-                      onTap: () => showAccountSwitchDialog(context, ref),
+                      onTap: () => showAccountMenu(context, ref),
                       borderRadius: BorderRadius.circular(13),
                       child: Container(
                         padding: const EdgeInsets.all(10),
@@ -667,9 +699,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       const SizedBox(width: 12),
                       IconButton(
-                        tooltip: context.tr('Switch user'),
-                        onPressed: () => showAccountSwitchDialog(context, ref),
-                        icon: const Icon(Icons.switch_account_outlined),
+                        tooltip: context.tr('Account menu'),
+                        onPressed: () => showAccountMenu(context, ref),
+                        icon: const Icon(Icons.account_circle_outlined),
                       ),
                       IconButton(
                         onPressed: () {},
@@ -689,6 +721,128 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
   }
+}
+
+class _MobileNavigationDrawer extends StatelessWidget {
+  const _MobileNavigationDrawer({
+    required this.currentPath,
+    required this.businessName,
+    required this.userName,
+    required this.onSelected,
+    required this.onAccountTap,
+  });
+
+  final String currentPath;
+  final String businessName;
+  final String userName;
+  final ValueChanged<String> onSelected;
+  final VoidCallback onAccountTap;
+
+  @override
+  Widget build(BuildContext context) => Drawer(
+    width: MediaQuery.sizeOf(context).width.clamp(280, 340).toDouble(),
+    child: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 14, 16),
+            child: Row(
+              children: [
+                const _EazyPosIcon(size: 46, radius: 12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        businessName.isEmpty ? 'Eazy POS' : businessName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        context.tr('All sections'),
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.tr('Close'),
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              itemCount: destinations.length,
+              itemBuilder: (context, index) {
+                final destination = destinations[index];
+                final selected = currentPath.startsWith(destination.$1);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: ListTile(
+                    selected: selected,
+                    selectedTileColor: const Color(0xFFE1F1EC),
+                    selectedColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    leading: Icon(destination.$3),
+                    title: Text(
+                      context.tr(destination.$2),
+                      style: TextStyle(
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                    trailing: selected
+                        ? const Icon(Icons.check_rounded, size: 19)
+                        : null,
+                    onTap: () => onSelected(destination.$1),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (userName.isNotEmpty) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFFF4A62A),
+                child: Icon(Icons.person_outline, color: Colors.black87),
+              ),
+              title: Text(
+                userName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(context.tr('Signed in user')),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.pop(context);
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => onAccountTap(),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
 
 class _EazyPosIcon extends StatelessWidget {

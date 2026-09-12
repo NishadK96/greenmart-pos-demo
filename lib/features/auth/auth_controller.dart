@@ -188,8 +188,12 @@ class AuthController extends AsyncNotifier<String?> {
     if (kIsWeb) {
       final token = state.asData?.value;
       if (token != null) {
-        await _bootstrapWeb();
-        await ref.read(apiProvider).logoutWebSession(token, _webCsrfToken!);
+        try {
+          await _bootstrapWeb();
+          await ref.read(apiProvider).logoutWebSession(token, _webCsrfToken!);
+        } catch (_) {
+          // Signing out locally must still work when the server is unreachable.
+        }
       }
       _activeSessionId = null;
     } else {

@@ -9,12 +9,14 @@ class PageTitle extends StatelessWidget {
   final Widget? action;
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           context.tr(title),
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontSize: compact ? 20 : null,
             fontWeight: FontWeight.w800,
             letterSpacing: -.5,
           ),
@@ -23,7 +25,10 @@ class PageTitle extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             context.tr(subtitle!),
-            style: const TextStyle(color: AppColors.muted, fontSize: 13),
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: compact ? 11 : 13,
+            ),
           ),
         ],
       ],
@@ -35,7 +40,7 @@ class PageTitle extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               text,
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Align(alignment: Alignment.centerLeft, child: action!),
             ],
           );
@@ -60,22 +65,28 @@ class Surface extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      border: Border.all(color: const Color(0xFFE5EAE8)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x0A10231F),
-          blurRadius: 22,
-          offset: Offset(0, 6),
-        ),
-      ],
-    ),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final resolvedPadding = compact && padding == const EdgeInsets.all(16)
+        ? const EdgeInsets.all(12)
+        : padding;
+    return Container(
+      padding: resolvedPadding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(0xFFE5EAE8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A10231F),
+            blurRadius: 22,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
 }
 
 class MetricCard extends StatelessWidget {
@@ -91,35 +102,59 @@ class MetricCard extends StatelessWidget {
   final Color tint;
   @override
   Widget build(BuildContext context) => Surface(
-    child: Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 150;
+        final iconWidget = Container(
+          padding: EdgeInsets.all(narrow ? 7 : 10),
           decoration: BoxDecoration(
             color: tint.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(narrow ? 9 : 12),
           ),
-          child: Icon(icon, color: tint),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          child: Icon(icon, color: tint, size: narrow ? 20 : 24),
+        );
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: narrow
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: narrow ? TextAlign.center : TextAlign.start,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontSize: narrow ? 18 : null,
+                fontWeight: FontWeight.w800,
               ),
-              Text(
-                context.tr(label),
-                style: const TextStyle(color: AppColors.muted),
+            ),
+            Text(
+              context.tr(label),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: narrow ? TextAlign.center : TextAlign.start,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: narrow ? 10 : null,
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+        if (narrow) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [iconWidget, const SizedBox(height: 7), content],
+          );
+        }
+        return Row(
+          children: [
+            iconWidget,
+            const SizedBox(width: 12),
+            Expanded(child: content),
+          ],
+        );
+      },
     ),
   );
 }

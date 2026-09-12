@@ -6,9 +6,18 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eazy_pos/app.dart';
 import 'package:eazy_pos/core/localization/app_localizations.dart';
+import 'package:eazy_pos/core/theme/app_theme.dart';
 import 'package:eazy_pos/features/auth/auth_controller.dart';
+import 'package:eazy_pos/features/auth/account_menu.dart';
+import 'package:eazy_pos/features/cash_register/presentation/cash_register_controller.dart';
 import 'package:eazy_pos/features/home/module_screens.dart';
 import 'package:eazy_pos/features/pos/pos_screen.dart';
+import 'package:eazy_pos/features/printers/presentation/printer_settings_screen.dart';
+import 'package:eazy_pos/features/products/presentation/product_management_screens.dart';
+import 'package:eazy_pos/features/purchases/presentation/purchase_screens.dart';
+import 'package:eazy_pos/features/purchases/presentation/purchase_controller.dart';
+import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
+import 'package:eazy_pos/features/reports/presentation/reports_screen.dart';
 import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 
@@ -27,6 +36,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Start your shift'), findsOneWidget);
     expect(find.text('Continue to Eazy POS'), findsOneWidget);
+  });
+
+  testWidgets('login remains compact without overflow at 320px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedOutAuthController.new),
+        ],
+        child: const EazyPosApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Continue to Eazy POS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mobile account menu confirms and completes logout', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(_SignedInAuthController.new),
+        cashRegisterControllerProvider.overrideWith(_NoRegisterController.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _AccountMenuTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Account'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Switch user'), findsOneWidget);
+    expect(find.text('Log out'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Log out of Eazy POS?'), findsOneWidget);
+
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+    expect(
+      (container.read(authControllerProvider.notifier)
+              as _SignedInAuthController)
+          .loggedOut,
+      isTrue,
+    );
   });
 
   testWidgets('language switch changes the app to Arabic and RTL', (
@@ -413,6 +485,100 @@ void main() {
     expect(find.text('No products match these filters'), findsOneWidget);
   });
 
+  testWidgets('Create product uses a compact mobile header and action bar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: [AppLocalizations.delegate],
+          supportedLocales: [Locale('en'), Locale('ar')],
+          home: ProductFormScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create product'), findsOneWidget);
+    expect(find.text('Products  /  Create product'), findsNothing);
+    expect(find.text('Product name (English)'), findsOneWidget);
+    expect(find.text('Product name (Arabic)'), findsOneWidget);
+    expect(find.text('Save product'), findsOneWidget);
+    expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mobile POS keeps cart visible and opens it after adding', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _keyboardCartContainer();
+    addTearDown(container.dispose);
+    container.read(appStoreProvider.notifier).clearCart();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _PosTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cart empty'), findsOneWidget);
+    expect(find.byKey(const ValueKey('mobile-cart-bar')), findsOneWidget);
+
+    await tester.tap(find.text('Keyboard first product'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 Item'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('mobile-cart-bar')));
+    await tester.pumpAndSettle();
+    expect(find.text('Current Order'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Create purchase order uses a compact mobile form', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: [AppLocalizations.delegate],
+          supportedLocales: [Locale('en'), Locale('ar')],
+          home: PurchaseDocumentForm(
+            type: PurchaseDocumentType.order,
+            workspace: PurchaseWorkspaceState(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Create Purchase Order'), findsOneWidget);
+    expect(find.text('Purchases  /  Purchase Orders'), findsNothing);
+    expect(find.text('Save draft'), findsOneWidget);
+    expect(find.text('Create order'), findsOneWidget);
+    expect(find.text('Order Details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Dashboard renders its responsive business overview', (
     tester,
   ) async {
@@ -527,11 +693,113 @@ void main() {
     expect(find.text('Apply filters'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Reports render mobile filters and actions without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedOutAuthController.new),
+        ],
+        child: const _ReportsTestApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reports'), findsOneWidget);
+    expect(find.text('Print'), findsOneWidget);
+    expect(find.text('Export'), findsOneWidget);
+    expect(find.text('All locations'), findsOneWidget);
+    expect(find.textContaining('From:'), findsOneWidget);
+    expect(find.textContaining('To:'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('core management screens render at phone width', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final screen in const <Widget>[
+      CategoriesScreen(),
+      InventoryScreen(),
+      CustomersScreen(),
+      SyncScreen(),
+    ]) {
+      await tester.pumpWidget(_MobileScreenTestApp(child: screen));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('connected workspaces fail safely at phone width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final screen in const <Widget>[
+      PurchasesScreen(),
+      PrinterSettingsScreen(),
+    ]) {
+      await tester.pumpWidget(_MobileScreenTestApp(child: screen));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+    }
+  });
 }
 
 class _SignedOutAuthController extends AuthController {
   @override
   Future<String?> build() async => null;
+}
+
+class _SignedInAuthController extends AuthController {
+  bool loggedOut = false;
+
+  @override
+  Future<String?> build() async => 'test-token';
+
+  @override
+  Future<void> logout() async {
+    loggedOut = true;
+    state = const AsyncData(null);
+  }
+}
+
+class _NoRegisterController extends CashRegisterController {
+  @override
+  Future<Never?> build() async => null;
+}
+
+class _AccountMenuTestApp extends StatelessWidget {
+  const _AccountMenuTestApp();
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    theme: buildTheme(compact: true),
+    localizationsDelegates: const [AppLocalizations.delegate],
+    supportedLocales: const [Locale('en'), Locale('ar')],
+    home: Scaffold(
+      body: Consumer(
+        builder: (context, ref, _) => Center(
+          child: FilledButton(
+            onPressed: () => showAccountMenu(context, ref),
+            child: const Text('Account'),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 ProviderContainer _creditSaleContainer({bool selectCreditCustomer = false}) {
@@ -674,5 +942,31 @@ class _SalesTestApp extends StatelessWidget {
     localizationsDelegates: [AppLocalizations.delegate],
     supportedLocales: [Locale('en'), Locale('ar')],
     home: Scaffold(body: SalesScreen()),
+  );
+}
+
+class _ReportsTestApp extends StatelessWidget {
+  const _ReportsTestApp();
+
+  @override
+  Widget build(BuildContext context) => const MaterialApp(
+    localizationsDelegates: [AppLocalizations.delegate],
+    supportedLocales: [Locale('en'), Locale('ar')],
+    home: Scaffold(body: ReportsScreen()),
+  );
+}
+
+class _MobileScreenTestApp extends StatelessWidget {
+  const _MobileScreenTestApp({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ProviderScope(
+    child: MaterialApp(
+      theme: buildTheme(compact: true),
+      localizationsDelegates: const [AppLocalizations.delegate],
+      supportedLocales: const [Locale('en'), Locale('ar')],
+      home: Scaffold(body: child),
+    ),
   );
 }

@@ -107,6 +107,8 @@ class ProductDraft {
     required this.unitId,
     required this.purchasePrice,
     required this.sellingPrice,
+    this.nameEn = '',
+    this.nameAr = '',
     this.sku = '',
     this.categoryId = '',
     this.taxId = '',
@@ -131,7 +133,7 @@ class ProductDraft {
     this.brochureBytes,
     this.brochureName,
   });
-  final String name, unitId, sku, categoryId, taxId;
+  final String name, nameEn, nameAr, unitId, sku, categoryId, taxId;
   final String brandId,
       subCategoryId,
       barcodeType,
@@ -328,8 +330,40 @@ class StockItem {
 }
 
 class Supplier {
-  const Supplier({required this.id, required this.name});
-  final String id, name;
+  const Supplier({
+    required this.id,
+    required this.name,
+    this.contactName = '',
+    this.mobile = '',
+    this.email = '',
+    this.taxNumber = '',
+    this.addressLine1 = '',
+    this.addressLine2 = '',
+    this.city = '',
+    this.state = '',
+    this.country = '',
+    this.zipCode = '',
+    this.landmark = '',
+    this.streetName = '',
+    this.buildingNumber = '',
+    this.additionalNumber = '',
+  });
+  final String id,
+      name,
+      contactName,
+      mobile,
+      email,
+      taxNumber,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      country,
+      zipCode,
+      landmark,
+      streetName,
+      buildingNumber,
+      additionalNumber;
 }
 
 class CartLine {

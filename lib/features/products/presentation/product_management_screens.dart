@@ -26,7 +26,11 @@ class ProductFormScreen extends ConsumerStatefulWidget {
 
 class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _name, _sku, _purchase, _purchaseInc;
+  late final TextEditingController _name,
+      _nameAr,
+      _sku,
+      _purchase,
+      _purchaseInc;
   late final TextEditingController _selling, _sellingInc, _margin, _minimum;
   final _description = TextEditingController();
   final _weight = TextEditingController();
@@ -44,7 +48,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   void initState() {
     super.initState();
     final p = widget.product;
-    _name = TextEditingController(text: p?.name ?? '');
+    _name = TextEditingController(
+      text: p == null
+          ? ''
+          : p.nameEn.trim().isNotEmpty
+          ? p.nameEn
+          : p.name,
+    );
+    _nameAr = TextEditingController(text: p?.nameAr ?? '');
     _sku = TextEditingController(text: p?.sku ?? '');
     _purchase = TextEditingController(
       text: p == null ? '' : (p.purchasePrice / 100).toStringAsFixed(2),
@@ -65,6 +76,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _taxId = p?.taxId.isNotEmpty == true ? p!.taxId : null;
     for (final controller in [
       _name,
+      _nameAr,
       _sku,
       _purchase,
       _selling,
@@ -92,6 +104,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   void dispose() {
     for (final controller in [
       _name,
+      _nameAr,
       _sku,
       _purchase,
       _purchaseInc,
@@ -170,60 +183,85 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     ),
   );
 
-  Widget _productHeader(bool editing) => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-    child: Row(
-      children: [
-        IconButton(
-          onPressed: () => context.go('/products'),
-          icon: const Icon(Icons.arrow_back_rounded),
+  Widget _productHeader(bool editing) => LayoutBuilder(
+    builder: (context, constraints) {
+      // Keep header actions out of the title row until there is genuinely
+      // enough room for both. Browser/Windows display scaling can expose a
+      // wider logical viewport than the visible mobile surface.
+      final compact = constraints.maxWidth < 900;
+      return Container(
+        color: Colors.white,
+        padding: EdgeInsets.fromLTRB(
+          compact ? 8 : 22,
+          compact ? 12 : 14,
+          compact ? 14 : 22,
+          compact ? 12 : 14,
         ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.quick
-                    ? 'Products  /  Quick add'
-                    : 'Products  /  Create product',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconButton(
+              tooltip: context.tr('Back to products'),
+              onPressed: () => context.go('/products'),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            SizedBox(width: compact ? 2 : 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!compact)
+                    Text(
+                      widget.quick
+                          ? 'Products  /  Quick add'
+                          : 'Products  /  Create product',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  Text(
+                    widget.quick
+                        ? 'Quick add product'
+                        : editing
+                        ? 'Edit product'
+                        : 'Create product',
+                    style: TextStyle(
+                      fontSize: compact ? 22 : 25,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.quick
+                        ? 'Enter the essential details needed to start selling.'
+                        : 'Add product details, pricing, inventory and availability.',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: compact ? 12 : 13,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                widget.quick
-                    ? 'Quick add product'
-                    : editing
-                    ? 'Edit product'
-                    : 'Create product',
-                style: const TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.w900,
+            ),
+            if (!compact) ...[
+              if (!widget.quick) ...[
+                OutlinedButton(
+                  onPressed: _saving ? null : () => _save(_SaveMode.save),
+                  child: const Text('Save draft'),
                 ),
-              ),
-              Text(
-                widget.quick
-                    ? 'Enter the essential details needed to start selling.'
-                    : 'Add product details, pricing, inventory and availability.',
-                style: TextStyle(color: AppColors.muted, fontSize: 13),
+                const SizedBox(width: 10),
+              ],
+              FilledButton.icon(
+                onPressed: _saving ? null : () => _save(_SaveMode.save),
+                icon: const Icon(Icons.save_outlined),
+                label: Text(editing ? 'Save changes' : 'Save product'),
               ),
             ],
-          ),
+          ],
         ),
-        if (!widget.quick) ...[
-          OutlinedButton(
-            onPressed: _saving ? null : () => _save(_SaveMode.save),
-            child: const Text('Save draft'),
-          ),
-          const SizedBox(width: 10),
-        ],
-        FilledButton.icon(
-          onPressed: _saving ? null : () => _save(_SaveMode.save),
-          icon: const Icon(Icons.save_outlined),
-          label: Text(editing ? 'Save changes' : 'Save product'),
-        ),
-      ],
-    ),
+      );
+    },
   );
 
   Widget _quickProductFormContent(AppState state) => Column(
@@ -244,7 +282,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               children: [
                 SizedBox(
                   width: width,
-                  child: _field(_name, 'Product name', required: true),
+                  child: _field(
+                    _name,
+                    'Product name (English)',
+                    required: true,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _field(
+                    _nameAr,
+                    'Product name (Arabic)',
+                    textDirection: TextDirection.rtl,
+                  ),
                 ),
                 SizedBox(
                   width: width,
@@ -410,7 +460,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               children: [
                 SizedBox(
                   width: width,
-                  child: _field(_name, 'Product name', required: true),
+                  child: _field(
+                    _name,
+                    'Product name (English)',
+                    required: true,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _field(
+                    _nameAr,
+                    'Product name (Arabic)',
+                    textDirection: TextDirection.rtl,
+                  ),
                 ),
                 SizedBox(
                   width: width,
@@ -691,17 +753,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'Enter the three values you work with. Tax counterparts are calculated automatically.',
         Column(
           children: [
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            const Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 6,
               children: [
                 Text('Purchase cost'),
-                SizedBox(width: 22),
-                Icon(Icons.arrow_forward, color: AppColors.primary),
-                SizedBox(width: 22),
+                Icon(Icons.arrow_forward, color: AppColors.primary, size: 19),
                 Text('Margin'),
-                SizedBox(width: 22),
-                Icon(Icons.arrow_forward, color: AppColors.primary),
-                SizedBox(width: 22),
+                Icon(Icons.arrow_forward, color: AppColors.primary, size: 19),
                 Text('Selling price'),
               ],
             ),
@@ -711,30 +772,29 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   _pricingInputs(state, constraints.maxWidth),
             ),
             const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'ⓘ  Estimated profit per unit: ',
+            Row(
+              children: [
+                const Flexible(
+                  child: Text(
+                    'ⓘ  Estimated profit per unit:',
                     style: TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  RiyalAmount(
-                    toPaise(
-                      (double.tryParse(_selling.text) ?? 0) -
-                          (double.tryParse(_purchase.text) ?? 0),
-                    ),
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                ),
+                const SizedBox(width: 6),
+                RiyalAmount(
+                  toPaise(
+                    (double.tryParse(_selling.text) ?? 0) -
+                        (double.tryParse(_purchase.text) ?? 0),
                   ),
-                ],
-              ),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -856,34 +916,51 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     bool value,
     ValueChanged<bool> changed, {
     Widget? trailing,
-  }) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: Color(0xFFE5EAE8))),
-    ),
-    child: Row(
-      children: [
-        CircleAvatar(
-          backgroundColor: const Color(0xFFEAF4F1),
-          child: Icon(icon, color: AppColors.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              Text(
-                subtitle,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-            ],
+  }) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 560 && trailing != null;
+      final heading = Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0xFFEAF4F1),
+            child: Icon(icon, color: AppColors.primary, size: 20),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          if (!compact && trailing != null) ...[
+            trailing,
+            const SizedBox(width: 12),
+          ],
+          Switch.adaptive(value: value, onChanged: changed),
+        ],
+      );
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Color(0xFFE5EAE8))),
         ),
-        if (trailing != null) ...[trailing, const SizedBox(width: 12)],
-        Switch.adaptive(value: value, onChanged: changed),
-      ],
-    ),
+        child: compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [heading, const SizedBox(height: 10), trailing],
+              )
+            : heading,
+      );
+    },
   );
 
   Widget _locationCard(LookupOption location) {
@@ -956,9 +1033,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _name.text.trim().isEmpty ? 'Untitled product' : _name.text,
+              context.isArabic && _nameAr.text.trim().isNotEmpty
+                  ? _nameAr.text.trim()
+                  : _name.text.trim().isEmpty
+                  ? 'Untitled product'
+                  : _name.text.trim(),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
             ),
+            if (_nameAr.text.trim().isNotEmpty && !context.isArabic)
+              Text(
+                _nameAr.text.trim(),
+                textDirection: TextDirection.rtl,
+                style: const TextStyle(color: AppColors.muted, fontSize: 13),
+              ),
             Text(
               _sku.text.trim().isEmpty ? 'SKU will be generated' : _sku.text,
               style: const TextStyle(color: AppColors.muted, fontSize: 12),
@@ -1072,37 +1159,102 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     ),
   );
 
-  Widget _productActions(bool editing) => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-    child: Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 10,
-      runSpacing: 8,
-      children: [
-        OutlinedButton(
-          onPressed: _saving ? null : () => context.go('/products'),
-          child: const Text('Cancel'),
-        ),
-        if (!editing && !widget.quick)
-          FilledButton.tonalIcon(
-            onPressed: _saving ? null : () => _save(_SaveMode.addAnother),
-            icon: const Icon(Icons.add_circle_outline),
-            label: const Text('Save & add another'),
+  Widget _productActions(bool editing) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 900;
+      if (compact) {
+        return SafeArea(
+          top: false,
+          child: Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              children: [
+                OutlinedButton(
+                  onPressed: _saving ? null : () => context.go('/products'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                if (!editing && !widget.quick) ...[
+                  PopupMenuButton<_SaveMode>(
+                    enabled: !_saving,
+                    tooltip: context.tr('More save options'),
+                    onSelected: _save,
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: _SaveMode.addAnother,
+                        child: ListTile(
+                          leading: Icon(Icons.add_circle_outline),
+                          title: Text('Save & add another'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _SaveMode.openingStock,
+                        child: ListTile(
+                          leading: Icon(Icons.inventory_2_outlined),
+                          title: Text('Save & add opening stock'),
+                        ),
+                      ),
+                    ],
+                    child: const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Icon(Icons.more_horiz_rounded),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : () => _save(_SaveMode.save),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(editing ? 'Save changes' : 'Save product'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        if (!editing && !widget.quick)
-          FilledButton.tonalIcon(
-            onPressed: _saving ? null : () => _save(_SaveMode.openingStock),
-            icon: const Icon(Icons.inventory_2_outlined),
-            label: const Text('Save & add opening stock'),
-          ),
-        FilledButton.icon(
-          onPressed: _saving ? null : () => _save(_SaveMode.save),
-          icon: const Icon(Icons.save_outlined),
-          label: Text(editing ? 'Save changes' : 'Save product'),
+        );
+      }
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            OutlinedButton(
+              onPressed: _saving ? null : () => context.go('/products'),
+              child: const Text('Cancel'),
+            ),
+            if (!editing && !widget.quick)
+              FilledButton.tonalIcon(
+                onPressed: _saving ? null : () => _save(_SaveMode.addAnother),
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Save & add another'),
+              ),
+            if (!editing && !widget.quick)
+              FilledButton.tonalIcon(
+                onPressed: _saving ? null : () => _save(_SaveMode.openingStock),
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: const Text('Save & add opening stock'),
+              ),
+            FilledButton.icon(
+              onPressed: _saving ? null : () => _save(_SaveMode.save),
+              icon: const Icon(Icons.save_outlined),
+              label: Text(editing ? 'Save changes' : 'Save product'),
+            ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   );
 
   // ignore: unused_element
@@ -1127,7 +1279,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         child: ListView(
           children: [
             _section('Product identity', [
-              _field(_name, 'Product name', required: true),
+              _field(_name, 'Product name (English)', required: true),
+              _field(
+                _nameAr,
+                'Product name (Arabic)',
+                textDirection: TextDirection.rtl,
+              ),
               _field(_sku, 'SKU (leave blank to auto-generate)'),
               _choice('Barcode type', _barcodeType, const [
                 LookupOption(id: 'C128', name: 'Code 128 (C128)'),
@@ -1495,8 +1652,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     String label, {
     bool number = false,
     bool required = false,
+    TextDirection? textDirection,
   }) => TextFormField(
     controller: controller,
+    textDirection: textDirection,
     keyboardType: number
         ? const TextInputType.numberWithOptions(decimal: true)
         : null,
@@ -1898,6 +2057,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     try {
       final draft = ProductDraft(
         name: _name.text,
+        nameEn: _name.text,
+        nameAr: _nameAr.text,
         sku: _sku.text,
         unitId: _unitId!,
         categoryId: _categoryId ?? '',

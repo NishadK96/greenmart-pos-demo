@@ -703,6 +703,10 @@ class Api {
     bool includeType = false,
   }) => {
     'name': draft.name.trim(),
+    'name_en': draft.nameEn.trim().isEmpty
+        ? draft.name.trim()
+        : draft.nameEn.trim(),
+    'name_ar': draft.nameAr.trim(),
     if (includeType) 'type': 'single',
     'unit_id': draft.unitId,
     // EazyERP's server-side SKU generator currently reads web-session state,
@@ -931,18 +935,7 @@ class Api {
       ApiEndPoints.customersUrl,
     ).replace(queryParameters: const {'type': 'supplier', 'per_page': '-1'});
     final data = await _getDataList(uri, accessToken, 'suppliers');
-    return data
-        .map(
-          (item) => Supplier(
-            id: item['id'].toString(),
-            name:
-                item['supplier_business_name']?.toString().trim().isNotEmpty ==
-                    true
-                ? item['supplier_business_name'].toString()
-                : item['name']?.toString() ?? 'Supplier',
-          ),
-        )
-        .toList(growable: false);
+    return data.map((item) => _supplierFromJson(item)).toList(growable: false);
   }
 
   Future<Supplier> createSupplier({
@@ -951,7 +944,17 @@ class Api {
     required String contactName,
     required String mobile,
     String email = '',
-    String address = '',
+    String taxNumber = '',
+    String addressLine1 = '',
+    String addressLine2 = '',
+    String city = '',
+    String state = '',
+    String country = '',
+    String zipCode = '',
+    String landmark = '',
+    String streetName = '',
+    String buildingNumber = '',
+    String additionalNumber = '',
     int? payTermNumber,
     String payTermType = 'days',
   }) async {
@@ -965,7 +968,21 @@ class Api {
             'first_name': contactName.trim(),
             'mobile': mobile.trim(),
             if (email.trim().isNotEmpty) 'email': email.trim(),
-            if (address.trim().isNotEmpty) 'address_line_1': address.trim(),
+            if (taxNumber.trim().isNotEmpty) 'tax_number': taxNumber.trim(),
+            if (addressLine1.trim().isNotEmpty)
+              'address_line_1': addressLine1.trim(),
+            if (addressLine2.trim().isNotEmpty)
+              'address_line_2': addressLine2.trim(),
+            if (city.trim().isNotEmpty) 'city': city.trim(),
+            if (state.trim().isNotEmpty) 'state': state.trim(),
+            if (country.trim().isNotEmpty) 'country': country.trim(),
+            if (zipCode.trim().isNotEmpty) 'zip_code': zipCode.trim(),
+            if (landmark.trim().isNotEmpty) 'land_mark': landmark.trim(),
+            if (streetName.trim().isNotEmpty) 'street_name': streetName.trim(),
+            if (buildingNumber.trim().isNotEmpty)
+              'building_number': buildingNumber.trim(),
+            if (additionalNumber.trim().isNotEmpty)
+              'additional_number': additionalNumber.trim(),
             if (payTermNumber != null) 'pay_term_number': payTermNumber,
             if (payTermNumber != null) 'pay_term_type': payTermType,
           }),
@@ -973,11 +990,33 @@ class Api {
         .timeout(const Duration(seconds: 20));
     final payload = _requireObject(response, 'supplier');
     final item = _map(payload['data']);
-    return Supplier(
-      id: item['id'].toString(),
-      name: item['supplier_business_name']?.toString() ?? businessName.trim(),
-    );
+    return _supplierFromJson(item, fallbackName: businessName.trim());
   }
+
+  Supplier _supplierFromJson(
+    Map<String, dynamic> item, {
+    String fallbackName = 'Supplier',
+  }) => Supplier(
+    id: item['id']?.toString() ?? '',
+    name: item['supplier_business_name']?.toString().trim().isNotEmpty == true
+        ? item['supplier_business_name'].toString()
+        : item['name']?.toString() ?? fallbackName,
+    contactName:
+        item['name']?.toString() ?? item['first_name']?.toString() ?? '',
+    mobile: item['mobile']?.toString() ?? '',
+    email: item['email']?.toString() ?? '',
+    taxNumber: item['tax_number']?.toString() ?? '',
+    addressLine1: item['address_line_1']?.toString() ?? '',
+    addressLine2: item['address_line_2']?.toString() ?? '',
+    city: item['city']?.toString() ?? '',
+    state: item['state']?.toString() ?? '',
+    country: item['country']?.toString() ?? '',
+    zipCode: item['zip_code']?.toString() ?? '',
+    landmark: (item['land_mark'] ?? item['landmark'])?.toString() ?? '',
+    streetName: item['street_name']?.toString() ?? '',
+    buildingNumber: item['building_number']?.toString() ?? '',
+    additionalNumber: item['additional_number']?.toString() ?? '',
+  );
 
   Future<List<LookupOption>> paymentAccounts(String accessToken) async {
     final data = await _getDataList(

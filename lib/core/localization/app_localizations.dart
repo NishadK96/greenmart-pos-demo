@@ -518,6 +518,19 @@ const Map<String, String> _ar = {
   'WORKSPACE': 'مساحة العمل',
   'Main Store': 'المتجر الرئيسي',
   'Administrator': 'مدير النظام',
+  'Cashier': 'أمين الصندوق',
+  'Account menu': 'قائمة الحساب',
+  'Signed in user': 'المستخدم المسجل',
+  'Use another saved cashier account': 'استخدم حساب أمين صندوق محفوظ آخر',
+  'Log out': 'تسجيل الخروج',
+  'End this session on this device': 'إنهاء الجلسة على هذا الجهاز',
+  'Log out of Eazy POS?': 'تسجيل الخروج من إيزي POS؟',
+  'You will need to sign in again to continue using Eazy POS.':
+      'ستحتاج إلى تسجيل الدخول مرة أخرى لمتابعة استخدام إيزي POS.',
+  'Logging out clears the current cart and held sales from this device.':
+      'سيؤدي تسجيل الخروج إلى مسح السلة الحالية والمبيعات المعلقة من هذا الجهاز.',
+  'Your register is still open. Logging out clears this device’s cart and held sales, but does not close the register.':
+      'لا يزال صندوقك مفتوحاً. سيؤدي تسجيل الخروج إلى مسح السلة والمبيعات المعلقة من هذا الجهاز، لكنه لن يغلق الصندوق.',
   'Search by name, SKU or barcode...':
       'ابحث بالاسم أو رمز المنتج أو الباركود...',
   'Scan barcode or search product to add':
@@ -570,6 +583,8 @@ const Map<String, String> _ar = {
   'Search products': 'البحث في المنتجات',
   'Add product': 'إضافة منتج',
   'Product name': 'اسم المنتج',
+  'Product name (English)': 'اسم المنتج (بالإنجليزية)',
+  'Product name (Arabic)': 'اسم المنتج (بالعربية)',
   'Selling price': 'سعر البيع',
   'Opening stock': 'المخزون الافتتاحي',
   'Cancel': 'إلغاء',

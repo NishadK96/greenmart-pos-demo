@@ -337,10 +337,33 @@ class _LoginForm extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final compact = MediaQuery.sizeOf(context).width < 480;
+    final veryNarrow = MediaQuery.sizeOf(context).width < 360;
+    final brand = Text(
+      'EAZY POS',
+      style: TextStyle(
+        color: const Color(0xFF087769),
+        fontWeight: FontWeight.w900,
+        fontSize: compact ? 16 : 20,
+        letterSpacing: compact ? 1.5 : 2.4,
+      ),
+    );
+    final language = _LanguageToggle(
+      languageCode: Localizations.localeOf(context).languageCode,
+      compact: compact,
+      onChanged: (code) => ref.read(localeProvider.notifier).setLanguage(code),
+    );
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: wide ? 66 : 28,
-        vertical: wide ? 60 : 34,
+        horizontal: wide
+            ? 66
+            : compact
+            ? 16
+            : 28,
+        vertical: wide
+            ? 60
+            : compact
+            ? 20
+            : 34,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -348,31 +371,40 @@ class _LoginForm extends ConsumerWidget {
             ? MainAxisAlignment.start
             : MainAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'EAZY POS',
-                  style: TextStyle(
-                    color: Color(0xFF087769),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20,
-                    letterSpacing: 2.4,
-                  ),
+          if (veryNarrow)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                brand,
+                const SizedBox(height: 6),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: language,
                 ),
-              ),
-              _LanguageToggle(
-                languageCode: Localizations.localeOf(context).languageCode,
-                onChanged: (code) =>
-                    ref.read(localeProvider.notifier).setLanguage(code),
-              ),
-            ],
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: brand),
+                language,
+              ],
+            ),
+          SizedBox(
+            height: wide
+                ? 60
+                : compact
+                ? 24
+                : 42,
           ),
-          SizedBox(height: wide ? 60 : 42),
           Text(
             context.tr('Start your shift'),
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              fontSize: wide ? 43 : 32,
+              fontSize: wide
+                  ? 43
+                  : compact
+                  ? 26
+                  : 32,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.8,
             ),
@@ -382,13 +414,13 @@ class _LoginForm extends ConsumerWidget {
             context.tr(
               'Sign in to access your register, products, and sales for this location.',
             ),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.muted,
-              fontSize: 19,
-              height: 1.4,
+              fontSize: compact ? 14 : 19,
+              height: compact ? 1.35 : 1.4,
             ),
           ),
-          const SizedBox(height: 38),
+          SizedBox(height: compact ? 24 : 38),
           _LoginField(
             controller: email,
             enabled: !loading,
@@ -397,7 +429,7 @@ class _LoginForm extends ConsumerWidget {
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.username],
           ),
-          const SizedBox(height: 22),
+          SizedBox(height: compact ? 14 : 22),
           _LoginField(
             controller: password,
             enabled: !loading,
@@ -417,7 +449,7 @@ class _LoginForm extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: compact ? 12 : 18),
           if (compact)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -431,7 +463,7 @@ class _LoginForm extends ConsumerWidget {
                           ? null
                           : (value) => onRememberChanged(value ?? false),
                     ),
-                    Text(context.tr('Remember this account')),
+                    Expanded(child: Text(context.tr('Remember this account'))),
                   ],
                 ),
                 Align(
@@ -515,9 +547,9 @@ class _LoginForm extends ConsumerWidget {
             child: FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF087769),
-                minimumSize: const Size.fromHeight(68),
-                textStyle: const TextStyle(
-                  fontSize: 18,
+                minimumSize: Size.fromHeight(compact ? 52 : 68),
+                textStyle: TextStyle(
+                  fontSize: compact ? 14 : 18,
                   fontWeight: FontWeight.w700,
                 ),
                 shape: RoundedRectangleBorder(
@@ -591,38 +623,49 @@ class _LoginField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
 
   @override
-  Widget build(BuildContext context) => TextField(
-    controller: controller,
-    enabled: enabled,
-    obscureText: obscureText,
-    textInputAction: textInputAction,
-    autofillHints: autofillHints,
-    onSubmitted: onSubmitted,
-    style: const TextStyle(fontSize: 16),
-    decoration: InputDecoration(
-      hintText: label,
-      labelText: null,
-      prefixIcon: Icon(icon, size: 25),
-      suffixIcon: suffixIcon,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-      constraints: const BoxConstraints(minHeight: 76),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFDDE4E1)),
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 480;
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      obscureText: obscureText,
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      onSubmitted: onSubmitted,
+      style: const TextStyle(fontSize: 16),
+      decoration: InputDecoration(
+        hintText: label,
+        labelText: null,
+        prefixIcon: Icon(icon, size: compact ? 21 : 25),
+        suffixIcon: suffixIcon,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: compact ? 14 : 18,
+          vertical: compact ? 14 : 20,
+        ),
+        constraints: BoxConstraints(minHeight: compact ? 56 : 76),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFDDE4E1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF087769), width: 1.5),
+        ),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF087769), width: 1.5),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class _LanguageToggle extends StatelessWidget {
-  const _LanguageToggle({required this.languageCode, required this.onChanged});
+  const _LanguageToggle({
+    required this.languageCode,
+    required this.onChanged,
+    this.compact = false,
+  });
 
   final String languageCode;
   final ValueChanged<String> onChanged;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -638,11 +681,13 @@ class _LanguageToggle extends StatelessWidget {
         _LanguageOption(
           label: 'EN',
           selected: languageCode == 'en',
+          compact: compact,
           onTap: () => onChanged('en'),
         ),
         _LanguageOption(
           label: 'العربية',
           selected: languageCode == 'ar',
+          compact: compact,
           onTap: () => onChanged('ar'),
         ),
       ],
@@ -655,11 +700,13 @@ class _LanguageOption extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    required this.compact,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -669,11 +716,15 @@ class _LanguageOption extends StatelessWidget {
       borderRadius: BorderRadius.circular(22),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 18,
+          vertical: compact ? 7 : 9,
+        ),
         child: Text(
           label,
           style: TextStyle(
             color: selected ? Colors.white : AppColors.ink,
+            fontSize: compact ? 12 : null,
             fontWeight: FontWeight.w600,
           ),
         ),

@@ -134,18 +134,38 @@ final _router = GoRouter(
 class EazyPosApp extends ConsumerWidget {
   const EazyPosApp({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'Eazy POS',
-    debugShowCheckedModeBanner: false,
-    theme: buildTheme(),
-    locale: ref.watch(localeProvider),
-    supportedLocales: const [Locale('en'), Locale('ar')],
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    routerConfig: _router,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final desktopTheme = buildTheme();
+    final mobileTheme = buildTheme(compact: true);
+    return MaterialApp.router(
+      title: 'Eazy POS',
+      debugShowCheckedModeBanner: false,
+      theme: desktopTheme,
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        if (media.size.width >= 600) return child ?? const SizedBox.shrink();
+        return Theme(
+          data: mobileTheme,
+          child: MediaQuery(
+            data: media.copyWith(
+              textScaler: media.textScaler.clamp(
+                minScaleFactor: .9,
+                maxScaleFactor: 1.15,
+              ),
+            ),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
+      locale: ref.watch(localeProvider),
+      supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      routerConfig: _router,
+    );
+  }
 }

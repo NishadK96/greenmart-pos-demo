@@ -1170,6 +1170,8 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
                   },
                 ),
               ),
+              if (MediaQuery.sizeOf(context).width < 900)
+                _purchaseOrderActions(saving),
             ],
           ),
         ),
@@ -1177,64 +1179,117 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
     );
   }
 
-  Widget _purchaseOrderHeader(bool saving) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    child: Row(
-      children: [
-        IconButton(
-          tooltip: context.tr('Back to purchases'),
-          onPressed: saving ? null : () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
+  Widget _purchaseOrderHeader(bool saving) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 900;
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 24,
+          vertical: compact ? 10 : 14,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Purchases  /  Purchase Orders',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconButton(
+              tooltip: context.tr('Back to purchases'),
+              onPressed: saving ? null : () => Navigator.pop(context),
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: AppColors.primary,
               ),
-              const SizedBox(height: 3),
-              Text(
-                widget.document == null
-                    ? 'Create Purchase Order'
-                    : 'Edit Purchase Order',
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+            ),
+            SizedBox(width: compact ? 2 : 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!compact) ...[
+                    const Text(
+                      'Purchases  /  Purchase Orders',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
+                  Text(
+                    widget.document == null
+                        ? 'Create Purchase Order'
+                        : 'Edit Purchase Order',
+                    style: TextStyle(
+                      color: AppColors.ink,
+                      fontSize: compact ? 21 : 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    'Create and manage a new supplier order',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: compact ? 12 : 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!compact) ...[
+              OutlinedButton.icon(
+                onPressed: saving ? null : () => _saveOrderAs('draft'),
+                icon: const Icon(Icons.description_outlined, size: 18),
+                label: const Text('Save as Draft'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(142, 46),
+                  side: const BorderSide(color: AppColors.primary),
                 ),
               ),
-              const Text(
-                'Create and manage a new supplier order',
-                style: TextStyle(color: AppColors.muted, fontSize: 13),
+              const SizedBox(width: 10),
+              FilledButton.icon(
+                onPressed: saving ? null : () => _saveOrderAs('ordered'),
+                icon: saving
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                label: const Text('Create Order'),
+                style: FilledButton.styleFrom(minimumSize: const Size(142, 46)),
               ),
             ],
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _purchaseOrderActions(bool saving) => SafeArea(
+    top: false,
+    child: Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: saving ? null : () => _saveOrderAs('draft'),
+              icon: const Icon(Icons.description_outlined, size: 18),
+              label: const Text('Save draft'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
           ),
-        ),
-        OutlinedButton.icon(
-          onPressed: saving ? null : () => _saveOrderAs('draft'),
-          icon: const Icon(Icons.description_outlined, size: 18),
-          label: const Text('Save as Draft'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(142, 46),
-            side: const BorderSide(color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: saving ? null : () => _saveOrderAs('ordered'),
+              icon: saving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check_circle_outline_rounded, size: 18),
+              label: const Text('Create order'),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        FilledButton.icon(
-          onPressed: saving ? null : () => _saveOrderAs('ordered'),
-          icon: saving
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.check_circle_outline_rounded, size: 18),
-          label: const Text('Create Order'),
-          style: FilledButton.styleFrom(minimumSize: const Size(142, 46)),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -1469,27 +1524,38 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
               ),
             if (lines.isEmpty) ...[
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAF9),
-                  border: Border.all(color: const Color(0xFFE2E8E6)),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(
-                  children: [
-                    Expanded(flex: 3, child: Text('Product')),
-                    Expanded(flex: 2, child: Text('SKU')),
-                    Expanded(child: Text('Qty')),
-                    Expanded(flex: 2, child: Text('Unit Cost')),
-                    Expanded(child: Text('Tax')),
-                    Expanded(child: Text('Discount')),
-                    Expanded(child: Text('Total')),
-                    Icon(Icons.more_horiz_rounded, size: 18),
-                  ],
+              LayoutBuilder(
+                builder: (context, constraints) => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAF9),
+                    border: Border.all(color: const Color(0xFFE2E8E6)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: constraints.maxWidth < 620
+                      ? const Row(
+                          children: [
+                            Icon(Icons.list_alt_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(child: Text('Product items')),
+                            Text('Qty · Cost · Total'),
+                          ],
+                        )
+                      : const Row(
+                          children: [
+                            Expanded(flex: 3, child: Text('Product')),
+                            Expanded(flex: 2, child: Text('SKU')),
+                            Expanded(child: Text('Qty')),
+                            Expanded(flex: 2, child: Text('Unit Cost')),
+                            Expanded(child: Text('Tax')),
+                            Expanded(child: Text('Discount')),
+                            Expanded(child: Text('Total')),
+                            Icon(Icons.more_horiz_rounded, size: 18),
+                          ],
+                        ),
                 ),
               ),
             ],
@@ -1833,9 +1899,14 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
           children: [
             Icon(icon, color: AppColors.primary),
             const SizedBox(width: 9),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         ),
@@ -1854,88 +1925,129 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
       color: const Color(0xFFF6F9F8),
       borderRadius: BorderRadius.circular(12),
     ),
-    child: Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                line.name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text(
-                line.sku,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 110,
-          child: TextFormField(
-            initialValue: _compact(line.quantity),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: context.tr('Quantity')),
-            onChanged: (v) => _replace(index, quantity: double.tryParse(v)),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 130,
-          child: TextFormField(
-            initialValue: (line.unitCost / 100).toStringAsFixed(2),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: context.tr('Unit cost')),
-            onChanged: (v) =>
-                _replace(index, unitCost: (double.tryParse(v) ?? 0) * 100),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 105,
-          child: TextFormField(
-            initialValue: _compact(line.discountPercent),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: context.tr('Discount %')),
-            onChanged: (v) =>
-                _replace(index, discountPercent: double.tryParse(v)),
-          ),
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 120,
-          child: Text(
-            money(line.lineTotal.round()),
-            textAlign: TextAlign.end,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-        IconButton(
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 680;
+        final product = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              line.name,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            Text(
+              line.sku,
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+          ],
+        );
+        final quantity = TextFormField(
+          initialValue: _compact(line.quantity),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: context.tr('Quantity')),
+          onChanged: (v) => _replace(index, quantity: double.tryParse(v)),
+        );
+        final cost = TextFormField(
+          initialValue: (line.unitCost / 100).toStringAsFixed(2),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: context.tr('Unit cost')),
+          onChanged: (v) =>
+              _replace(index, unitCost: (double.tryParse(v) ?? 0) * 100),
+        );
+        final discount = TextFormField(
+          initialValue: _compact(line.discountPercent),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: context.tr('Discount %')),
+          onChanged: (v) =>
+              _replace(index, discountPercent: double.tryParse(v)),
+        );
+        final remove = IconButton(
+          tooltip: context.tr('Remove product'),
           onPressed: () => setState(() => lines.removeAt(index)),
           icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-        ),
-      ],
+        );
+        if (compact) {
+          final fieldWidth = (constraints.maxWidth - 10) / 2;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: product),
+                  remove,
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(width: fieldWidth, child: quantity),
+                  SizedBox(width: fieldWidth, child: cost),
+                  SizedBox(width: fieldWidth, child: discount),
+                  SizedBox(
+                    width: fieldWidth,
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: context.tr('Total'),
+                      ),
+                      child: Text(
+                        money(line.lineTotal.round()),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 3, child: product),
+            const SizedBox(width: 10),
+            SizedBox(width: 110, child: quantity),
+            const SizedBox(width: 10),
+            SizedBox(width: 130, child: cost),
+            const SizedBox(width: 10),
+            SizedBox(width: 105, child: discount),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 120,
+              child: Text(
+                money(line.lineTotal.round()),
+                textAlign: TextAlign.end,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            remove,
+          ],
+        );
+      },
     ),
   );
 
   Widget _totalRow(String label, String value, {bool strong = false}) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+      Expanded(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+          ),
         ),
       ),
-      Text(
-        value,
-        style: TextStyle(
-          fontSize: strong ? 20 : 14,
-          fontWeight: FontWeight.w900,
-          color: strong ? AppColors.primary : null,
+      const SizedBox(width: 12),
+      Flexible(
+        child: Text(
+          value,
+          textAlign: TextAlign.end,
+          style: TextStyle(
+            fontSize: strong ? 20 : 14,
+            fontWeight: FontWeight.w900,
+            color: strong ? AppColors.primary : null,
+          ),
         ),
       ),
     ],
@@ -2011,318 +2123,477 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
     final contact = TextEditingController();
     final mobile = TextEditingController();
     final email = TextEditingController();
-    final address = TextEditingController();
+    final taxNumber = TextEditingController();
+    final addressLine1 = TextEditingController();
+    final addressLine2 = TextEditingController();
+    final city = TextEditingController();
+    final state = TextEditingController();
+    final country = TextEditingController(text: 'Saudi Arabia');
+    final zipCode = TextEditingController();
+    final landmark = TextEditingController();
+    final streetName = TextEditingController();
+    final buildingNumber = TextEditingController();
+    final additionalNumber = TextEditingController();
     final term = TextEditingController();
     var termType = 'days';
     final result = await showDialog<Supplier>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => Dialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 940, maxHeight: 850),
-            child: Form(
-              key: key,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(34, 30, 24, 26),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 68,
-                          height: 68,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE7F3EF),
-                            borderRadius: BorderRadius.circular(34),
+        builder: (context, setDialogState) {
+          final compact = MediaQuery.sizeOf(context).width < 600;
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 20,
+              vertical: compact ? 10 : 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 940, maxHeight: 850),
+              child: Form(
+                key: key,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        compact ? 18 : 34,
+                        compact ? 18 : 30,
+                        compact ? 12 : 24,
+                        compact ? 16 : 26,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: compact ? 48 : 68,
+                            height: compact ? 48 : 68,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE7F3EF),
+                              borderRadius: BorderRadius.circular(
+                                compact ? 24 : 34,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.storefront_outlined,
+                              color: AppColors.primary,
+                              size: compact ? 26 : 34,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.storefront_outlined,
-                            color: AppColors.primary,
-                            size: 34,
-                          ),
-                        ),
-                        const SizedBox(width: 22),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Add supplier',
-                                style: TextStyle(
-                                  fontSize: 27,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              SizedBox(height: 5),
-                              Text(
-                                'Add a new supplier to your business',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: AppColors.muted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: context.tr('Close'),
-                          onPressed: () => Navigator.pop(dialogContext),
-                          icon: const Icon(Icons.close_rounded, size: 30),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(34),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final twoColumns = constraints.maxWidth >= 680;
-                          final fieldWidth = twoColumns
-                              ? (constraints.maxWidth - 24) / 2
-                              : constraints.maxWidth;
-                          return Wrap(
-                            spacing: 24,
-                            runSpacing: 22,
-                            children: [
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _supplierField(
-                                  label: 'Business name *',
-                                  controller: business,
-                                  icon: Icons.storefront_outlined,
-                                  hint: 'Enter business name',
-                                  validator: (value) =>
-                                      value?.trim().isEmpty == true
-                                      ? 'Enter the business name'
-                                      : null,
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _supplierField(
-                                  label: 'Contact name *',
-                                  controller: contact,
-                                  icon: Icons.person_outline_rounded,
-                                  hint: 'Enter contact name',
-                                  validator: (value) =>
-                                      value?.trim().isEmpty == true
-                                      ? 'Enter the contact name'
-                                      : null,
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _supplierField(
-                                  label: 'Mobile *',
-                                  controller: mobile,
-                                  icon: Icons.phone_android_outlined,
-                                  hint: 'Enter mobile number',
-                                  prefixText: '+91  ',
-                                  keyboardType: TextInputType.phone,
-                                  validator: (value) =>
-                                      value?.trim().isEmpty == true
-                                      ? 'Enter a mobile number'
-                                      : null,
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _supplierField(
-                                  label: 'Email',
-                                  controller: email,
-                                  icon: Icons.mail_outline_rounded,
-                                  hint: 'Enter email address',
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: (value) {
-                                    final text = value?.trim() ?? '';
-                                    return text.isNotEmpty &&
-                                            !text.contains('@')
-                                        ? 'Enter a valid email address'
-                                        : null;
-                                  },
-                                ),
-                              ),
-                              SizedBox(
-                                width: constraints.maxWidth,
-                                child: _supplierField(
-                                  label: 'Address',
-                                  controller: address,
-                                  icon: Icons.location_on_outlined,
-                                  hint: 'Enter full address',
-                                  minLines: 2,
-                                  maxLines: 3,
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: _supplierField(
-                                  label: 'Default pay term',
-                                  controller: term,
-                                  icon: Icons.calendar_today_outlined,
-                                  hint: 'Enter payment term (e.g. 30)',
-                                  keyboardType: TextInputType.number,
-                                  validator: (value) {
-                                    final text = value?.trim() ?? '';
-                                    return text.isNotEmpty &&
-                                            (int.tryParse(text) ?? 0) <= 0
-                                        ? 'Enter a valid payment term'
-                                        : null;
-                                  },
-                                ),
-                              ),
-                              SizedBox(
-                                width: fieldWidth,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Pay term unit',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    DropdownButtonFormField<String>(
-                                      initialValue: termType,
-                                      decoration: InputDecoration(
-                                        prefixIcon: Icon(
-                                          Icons.calendar_today_outlined,
-                                        ),
-                                      ),
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'days',
-                                          child: Text('Days'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'months',
-                                          child: Text('Months'),
-                                        ),
-                                      ],
-                                      onChanged: (value) => setDialogState(
-                                        () => termType = value!,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                width: constraints.maxWidth,
-                                padding: const EdgeInsets.all(18),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF0F8F5),
-                                  border: Border.all(
-                                    color: const Color(0xFFD5E9E2),
+                          SizedBox(width: compact ? 12 : 22),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Add supplier',
+                                  style: TextStyle(
+                                    fontSize: compact ? 21 : 27,
+                                    fontWeight: FontWeight.w900,
                                   ),
-                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline_rounded,
-                                      color: AppColors.primary,
-                                      size: 28,
-                                    ),
-                                    SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Payment terms',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Text(
-                                            'This will be used as the default payment term when creating purchase orders.',
-                                            style: TextStyle(
-                                              color: AppColors.muted,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                SizedBox(height: 5),
+                                Text(
+                                  'Add a new supplier to your business',
+                                  style: TextStyle(
+                                    fontSize: compact ? 13 : 16,
+                                    color: AppColors.muted,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          );
-                        },
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: context.tr('Close'),
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close_rounded, size: 30),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 34,
-                      vertical: 20,
-                    ),
-                    child: Row(
-                      children: [
-                        OutlinedButton(
-                          onPressed: () => Navigator.pop(dialogContext),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(126, 50),
-                          ),
-                          child: const Text('Cancel'),
-                        ),
-                        const Spacer(),
-                        FilledButton.icon(
-                          onPressed: () async {
-                            if (key.currentState?.validate() != true) return;
-                            try {
-                              final supplier = await ref
-                                  .read(purchaseControllerProvider.notifier)
-                                  .createSupplier(
-                                    businessName: business.text,
-                                    contactName: contact.text,
-                                    mobile: mobile.text,
-                                    email: email.text,
-                                    address: address.text,
-                                    payTermNumber: int.tryParse(term.text),
-                                    payTermType: termType,
-                                  );
-                              if (dialogContext.mounted) {
-                                Navigator.pop(dialogContext, supplier);
-                              }
-                            } catch (error) {
-                              if (!dialogContext.mounted) return;
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    error is ApiException
-                                        ? error.message
-                                        : '$error',
+                    const Divider(height: 1),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(compact ? 18 : 34),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final twoColumns = constraints.maxWidth >= 680;
+                            final fieldWidth = twoColumns
+                                ? (constraints.maxWidth - 24) / 2
+                                : constraints.maxWidth;
+                            return Wrap(
+                              spacing: 24,
+                              runSpacing: 22,
+                              children: [
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Business name *',
+                                    controller: business,
+                                    icon: Icons.storefront_outlined,
+                                    hint: 'Enter business name',
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter the business name'
+                                        : null,
                                   ),
                                 ),
-                              );
-                            }
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Contact name *',
+                                    controller: contact,
+                                    icon: Icons.person_outline_rounded,
+                                    hint: 'Enter contact name',
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter the contact name'
+                                        : null,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Mobile *',
+                                    controller: mobile,
+                                    icon: Icons.phone_android_outlined,
+                                    hint: 'Enter mobile number',
+                                    keyboardType: TextInputType.phone,
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter a mobile number'
+                                        : null,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Email',
+                                    controller: email,
+                                    icon: Icons.mail_outline_rounded,
+                                    hint: 'Enter email address',
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (value) {
+                                      final text = value?.trim() ?? '';
+                                      return text.isNotEmpty &&
+                                              !text.contains('@')
+                                          ? 'Enter a valid email address'
+                                          : null;
+                                    },
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'VAT number *',
+                                    controller: taxNumber,
+                                    icon: Icons.receipt_long_outlined,
+                                    hint: '15 digits, starts and ends with 3',
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      final vat = value?.trim() ?? '';
+                                      if (vat.isEmpty)
+                                        return 'Enter the VAT number';
+                                      return RegExp(r'^3\d{13}3$').hasMatch(vat)
+                                          ? null
+                                          : 'Enter a valid 15-digit Saudi VAT number';
+                                    },
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: const _SupplierSectionTitle(
+                                    icon: Icons.location_on_outlined,
+                                    title: 'Registered address',
+                                    subtitle:
+                                        'Used for tax invoices and ZATCA supplier identification',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Address line 1 *',
+                                    controller: addressLine1,
+                                    icon: Icons.location_on_outlined,
+                                    hint: 'Enter address line 1',
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter address line 1'
+                                        : null,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Address line 2',
+                                    controller: addressLine2,
+                                    icon: Icons.location_on_outlined,
+                                    hint: 'Enter address line 2',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'City *',
+                                    controller: city,
+                                    icon: Icons.location_city_outlined,
+                                    hint: 'Enter city',
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter city'
+                                        : null,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'State / Province',
+                                    controller: state,
+                                    icon: Icons.map_outlined,
+                                    hint: 'Enter state or province',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Country *',
+                                    controller: country,
+                                    icon: Icons.public_outlined,
+                                    hint: 'Enter country',
+                                    validator: (value) =>
+                                        value?.trim().isEmpty == true
+                                        ? 'Enter country'
+                                        : null,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Zip / postal code',
+                                    controller: zipCode,
+                                    icon: Icons.markunread_mailbox_outlined,
+                                    hint: 'Enter postal code',
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Landmark',
+                                    controller: landmark,
+                                    icon: Icons.place_outlined,
+                                    hint: 'Enter landmark',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Street name',
+                                    controller: streetName,
+                                    icon: Icons.signpost_outlined,
+                                    hint: 'Enter street name',
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Building number',
+                                    controller: buildingNumber,
+                                    icon: Icons.apartment_outlined,
+                                    hint: 'Enter building number',
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Additional / secondary number',
+                                    controller: additionalNumber,
+                                    icon: Icons.numbers_outlined,
+                                    hint: 'Enter additional number',
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: _supplierField(
+                                    label: 'Default pay term',
+                                    controller: term,
+                                    icon: Icons.calendar_today_outlined,
+                                    hint: 'Enter payment term (e.g. 30)',
+                                    keyboardType: TextInputType.number,
+                                    validator: (value) {
+                                      final text = value?.trim() ?? '';
+                                      return text.isNotEmpty &&
+                                              (int.tryParse(text) ?? 0) <= 0
+                                          ? 'Enter a valid payment term'
+                                          : null;
+                                    },
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: fieldWidth,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Pay term unit',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      DropdownButtonFormField<String>(
+                                        initialValue: termType,
+                                        decoration: InputDecoration(
+                                          prefixIcon: Icon(
+                                            Icons.calendar_today_outlined,
+                                          ),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'days',
+                                            child: Text('Days'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'months',
+                                            child: Text('Months'),
+                                          ),
+                                        ],
+                                        onChanged: (value) => setDialogState(
+                                          () => termType = value!,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  width: constraints.maxWidth,
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0F8F5),
+                                    border: Border.all(
+                                      color: const Color(0xFFD5E9E2),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline_rounded,
+                                        color: AppColors.primary,
+                                        size: 28,
+                                      ),
+                                      SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Payment terms',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            SizedBox(height: 2),
+                                            Text(
+                                              'This will be used as the default payment term when creating purchase orders.',
+                                              style: TextStyle(
+                                                color: AppColors.muted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
                           },
-                          icon: const Icon(Icons.save_outlined),
-                          label: const Text('Save supplier'),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                    const Divider(height: 1),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 18 : 34,
+                        vertical: compact ? 12 : 20,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 50),
+                              ),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          SizedBox(width: compact ? 10 : 20),
+                          Expanded(
+                            flex: compact ? 1 : 2,
+                            child: FilledButton.icon(
+                              onPressed: () async {
+                                if (key.currentState?.validate() != true)
+                                  return;
+                                try {
+                                  final supplier = await ref
+                                      .read(purchaseControllerProvider.notifier)
+                                      .createSupplier(
+                                        businessName: business.text,
+                                        contactName: contact.text,
+                                        mobile: mobile.text,
+                                        email: email.text,
+                                        taxNumber: taxNumber.text,
+                                        addressLine1: addressLine1.text,
+                                        addressLine2: addressLine2.text,
+                                        city: city.text,
+                                        state: state.text,
+                                        country: country.text,
+                                        zipCode: zipCode.text,
+                                        landmark: landmark.text,
+                                        streetName: streetName.text,
+                                        buildingNumber: buildingNumber.text,
+                                        additionalNumber: additionalNumber.text,
+                                        payTermNumber: int.tryParse(term.text),
+                                        payTermType: termType,
+                                      );
+                                  if (dialogContext.mounted) {
+                                    Navigator.pop(dialogContext, supplier);
+                                  }
+                                } catch (error) {
+                                  if (!dialogContext.mounted) return;
+                                  ScaffoldMessenger.of(
+                                    dialogContext,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        error is ApiException
+                                            ? error.message
+                                            : '$error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Save supplier'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
     for (final controller in [
@@ -2330,7 +2601,17 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
       contact,
       mobile,
       email,
-      address,
+      taxNumber,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      country,
+      zipCode,
+      landmark,
+      streetName,
+      buildingNumber,
+      additionalNumber,
       term,
     ]) {
       controller.dispose();
@@ -2439,6 +2720,44 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
       );
     }
   }
+}
+
+class _SupplierSectionTitle extends StatelessWidget {
+  const _SupplierSectionTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF0F8F5),
+      border: Border.all(color: const Color(0xFFD5E9E2)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: AppColors.primary, size: 28),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: const TextStyle(color: AppColors.muted)),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class PurchaseDetailDialog extends ConsumerWidget {

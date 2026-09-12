@@ -383,10 +383,22 @@ void main() {
     final api = Api(
       client: MockClient((request) async {
         expect(request.url.path, '/connector/api/contactapi');
-        expect(request.body, contains('"type":"supplier"'));
-        expect(request.body, contains('"supplier_business_name":"Acme"'));
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['type'], 'supplier');
+        expect(body['supplier_business_name'], 'Acme');
+        expect(body['tax_number'], '300000000000003');
+        expect(body['address_line_1'], 'King Fahd Road');
+        expect(body['address_line_2'], 'Office 12');
+        expect(body['city'], 'Riyadh');
+        expect(body['state'], 'Riyadh Province');
+        expect(body['country'], 'Saudi Arabia');
+        expect(body['zip_code'], '12271');
+        expect(body['land_mark'], 'Near Kingdom Centre');
+        expect(body['street_name'], 'King Fahd Road');
+        expect(body['building_number'], '1234');
+        expect(body['additional_number'], '5678');
         return http.Response(
-          '{"data":{"id":99,"supplier_business_name":"Acme"}}',
+          '''{"data":{"id":99,"supplier_business_name":"Acme","name":"Asha","mobile":"0500000000","tax_number":"300000000000003","address_line_1":"King Fahd Road","address_line_2":"Office 12","city":"Riyadh","state":"Riyadh Province","country":"Saudi Arabia","zip_code":"12271","land_mark":"Near Kingdom Centre","street_name":"King Fahd Road","building_number":"1234","additional_number":"5678"}}''',
           201,
         );
       }),
@@ -395,10 +407,24 @@ void main() {
       accessToken: 'token',
       businessName: 'Acme',
       contactName: 'Asha',
-      mobile: '9999999999',
+      mobile: '0500000000',
+      taxNumber: '300000000000003',
+      addressLine1: 'King Fahd Road',
+      addressLine2: 'Office 12',
+      city: 'Riyadh',
+      state: 'Riyadh Province',
+      country: 'Saudi Arabia',
+      zipCode: '12271',
+      landmark: 'Near Kingdom Centre',
+      streetName: 'King Fahd Road',
+      buildingNumber: '1234',
+      additionalNumber: '5678',
     );
     expect(supplier.id, '99');
     expect(supplier.name, 'Acme');
+    expect(supplier.taxNumber, '300000000000003');
+    expect(supplier.city, 'Riyadh');
+    expect(supplier.buildingNumber, '1234');
   });
 
   test('products maps EazyERP price, stock, category, and image', () async {
@@ -795,6 +821,10 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer token-123');
         expect(request.body, contains('name="name"'));
         expect(request.body, contains('Test Product'));
+        expect(request.body, contains('name="name_en"'));
+        expect(request.body, contains('Test Product'));
+        expect(request.body, contains('name="name_ar"'));
+        expect(request.body, contains('منتج تجريبي'));
         return http.Response(
           _productResponse,
           201,
@@ -804,6 +834,8 @@ void main() {
     );
     const draft = ProductDraft(
       name: 'Test Product',
+      nameEn: 'Test Product',
+      nameAr: 'منتج تجريبي',
       unitId: '1',
       purchasePrice: 1000,
       sellingPrice: 1250,

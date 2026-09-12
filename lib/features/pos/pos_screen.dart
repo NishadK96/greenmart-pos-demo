@@ -204,67 +204,68 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= 930;
             if (!desktop) {
-              return Stack(
+              return Column(
+                verticalDirection: VerticalDirection.up,
                 children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      10,
-                      10,
-                      10,
-                      state.itemCount > 0 ? 88 : 10,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                      child: _catalog(state, products),
                     ),
-                    child: _catalog(state, products),
                   ),
-                  if (state.itemCount > 0)
-                    Positioned(
-                      left: 12,
-                      right: 12,
-                      bottom: 12,
-                      child: Material(
-                        color: const Color(0xFFF1F8F5),
-                        elevation: 8,
-                        shadowColor: Colors.black26,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: const BorderSide(color: Color(0xFFD6E6E0)),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: () => _openCartSheet(context),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 11,
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.shopping_cart_outlined,
-                                    color: AppColors.primary,
-                                    size: 20,
-                                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Material(
+                      color: const Color(0xFFF1F8F5),
+                      elevation: 8,
+                      shadowColor: Colors.black26,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: const BorderSide(color: Color(0xFFD6E6E0)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        key: const ValueKey('mobile-cart-bar'),
+                        onTap: () => _openCartSheet(context),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                const SizedBox(width: 10),
-                                Column(
+                                child: const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${state.itemCount} ${state.itemCount == 1 ? 'Item' : 'Items'}',
+                                      state.itemCount == 0
+                                          ? context.tr('Cart empty')
+                                          : '${state.itemCount} ${state.itemCount == 1 ? context.tr('Item') : context.tr('Items')}',
                                       style: const TextStyle(
                                         color: AppColors.primary,
                                         fontWeight: FontWeight.w900,
                                       ),
                                     ),
                                     Text(
-                                      state.customer?.name ??
-                                          'Walk-in Customer',
+                                      state.itemCount == 0
+                                          ? context.tr('Add a product to start')
+                                          : state.customer?.name ??
+                                                'Walk-in Customer',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -274,7 +275,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                     ),
                                   ],
                                 ),
-                                const Spacer(),
+                              ),
+                              const SizedBox(width: 8),
+                              if (state.itemCount > 0)
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -295,18 +298,27 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                       ),
                                     ),
                                   ],
+                                )
+                              else
+                                Text(
+                                  context.tr('View cart'),
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: AppColors.primary,
-                                ),
-                              ],
-                            ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                color: AppColors.primary,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
+                  ),
                 ],
               );
             }
@@ -513,7 +525,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     padding: EdgeInsets.zero,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
-                      mainAxisExtent: mobile ? 222 : 188,
+                      mainAxisExtent: mobile ? 184 : 188,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
@@ -563,7 +575,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       ),
       const SizedBox(width: 8),
       SizedBox(
-        height: 48,
+        height: MediaQuery.sizeOf(context).width < 600 ? 44 : 48,
         child: FilledButton.icon(
           onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -612,13 +624,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 700;
-        final cardWidth = compact ? 74.0 : 88.0;
+        final cardWidth = compact ? 68.0 : 88.0;
         final filters = <Widget>[
           _categoryCard(
             label: context.tr('All'),
             icon: Icons.grid_view_rounded,
             selected: _mode == 'all' && _category == 'all',
             width: cardWidth,
+            dense: compact,
             onTap: () => setState(() {
               _mode = 'all';
               _category = 'all';
@@ -630,6 +643,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               icon: _categoryIcon(category.name),
               selected: _mode == 'all' && _category == category.id,
               width: cardWidth,
+              dense: compact,
               onTap: () => setState(() {
                 _mode = 'all';
                 _category = category.id;
@@ -640,6 +654,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             icon: Icons.star_border_rounded,
             selected: _mode == 'favorites',
             width: cardWidth,
+            dense: compact,
             accentIcon: true,
             onTap: () => setState(() => _mode = 'favorites'),
           ),
@@ -648,11 +663,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             icon: Icons.history_rounded,
             selected: _mode == 'recent',
             width: cardWidth,
+            dense: compact,
             onTap: () => setState(() => _mode = 'recent'),
           ),
         ];
         return SizedBox(
-          height: compact ? 76 : 84,
+          height: compact ? 66 : 84,
           child: ListView.separated(
             key: const ValueKey('pos-category-switcher'),
             scrollDirection: Axis.horizontal,
@@ -672,6 +688,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     required IconData icon,
     required bool selected,
     required double width,
+    required bool dense,
     required VoidCallback onTap,
     bool accentIcon = false,
   }) => Semantics(
@@ -693,20 +710,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         child: SizedBox(
           width: width,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(7, 9, 7, 7),
+            padding: EdgeInsets.fromLTRB(7, dense ? 6 : 9, 7, 7),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   icon,
-                  size: 25,
+                  size: dense ? 22 : 25,
                   color: accentIcon && !selected
                       ? AppColors.accent
                       : selected
                       ? AppColors.primary
                       : const Color(0xFF53615C),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: dense ? 3 : 6),
                 Text(
                   label,
                   maxLines: 1,
@@ -717,7 +734,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                         ? AppColors.primary
                         : const Color(0xFF303B37),
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                    fontSize: 11,
+                    fontSize: dense ? 10 : 11,
                   ),
                 ),
               ],
@@ -2933,32 +2950,39 @@ class _CurrentOrder extends ConsumerWidget {
                             icon: const Icon(Icons.edit_rounded, size: 13),
                             label: Row(
                               children: [
-                                Text(
-                                  context.tr('Edit price'),
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'F6',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w900,
+                                Flexible(
+                                  child: Text(
+                                    context.tr('Edit price'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ),
+                                if (MediaQuery.sizeOf(context).width >=
+                                    700) ...[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'F6',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 const Spacer(),
                                 RiyalAmount(
                                   line.unitPrice,
@@ -3235,12 +3259,22 @@ class _CurrentOrder extends ConsumerWidget {
 
   Widget _compactTotal(BuildContext context, String label, int value) => Row(
     children: [
-      Text(
-        context.tr(label),
-        style: const TextStyle(color: AppColors.muted, fontSize: 11),
+      Expanded(
+        child: Text(
+          context.tr(label),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppColors.muted, fontSize: 11),
+        ),
       ),
-      const Spacer(),
-      RiyalAmount(value, style: const TextStyle(fontSize: 11)),
+      const SizedBox(width: 4),
+      Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerEnd,
+          child: RiyalAmount(value, style: const TextStyle(fontSize: 11)),
+        ),
+      ),
     ],
   );
 

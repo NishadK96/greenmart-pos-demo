@@ -38,8 +38,13 @@ class PagePad extends StatelessWidget {
   const PagePad({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) =>
-      Padding(padding: const EdgeInsets.all(20), child: child);
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Padding(
+      padding: EdgeInsets.all(width < 600 ? 12 : 20),
+      child: child,
+    );
+  }
 }
 
 class DashboardScreen extends ConsumerWidget {
@@ -224,7 +229,7 @@ class _DashboardHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 700 ? 20 : 26),
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 700 ? 16 : 26),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF0C493F), Color(0xFF07362F)],
@@ -247,7 +252,9 @@ class _DashboardHero extends StatelessWidget {
                 context.tr('Store open'),
                 color: const Color(0xFF4ED49A),
               ),
-              const SizedBox(height: 17),
+              SizedBox(
+                height: MediaQuery.sizeOf(context).width < 600 ? 11 : 17,
+              ),
               Text(
                 '${context.tr('Good morning')}, ${state.user?.name ?? ''} 👋',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -291,7 +298,7 @@ class _DashboardHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 intro,
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
@@ -2836,11 +2843,15 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       context: context,
       builder: (dialogContext) {
         final screenSize = MediaQuery.sizeOf(dialogContext);
+        final compactDialog = screenSize.width < 600;
         final dialogWidth = math.min(
           760.0,
-          math.max(280.0, screenSize.width - 84),
+          math.max(280.0, screenSize.width - (compactDialog ? 36 : 84)),
         );
-        final dialogHeight = math.min(650.0, screenSize.height - 180);
+        final dialogHeight = math.min(
+          compactDialog ? 720.0 : 650.0,
+          screenSize.height - (compactDialog ? 150 : 180),
+        );
         var saving = false;
         String? error;
         return StatefulBuilder(
@@ -2849,13 +2860,23 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               horizontal: 18,
               vertical: 20,
             ),
-            titlePadding: const EdgeInsets.fromLTRB(24, 22, 16, 12),
-            contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+            titlePadding: EdgeInsets.fromLTRB(
+              compactDialog ? 16 : 24,
+              compactDialog ? 14 : 22,
+              compactDialog ? 8 : 16,
+              compactDialog ? 6 : 12,
+            ),
+            contentPadding: EdgeInsets.fromLTRB(
+              compactDialog ? 16 : 24,
+              compactDialog ? 4 : 8,
+              compactDialog ? 16 : 24,
+              compactDialog ? 8 : 12,
+            ),
             title: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: compactDialog ? 38 : 44,
+                  height: compactDialog ? 38 : 44,
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: .10),
                     shape: BoxShape.circle,
@@ -2867,7 +2888,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: compactDialog ? 9 : 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2876,7 +2897,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                         context.tr(
                           existing == null ? 'Add customer' : 'Edit customer',
                         ),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontSize: compactDialog ? 19 : null,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -3759,7 +3783,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: constraints.maxWidth >= 980 ? 4 : 2,
-              childAspectRatio: constraints.maxWidth < 550 ? 1.12 : 2.35,
+              childAspectRatio: constraints.maxWidth < 550 ? 1.55 : 2.35,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
               children: [
@@ -4557,100 +4581,27 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   void _details(BuildContext context, Sale sale) => showDialog(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(sale.invoiceNo),
-      content: SizedBox(
-        width: 430,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.tr('Customer'),
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            Text(
-              sale.customer.name,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 14),
-            _SalePaymentSummary(sale: sale),
-            const Divider(),
-            for (final line in sale.items)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${line.quantity} × ${line.product.displayName(context.isArabic)}',
-                      ),
-                    ),
-                    RiyalAmount(line.total),
-                  ],
-                ),
-              ),
-            const Divider(),
-            Row(
-              children: [
-                Text(
-                  context.tr('Total'),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const Spacer(),
-                Text(
-                  money(sale.total),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        OutlinedButton.icon(
-          onPressed: () => _previewSaleDocument(sale),
-          icon: const Icon(Icons.preview_outlined),
-          label: Text(context.tr('Preview')),
-        ),
-        FilledButton.icon(
-          onPressed: () => _printSaleDocument(sale),
-          icon: const Icon(Icons.print_outlined),
-          label: Text(context.tr('Print')),
-        ),
-        OutlinedButton.icon(
-          onPressed:
-              sale.serverId == null ||
-                  sale.items.every(
-                    (line) =>
-                        line.sellLineId == null || line.returnableQuantity <= 0,
-                  )
-              ? null
-              : () {
-                  Navigator.pop(dialogContext);
-                  _showSaleReturn(context, sale);
-                },
-          icon: const Icon(Icons.keyboard_return_rounded),
-          label: Text(context.tr('Return')),
-        ),
-        OutlinedButton.icon(
-          onPressed: sale.serverId == null
-              ? null
-              : () {
-                  Navigator.pop(dialogContext);
-                  showZatcaInvoiceDialog(context, ref, sale);
-                },
-          icon: const Icon(Icons.verified_user_outlined),
-          label: const Text('ZATCA'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: Text(context.tr('Close')),
-        ),
-      ],
+    builder: (dialogContext) => _SaleDetailsDialog(
+      sale: sale,
+      onPreview: () => _previewSaleDocument(sale),
+      onPrint: () => _printSaleDocument(sale),
+      onReturn:
+          sale.serverId == null ||
+              sale.items.every(
+                (line) =>
+                    line.sellLineId == null || line.returnableQuantity <= 0,
+              )
+          ? null
+          : () {
+              Navigator.pop(dialogContext);
+              _showSaleReturn(context, sale);
+            },
+      onZatca: sale.serverId == null
+          ? null
+          : () {
+              Navigator.pop(dialogContext);
+              showZatcaInvoiceDialog(context, ref, sale);
+            },
     ),
   );
 
@@ -5373,43 +5324,54 @@ class _SalesSummaryCard extends StatelessWidget {
   final Color tint, iconColor;
 
   @override
-  Widget build(BuildContext context) => Surface(
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
-          child: Icon(icon, color: iconColor),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.tr(label),
-                style: const TextStyle(color: AppColors.muted),
-              ),
-              const SizedBox(height: 4),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 240;
+      return Surface(
+        padding: EdgeInsets.all(compact ? 10 : 16),
+        child: Row(
+          children: [
+            Container(
+              width: compact ? 38 : 48,
+              height: compact ? 38 : 48,
+              decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+              child: Icon(icon, color: iconColor, size: compact ? 20 : 24),
+            ),
+            SizedBox(width: compact ? 9 : 13),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr(label),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: compact ? 11 : null,
+                      height: 1.15,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: compact ? 18 : 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   );
 }
 
@@ -5597,6 +5559,381 @@ class _SalesTransactionRow extends StatelessWidget {
       Text(sale.customer.name, maxLines: 2, overflow: TextOverflow.ellipsis);
 }
 
+class _SaleDetailsDialog extends StatelessWidget {
+  const _SaleDetailsDialog({
+    required this.sale,
+    required this.onPreview,
+    required this.onPrint,
+    required this.onReturn,
+    required this.onZatca,
+  });
+
+  final Sale sale;
+  final VoidCallback onPreview;
+  final VoidCallback onPrint;
+  final VoidCallback? onReturn;
+  final VoidCallback? onZatca;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 600;
+    return SafeArea(
+      child: Dialog(
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 32,
+          vertical: compact ? 12 : 28,
+        ),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: compact ? 0 : 560,
+            maxWidth: 640,
+            maxHeight: size.height - (compact ? 24 : 56),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _header(context, compact),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 14 : 22,
+                    compact ? 14 : 18,
+                    compact ? 14 : 22,
+                    compact ? 12 : 18,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _status(context, compact),
+                      const SizedBox(height: 14),
+                      _items(context),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F7F4),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              context.tr('Total'),
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const Spacer(),
+                            RiyalAmount(
+                              sale.total,
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final twoColumns = constraints.maxWidth < 470;
+                          final width = twoColumns
+                              ? (constraints.maxWidth - 10) / 2
+                              : (constraints.maxWidth - 30) / 4;
+                          return Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              _action(
+                                context,
+                                width,
+                                Icons.visibility_outlined,
+                                'Preview',
+                                onPreview,
+                                compact: compact,
+                              ),
+                              _action(
+                                context,
+                                width,
+                                Icons.print_outlined,
+                                'Print',
+                                onPrint,
+                                primary: true,
+                                compact: compact,
+                              ),
+                              _action(
+                                context,
+                                width,
+                                Icons.keyboard_return_rounded,
+                                'Return',
+                                onReturn,
+                                compact: compact,
+                              ),
+                              _action(
+                                context,
+                                width,
+                                Icons.verified_user_outlined,
+                                'ZATCA',
+                                onZatca,
+                                compact: compact,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(context.tr('Close')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _status(BuildContext context, bool compact) {
+    final credit = _isCreditSale(sale);
+    final color = credit ? const Color(0xFF9A5B00) : AppColors.primary;
+    return Container(
+      padding: EdgeInsets.all(compact ? 14 : 18),
+      decoration: BoxDecoration(
+        color: credit ? const Color(0xFFFFF9ED) : const Color(0xFFF3FAF7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: credit ? const Color(0xFFE5B45B) : const Color(0xFFB8DDD0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: compact ? 46 : 54,
+            height: compact ? 46 : 54,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(
+              credit ? Icons.schedule_rounded : Icons.check_rounded,
+              color: Colors.white,
+              size: compact ? 27 : 31,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  credit ? context.tr('Credit sale') : context.tr('Paid sale'),
+                  style: TextStyle(
+                    fontSize: compact ? 17 : 19,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  credit
+                      ? '${context.tr('Outstanding')}: ${money(sale.total)}'
+                      : _salePaymentLabel(context, sale),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          if (!compact) _SalePaymentBadge(sale: sale),
+        ],
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context, bool compact) => Container(
+    padding: EdgeInsets.fromLTRB(
+      compact ? 16 : 26,
+      compact ? 16 : 24,
+      compact ? 10 : 18,
+      compact ? 16 : 24,
+    ),
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Color(0xFFE8F7F2), Colors.white],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      ),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: compact ? 56 : 76,
+          height: compact ? 56 : 76,
+          decoration: const BoxDecoration(
+            color: Color(0xFFD4F0E7),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.receipt_long_rounded,
+            color: AppColors.primary,
+            size: compact ? 29 : 36,
+          ),
+        ),
+        SizedBox(width: compact ? 12 : 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr('SALE NO.'),
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .7,
+                ),
+              ),
+              Text(
+                sale.invoiceNo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: compact ? 23 : 28,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDFF2EC),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.person_rounded,
+                      color: AppColors.primary,
+                      size: 17,
+                    ),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        sale.customer.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton.outlined(
+          tooltip: context.tr('Close'),
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ],
+    ),
+  );
+
+  Widget _items(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      border: Border.all(color: const Color(0xFFE1E7E5)),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      children: [
+        Container(
+          color: const Color(0xFFFAFBFB),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              const SizedBox(width: 36, child: Text('#')),
+              Expanded(child: Text(context.tr('Item'))),
+              Text(context.tr('Price')),
+            ],
+          ),
+        ),
+        for (final entry in sale.items.asMap().entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                SizedBox(width: 36, child: Text('${entry.key + 1}')),
+                Expanded(
+                  child: Text(
+                    entry.value.product.displayName(context.isArabic),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                RiyalAmount(entry.value.total),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _action(
+    BuildContext context,
+    double width,
+    IconData icon,
+    String label,
+    VoidCallback? onPressed, {
+    bool primary = false,
+    bool compact = false,
+  }) => SizedBox(
+    width: width,
+    height: compact ? 66 : 74,
+    child: primary
+        ? FilledButton(
+            onPressed: onPressed,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 25),
+                const SizedBox(height: 5),
+                Text(context.tr(label)),
+              ],
+            ),
+          )
+        : OutlinedButton(
+            onPressed: onPressed,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 25),
+                const SizedBox(height: 5),
+                Text(context.tr(label)),
+              ],
+            ),
+          ),
+  );
+}
+
 bool _isCreditSale(Sale sale) {
   final method = sale.paymentMethod.trim().toLowerCase();
   return method == 'due' || method == 'credit';
@@ -5619,58 +5956,6 @@ class _SalePaymentBadge extends StatelessWidget {
     return StatusBadge(
       _salePaymentLabel(context, sale),
       color: credit ? const Color(0xFFB7791F) : AppColors.primary,
-    );
-  }
-}
-
-class _SalePaymentSummary extends StatelessWidget {
-  const _SalePaymentSummary({required this.sale});
-  final Sale sale;
-
-  @override
-  Widget build(BuildContext context) {
-    final credit = _isCreditSale(sale);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: credit ? const Color(0xFFFFF7E8) : const Color(0xFFE9F6EF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: credit ? const Color(0xFFE5B45B) : const Color(0xFF9DCEBA),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            credit
-                ? Icons.schedule_rounded
-                : Icons.check_circle_outline_rounded,
-            color: credit ? const Color(0xFF9A5B00) : AppColors.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  credit ? context.tr('Credit sale') : context.tr('Paid sale'),
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                Text(
-                  credit
-                      ? '${context.tr('Outstanding')}: ${money(sale.total)}'
-                      : _salePaymentLabel(context, sale),
-                  style: TextStyle(
-                    color: credit ? const Color(0xFF7A4A00) : AppColors.muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _SalePaymentBadge(sale: sale),
-        ],
-      ),
     );
   }
 }
@@ -5954,10 +6239,10 @@ class SyncScreen extends ConsumerWidget {
             builder: (_, c) => GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: c.maxWidth > 700 ? 3 : 1,
+              crossAxisCount: 3,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 2.3,
+              childAspectRatio: c.maxWidth > 700 ? 2.3 : .95,
               children: [
                 const MetricCard(
                   label: 'Internet status',

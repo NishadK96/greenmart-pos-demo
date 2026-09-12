@@ -52,6 +52,16 @@ class DeviceSessionStorage {
     }
   }
 
+  Future<void> resetDevice(Iterable<String> sessionIds) async {
+    if (!isSupported) return;
+    for (final id in sessionIds) {
+      await _storage.delete(key: 'connector_refresh_$id');
+    }
+    await _storage.delete(key: _activeSessionKey);
+    await _storage.delete(key: _deviceIdKey);
+    await _storage.delete(key: _deviceSecretKey);
+  }
+
   Future<String> _readOrCreate(String key, String Function() create) async {
     final current = await _storage.read(key: key);
     if (current != null && current.isNotEmpty) return current;

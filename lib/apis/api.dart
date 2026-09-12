@@ -200,6 +200,16 @@ class Api {
     _requireObject(response, 'remove saved account');
   }
 
+  Future<void> logoutDevice(Map<String, String> deviceHeaders) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.authLogoutDeviceUrl),
+          headers: {...deviceHeaders, 'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'reset saved accounts');
+  }
+
   Future<WebAuthBootstrap> webAuthBootstrap() async {
     final response = await _client
         .get(
@@ -282,6 +292,16 @@ class Api {
         )
         .timeout(const Duration(seconds: 20));
     _requireObject(response, 'web logout');
+  }
+
+  Future<void> logoutWebDevice(String csrfToken) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.webAuthLogoutDeviceUrl),
+          headers: _webAuthHeaders(csrfToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'reset saved web accounts');
   }
 
   Map<String, String> _webAuthHeaders(String csrfToken, {bool json = false}) =>

@@ -10,6 +10,8 @@ abstract final class ApiEndPoints {
   static String authSessionUrl(String id) => '$authSessionsUrl/$id';
   static const authContextUrl = '${Config.baseUrl}/connector/api/auth/context';
   static const authLogoutUrl = '${Config.baseUrl}/connector/api/auth/logout';
+  static const authLogoutDeviceUrl =
+      '${Config.baseUrl}/connector/api/auth/logout-device';
   static const webAuthBootstrapUrl =
       '${Config.baseUrl}/connector/web-auth/bootstrap';
   static const webAuthLoginUrl = '${Config.baseUrl}/connector/web-auth/login';
@@ -19,6 +21,8 @@ abstract final class ApiEndPoints {
       '$webAuthSessionsUrl/$id/activate';
   static String webAuthSessionUrl(String id) => '$webAuthSessionsUrl/$id';
   static const webAuthLogoutUrl = '${Config.baseUrl}/connector/web-auth/logout';
+  static const webAuthLogoutDeviceUrl =
+      '${Config.baseUrl}/connector/web-auth/logout-device';
   static const productsUrl = '${Config.baseUrl}/connector/api/product';
   static const productWritesUrl = '${Config.baseUrl}/connector/api/products';
   static const quickProductUrl =

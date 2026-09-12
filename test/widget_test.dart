@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eazy_pos/app.dart';
+import 'package:eazy_pos/apis/api.dart';
 import 'package:eazy_pos/core/localization/app_localizations.dart';
 import 'package:eazy_pos/core/theme/app_theme.dart';
 import 'package:eazy_pos/features/auth/auth_controller.dart';
@@ -55,6 +56,48 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Continue to Eazy POS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('business mismatch can reset the saved device and retry login', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(
+          _BusinessMismatchAuthController.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const EazyPosApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), 'other-business');
+    await tester.enterText(find.byType(TextField).at(1), 'password');
+    await tester.tap(find.text('Continue to Eazy POS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Remove saved accounts and sign in'), findsOneWidget);
+    await tester.ensureVisible(find.text('Remove saved accounts and sign in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove saved accounts and sign in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Use this device for another business?'), findsOneWidget);
+
+    await tester.tap(find.text('Remove accounts and continue'));
+    await tester.pumpAndSettle();
+
+    final controller =
+        container.read(authControllerProvider.notifier)
+            as _BusinessMismatchAuthController;
+    expect(controller.deviceReset, isTrue);
+    expect(controller.loginAttempts, 2);
     expect(tester.takeException(), isNull);
   });
 
@@ -761,6 +804,35 @@ void main() {
 class _SignedOutAuthController extends AuthController {
   @override
   Future<String?> build() async => null;
+}
+
+class _BusinessMismatchAuthController extends AuthController {
+  int loginAttempts = 0;
+  bool deviceReset = false;
+
+  @override
+  Future<String?> build() async => null;
+
+  @override
+  Future<LoginResult> login(
+    String username,
+    String password, {
+    required bool remember,
+  }) async {
+    loginAttempts += 1;
+    state = const AsyncData(null);
+    return const LoginResult.failure(
+      LoginFailure.server,
+      message:
+          'Saved accounts on this device must belong to the same business.',
+    );
+  }
+
+  @override
+  Future<void> resetSavedDevice() async {
+    deviceReset = true;
+    state = const AsyncData(null);
+  }
 }
 
 class _SignedInAuthController extends AuthController {

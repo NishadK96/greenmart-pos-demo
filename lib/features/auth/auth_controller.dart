@@ -182,6 +182,23 @@ class AuthController extends AsyncNotifier<String?> {
     }
   }
 
+  Future<void> resetSavedDevice() async {
+    await OfflinePosStorage().disableOfflineResume();
+    await _offlineCredentials.clear();
+    if (kIsWeb) {
+      await _bootstrapWeb();
+      await ref.read(apiProvider).logoutWebDevice(_webCsrfToken!);
+      _activeSessionId = null;
+      _webCsrfToken = null;
+    } else {
+      final headers = await _sessions.deviceHeaders();
+      final accounts = await ref.read(apiProvider).savedSessions(headers);
+      await ref.read(apiProvider).logoutDevice(headers);
+      await _sessions.resetDevice(accounts.map((account) => account.sessionId));
+    }
+    state = const AsyncData(null);
+  }
+
   Future<void> logout() async {
     await OfflinePosStorage().disableOfflineResume();
     await _offlineCredentials.clear();

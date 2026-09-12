@@ -793,6 +793,14 @@ const Map<String, String> _ar = {
   'Sign in to access your register, products, and sales for this location.':
       'سجّل الدخول للوصول إلى الصندوق والمنتجات والمبيعات في هذا الموقع.',
   'Remember this account': 'تذكّر هذا الحساب',
+  'Use this device for another business?':
+      'هل تريد استخدام هذا الجهاز لنشاط تجاري آخر؟',
+  'This will remove all saved Eazy POS accounts from this device. Synced business data will not be deleted.':
+      'سيؤدي هذا إلى إزالة جميع حسابات Eazy POS المحفوظة من هذا الجهاز. لن تُحذف بيانات النشاط المتزامنة.',
+  'Remove accounts and continue': 'إزالة الحسابات والمتابعة',
+  'Remove saved accounts and sign in': 'إزالة الحسابات المحفوظة وتسجيل الدخول',
+  'Unable to reset saved accounts. Check your connection and try again.':
+      'تعذر إعادة تعيين الحسابات المحفوظة. تحقق من اتصالك وحاول مرة أخرى.',
   'Continue to Eazy POS': 'المتابعة إلى إيزي بوس',
   'Secure access for your business and saved staff profiles.':
       'وصول آمن لنشاطك التجاري وملفات الموظفين المحفوظة.',

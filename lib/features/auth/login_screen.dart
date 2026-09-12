@@ -17,6 +17,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool remember = true;
   bool obscure = true;
+  bool resettingDevice = false;
+  bool deviceBusinessMismatch = false;
   String? error;
   final email = TextEditingController();
   final password = TextEditingController();
@@ -35,7 +37,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => error = context.tr('Enter your username and password.'));
       return;
     }
-    setState(() => error = null);
+    setState(() {
+      error = null;
+      deviceBusinessMismatch = false;
+    });
     final result = await ref
         .read(authControllerProvider.notifier)
         .login(username, password.text, remember: remember);
@@ -44,7 +49,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go('/dashboard');
       return;
     }
-    setState(() => error = _errorMessage(result));
+    final message = _errorMessage(result);
+    setState(() {
+      error = message;
+      deviceBusinessMismatch = _isDeviceBusinessMismatch(result);
+    });
+  }
+
+  bool _isDeviceBusinessMismatch(LoginResult result) =>
+      result.message?.toLowerCase().contains(
+        'saved accounts on this device must belong to the same business',
+      ) ==
+      true;
+
+  Future<void> _resetDeviceAndRetry() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Use this device for another business?')),
+        content: Text(
+          context.tr(
+            'This will remove all saved Eazy POS accounts from this device. Synced business data will not be deleted.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.tr('Remove accounts and continue')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => resettingDevice = true);
+    try {
+      await ref.read(authControllerProvider.notifier).resetSavedDevice();
+      if (!mounted) return;
+      setState(() {
+        resettingDevice = false;
+        deviceBusinessMismatch = false;
+        error = null;
+      });
+      await _submit();
+    } on ApiException catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        resettingDevice = false;
+        error = failure.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        resettingDevice = false;
+        error = context.tr(
+          'Unable to reset saved accounts. Check your connection and try again.',
+        );
+      });
+    }
   }
 
   String _errorMessage(LoginResult result) => switch (result.failure) {
@@ -127,9 +193,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     obscure: obscure,
     loading: loading,
     error: error,
+    showDeviceReset: deviceBusinessMismatch,
+    resettingDevice: resettingDevice,
     onRememberChanged: (value) => setState(() => remember = value),
     onObscureChanged: () => setState(() => obscure = !obscure),
     onSubmit: _submit,
+    onResetDevice: _resetDeviceAndRetry,
   );
 }
 
@@ -318,9 +387,12 @@ class _LoginForm extends ConsumerWidget {
     required this.obscure,
     required this.loading,
     required this.error,
+    required this.showDeviceReset,
+    required this.resettingDevice,
     required this.onRememberChanged,
     required this.onObscureChanged,
     required this.onSubmit,
+    required this.onResetDevice,
   });
 
   final TextEditingController email;
@@ -329,9 +401,12 @@ class _LoginForm extends ConsumerWidget {
   final bool obscure;
   final bool loading;
   final String? error;
+  final bool showDeviceReset;
+  final bool resettingDevice;
   final ValueChanged<bool> onRememberChanged;
   final VoidCallback onObscureChanged;
   final Future<void> Function() onSubmit;
+  final Future<void> Function() onResetDevice;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -532,6 +607,19 @@ class _LoginForm extends ConsumerWidget {
                 ),
               ),
             ),
+            if (showDeviceReset) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: resettingDevice ? null : onResetDevice,
+                icon: resettingDevice
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.devices_other_outlined),
+                label: Text(context.tr('Remove saved accounts and sign in')),
+              ),
+            ],
           ],
           const SizedBox(height: 14),
           DecoratedBox(

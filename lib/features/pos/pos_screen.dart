@@ -503,6 +503,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Widget _catalog(AppState state, List<Product> products) => Column(
     children: [
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () => context.go('/kitchen-pos'),
+          icon: const Icon(Icons.restaurant_menu_outlined, size: 18),
+          label: Text(context.tr('Switch to Kitchen POS')),
+        ),
+      ),
       _searchBar(state, products),
       const SizedBox(height: 9),
       _categoryBar(state),

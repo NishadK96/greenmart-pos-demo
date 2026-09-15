@@ -63,6 +63,22 @@ abstract final class ApiEndPoints {
       '$invoiceLayoutsUrl/$layoutId/offline-config';
   static String locationInvoiceLayoutUrl(String locationId) =>
       '${Config.baseUrl}/connector/api/business-location/$locationId/invoice-layout';
+  static String restaurantSettingsUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/restaurant-settings';
+  static String kitchenTemplatePreviewUrl(String locationId, String template) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/kitchen-templates/$template/preview';
+  static String kitchenPrinterOptionsUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/kitchen-printer-options';
+  static String kitchenPrinterRoutesUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/kitchen-printer-routes';
+  static String kitchenPrinterRouteUrl(String locationId, String routeId) =>
+      '${kitchenPrinterRoutesUrl(locationId)}/$routeId';
+  static String kitchenPrintJobsUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/kitchen-print-jobs';
+  static String transactionKitchenPrintJobsUrl(String transactionId) =>
+      '${Config.baseUrl}/connector/api/transactions/$transactionId/kitchen-print-jobs';
+  static String kitchenPrintJobStatusUrl(String jobId) =>
+      '${Config.baseUrl}/connector/api/kitchen-print-jobs/$jobId/status';
   static String saleInvoicePdfUrl(String transactionId) =>
       '${Config.baseUrl}/connector/api/sell/$transactionId/pdf';
   static const loggedInUserUrl =

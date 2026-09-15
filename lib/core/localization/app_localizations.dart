@@ -63,6 +63,53 @@ extension LocalizationBuildContext on BuildContext {
 }
 
 const Map<String, String> _ar = {
+  'Restaurant & kitchen printing': 'إعدادات المطعم وطباعة المطبخ',
+  'ERP controls item routing and durable jobs. This device controls the physical printers.':
+      'يتحكم نظام ERP في توجيه الأصناف ومهام الطباعة، ويتحكم هذا الجهاز في الطابعات الفعلية.',
+  'Refresh kitchen configuration': 'تحديث إعدادات المطبخ',
+  'Default kitchen template': 'قالب المطبخ الافتراضي',
+  'Preview template': 'معاينة القالب',
+  'Receipt behavior': 'إعدادات الإيصال',
+  'Print receipt after invoice finalization':
+      'طباعة الإيصال بعد اعتماد الفاتورة',
+  'This is saved to the selected ERP location.':
+      'يتم حفظ هذا الإعداد لموقع ERP المحدد.',
+  'ERP receipt printer type': 'نوع طابعة الإيصال في ERP',
+  'Browser': 'المتصفح',
+  'Printer': 'الطابعة',
+  'ERP receipt printer': 'طابعة الإيصال في ERP',
+  'Not selected': 'غير محدد',
+  'Pair ERP printers to this device': 'ربط طابعات ERP بهذا الجهاز',
+  'Required before a kitchen job can print locally.':
+      'مطلوب قبل طباعة مهمة المطبخ محلياً.',
+  'Scan printers': 'البحث عن الطابعات',
+  'No ERP printers are assigned to this location.':
+      'لا توجد طابعات ERP معينة لهذا الموقع.',
+  'Local Windows printer': 'طابعة ويندوز المحلية',
+  'Not paired': 'غير مرتبطة',
+  'Category printer routing': 'توجيه الفئات إلى الطابعات',
+  'Subcategory rules take precedence over category rules.':
+      'قواعد الفئات الفرعية لها أولوية على قواعد الفئات.',
+  'Add route': 'إضافة مسار',
+  'No routes yet. Kitchen items will remain unassigned.':
+      'لا توجد مسارات بعد. ستبقى أصناف المطبخ دون طابعة.',
+  'Kitchen print jobs': 'مهام طباعة المطبخ',
+  'No kitchen print jobs for this location.':
+      'لا توجد مهام طباعة مطبخ لهذا الموقع.',
+  'Edit route': 'تعديل المسار',
+  'Delete route': 'حذف المسار',
+  'Add kitchen route': 'إضافة مسار مطبخ',
+  'Edit kitchen route': 'تعديل مسار المطبخ',
+  'Subcategory': 'الفئة الفرعية',
+  'All subcategories': 'كل الفئات الفرعية',
+  'ERP printer': 'طابعة ERP',
+  'Ticket template': 'قالب تذكرة المطبخ',
+  'Use location default': 'استخدام افتراضي الموقع',
+  'Priority (0–1000)': 'الأولوية (0–1000)',
+  'Route active': 'المسار نشط',
+  'Save route': 'حفظ المسار',
+  'Kitchen template preview': 'معاينة قالب المطبخ',
+  'Kitchen settings are unavailable.': 'إعدادات المطبخ غير متاحة.',
   'Active': 'نشط',
   'Add Product': 'إضافة منتج',
   'Add cash': 'إضافة نقدية',
@@ -153,6 +200,7 @@ const Map<String, String> _ar = {
       'أضف صنف منتج صالحاً واحداً على الأقل.',
   'Allow decimal quantities': 'السماح بالكميات العشرية',
   'Allow overselling': 'السماح بالبيع فوق المخزون',
+  'Available offline': 'متاح دون اتصال',
   'Assign a customer to the current order.': 'عيّن عميلاً للطلب الحالي.',
   'Barcode sticker layout': 'تنسيق ملصق الباركود',
   'Both standard & simplified': 'قياسية ومبسطة',
@@ -527,6 +575,7 @@ const Map<String, String> _ar = {
   'Apply': 'تطبيق',
   'More': 'المزيد',
   'Online': 'متصل',
+  'Online only': 'متاح عند الاتصال فقط',
   'Synced': 'تمت المزامنة',
   'New sale': 'عملية بيع جديدة',
   'WORKSPACE': 'مساحة العمل',

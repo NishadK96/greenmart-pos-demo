@@ -10,6 +10,7 @@ import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
 import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../../kitchen/presentation/kitchen_settings_panel.dart';
 import '../../store/app_store.dart';
 import '../application/printer_controller.dart';
 import '../application/printer_document_service.dart';
@@ -170,7 +171,9 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         onChanged: controller.update,
                         billingFallback: true,
                       ),
-                    ] else
+                    ] else if (settings.section == PrinterSection.kitchen)
+                      KitchenSettingsPanel(locations: locations)
+                    else
                       _DocumentSettings(
                         settings: settings,
                         onChanged: controller.update,
@@ -436,6 +439,31 @@ class _ErpLayoutCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              layout.offlineSupported
+                  ? Icons.offline_pin_outlined
+                  : Icons.cloud_outlined,
+              size: 16,
+              color: layout.offlineSupported
+                  ? AppColors.primary
+                  : AppColors.muted,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              layout.offlineSupported ? 'Available offline' : 'Online only',
+              style: TextStyle(
+                color: layout.offlineSupported
+                    ? AppColors.primary
+                    : AppColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 13),
         Row(

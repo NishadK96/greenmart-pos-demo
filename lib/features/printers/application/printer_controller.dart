@@ -47,6 +47,15 @@ class PrinterState {
     return Printer(url: url, name: name);
   }
 
+  Printer? kitchenPrinter(String erpPrinterId) {
+    final url = settings.kitchenPrinterBindings[erpPrinterId];
+    if (url == null || url.isEmpty || url == 'system-print-dialog') return null;
+    return _printerFor(
+      url,
+      settings.kitchenPrinterBindingNames[erpPrinterId] ?? url,
+    );
+  }
+
   PrinterState copyWith({
     PrinterSettings? settings,
     List<Printer>? printers,
@@ -189,6 +198,28 @@ class PrinterController extends Notifier<PrinterState> {
       additional[printer.url] = printer.name;
     }
     await update(state.settings.copyWith(additionalPrinters: additional));
+  }
+
+  Future<void> bindKitchenPrinter(String erpPrinterId, Printer? printer) async {
+    final bindings = Map<String, String>.from(
+      state.settings.kitchenPrinterBindings,
+    );
+    final names = Map<String, String>.from(
+      state.settings.kitchenPrinterBindingNames,
+    );
+    if (printer == null || printer.url == 'system-print-dialog') {
+      bindings.remove(erpPrinterId);
+      names.remove(erpPrinterId);
+    } else {
+      bindings[erpPrinterId] = printer.url;
+      names[erpPrinterId] = printer.name;
+    }
+    await update(
+      state.settings.copyWith(
+        kitchenPrinterBindings: bindings,
+        kitchenPrinterBindingNames: names,
+      ),
+    );
   }
 
   Future<void> clearDefaults() async {

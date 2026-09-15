@@ -12,6 +12,7 @@ import '../cash_register/presentation/cash_register_dialog.dart';
 import '../auth/account_menu.dart';
 import '../store/app_store.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../kitchen/presentation/kitchen_printing_controller.dart';
 
 const destinations = [
   ('/pos', 'POS', Icons.point_of_sale_outlined),
@@ -81,6 +82,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Keep the selected ERP layout manifest and its authenticated assets warm
     // while online so provisional receipts remain available without a network.
     ref.watch(invoiceLayoutControllerProvider);
+    ref.watch(kitchenPrintingControllerProvider);
     final businessName = appState.business?.displayName(context.isArabic) ?? '';
     final userName = appState.user?.name ?? '';
     final locationName = appState.locations.isEmpty

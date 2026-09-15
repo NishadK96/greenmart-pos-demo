@@ -38,6 +38,8 @@ class PrinterSettings {
     },
     this.selectedPrinters = const {},
     this.additionalPrinters = const {},
+    this.kitchenPrinterBindings = const {},
+    this.kitchenPrinterBindingNames = const {},
     this.defaultPrinterUrl,
     this.defaultPrinterName,
     this.barcodeColumns = 3,
@@ -58,6 +60,12 @@ class PrinterSettings {
   /// Additional print destinations keyed by the platform printer URL.
   /// The primary/default destination remains in [defaultPrinterUrl].
   final Map<String, String> additionalPrinters;
+
+  /// ERP kitchen printer id -> locally installed printer URL/name. The ERP
+  /// decides which items belong to each printer; these bindings decide which
+  /// physical device receives that printer's durable job on this workstation.
+  final Map<String, String> kitchenPrinterBindings;
+  final Map<String, String> kitchenPrinterBindingNames;
   final String? defaultPrinterUrl;
   final String? defaultPrinterName;
   final int barcodeColumns, barcodeHeight, barcodeWidthPercent, barcodeDpi;
@@ -91,6 +99,8 @@ class PrinterSettings {
     Map<String, String>? templates,
     Map<String, String>? selectedPrinters,
     Map<String, String>? additionalPrinters,
+    Map<String, String>? kitchenPrinterBindings,
+    Map<String, String>? kitchenPrinterBindingNames,
     String? defaultPrinterUrl,
     String? defaultPrinterName,
     bool clearDefaultPrinter = false,
@@ -108,6 +118,10 @@ class PrinterSettings {
     templates: templates ?? this.templates,
     selectedPrinters: selectedPrinters ?? this.selectedPrinters,
     additionalPrinters: additionalPrinters ?? this.additionalPrinters,
+    kitchenPrinterBindings:
+        kitchenPrinterBindings ?? this.kitchenPrinterBindings,
+    kitchenPrinterBindingNames:
+        kitchenPrinterBindingNames ?? this.kitchenPrinterBindingNames,
     defaultPrinterUrl: clearDefaultPrinter
         ? null
         : defaultPrinterUrl ?? this.defaultPrinterUrl,
@@ -128,6 +142,8 @@ class PrinterSettings {
     'templates': templates,
     'selectedPrinters': selectedPrinters,
     'additionalPrinters': additionalPrinters,
+    'kitchenPrinterBindings': kitchenPrinterBindings,
+    'kitchenPrinterBindingNames': kitchenPrinterBindingNames,
     'defaultPrinterUrl': defaultPrinterUrl,
     'defaultPrinterName': defaultPrinterName,
     'barcodeColumns': barcodeColumns,
@@ -155,6 +171,12 @@ class PrinterSettings {
       ),
       additionalPrinters: Map<String, String>.from(
         json['additionalPrinters'] as Map? ?? const {},
+      ),
+      kitchenPrinterBindings: Map<String, String>.from(
+        json['kitchenPrinterBindings'] as Map? ?? const {},
+      ),
+      kitchenPrinterBindingNames: Map<String, String>.from(
+        json['kitchenPrinterBindingNames'] as Map? ?? const {},
       ),
       defaultPrinterUrl:
           json['defaultPrinterUrl']?.toString() ??

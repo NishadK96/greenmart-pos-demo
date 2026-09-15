@@ -8,6 +8,7 @@ import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
 import '../../../core/utils/pdf_fonts.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
+import '../../kitchen/domain/kitchen_entities.dart';
 
 class PrinterDocumentService {
   static Future<bool> previewPdfBytes(
@@ -1022,6 +1023,171 @@ class PrinterDocumentService {
       name: 'Invoice ${sale.invoiceNo}.pdf',
       format: format,
     );
+  }
+
+  static PdfPageFormat kitchenFormat(String template) => template == 'a4'
+      ? PdfPageFormat.a4
+      : PdfPageFormat(80 * PdfPageFormat.mm, 260 * PdfPageFormat.mm);
+
+  /// Builds a platform-independent ticket from the durable structured payload.
+  /// This avoids HTML/WebView differences on Windows and keeps Arabic shaping
+  /// available through the app's embedded PDF font.
+  static Future<Uint8List> kitchenTicket(KitchenPrintJob job) async {
+    final format = kitchenFormat(job.template);
+    final theme = await PdfFonts.arabicTheme();
+    final document = pw.Document();
+    final isLarge = job.template == 'large_text';
+    final baseSize = isLarge ? 15.0 : 10.0;
+    final business = _htmlClassText(job.htmlContent, 'kitchen-order__business');
+    final invoiceNumber = _htmlClassText(
+      job.htmlContent,
+      'kitchen-order__number',
+    );
+    final metadata = _htmlClassText(job.htmlContent, 'kitchen-order__meta');
+    final foodPreparation = job.template == 'food_preparation';
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: format,
+        theme: theme,
+        margin: pw.EdgeInsets.all(job.template == 'a4' ? 32 : 10),
+        build: (_) => [
+          if (business.isNotEmpty)
+            PdfFonts.text(
+              business,
+              textAlign: foodPreparation
+                  ? pw.TextAlign.left
+                  : pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: isLarge
+                    ? 23
+                    : job.template == 'a4'
+                    ? 26
+                    : 18,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          pw.Text(
+            'KITCHEN ORDER',
+            textAlign: foodPreparation
+                ? pw.TextAlign.left
+                : pw.TextAlign.center,
+            style: pw.TextStyle(
+              fontSize: isLarge ? 22 : 17,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Text(
+            invoiceNumber.isEmpty ? '#${job.transactionId}' : invoiceNumber,
+            textAlign: foodPreparation
+                ? pw.TextAlign.left
+                : pw.TextAlign.center,
+            style: pw.TextStyle(
+              fontSize: isLarge
+                  ? 29
+                  : job.template == 'a4'
+                  ? 28
+                  : 22,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          if (metadata.isNotEmpty) ...[
+            PdfFonts.text(
+              metadata,
+              style: pw.TextStyle(fontSize: baseSize - 1),
+            ),
+            pw.Divider(borderStyle: pw.BorderStyle.dashed),
+          ],
+          for (final item in job.items) ...[
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.SizedBox(
+                  width: isLarge ? 48 : 35,
+                  child: pw.Text(
+                    '${_quantity(item.quantity)}×',
+                    style: pw.TextStyle(
+                      fontSize: baseSize + 2,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  child: PdfFonts.text(
+                    [
+                      item.productName,
+                      if (item.variation?.trim().isNotEmpty == true)
+                        item.variation!,
+                    ].join(' · '),
+                    style: pw.TextStyle(
+                      fontSize: baseSize + 2,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (item.note?.trim().isNotEmpty == true)
+              pw.Container(
+                margin: const pw.EdgeInsets.only(top: 3, left: 6),
+                padding: const pw.EdgeInsets.all(5),
+                decoration: pw.BoxDecoration(border: pw.Border.all(width: .8)),
+                child: PdfFonts.text(
+                  'NOTE: ${item.note}',
+                  style: pw.TextStyle(
+                    fontSize: baseSize,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            for (final modifier in item.modifiers)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 12, top: 2),
+                child: PdfFonts.text(
+                  '+ ${_quantity(modifier.quantity)}× ${modifier.productName}',
+                  style: pw.TextStyle(fontSize: baseSize),
+                ),
+              ),
+            if (item.serviceStaff?.trim().isNotEmpty == true)
+              pw.Text(
+                'Staff: ${item.serviceStaff}',
+                style: pw.TextStyle(fontSize: baseSize - 1),
+              ),
+            pw.Divider(),
+          ],
+          pw.Text(
+            'Printer: ${job.printer.name} · Job ${job.id}',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: baseSize - 2),
+          ),
+        ],
+      ),
+    );
+    return document.save();
+  }
+
+  static String _quantity(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toStringAsFixed(2);
+
+  static String _htmlClassText(String html, String className) {
+    if (html.isEmpty) return '';
+    final match = RegExp(
+      '<[^>]*class=["\'][^"\']*\\b${RegExp.escape(className)}\\b[^"\']*["\'][^>]*>([\\s\\S]*?)</[^>]+>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (match == null) return '';
+    return (match.group(1) ?? '')
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'</(div|span|p)>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&middot;', '·')
+        .replaceAll('&amp;', '&')
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r'\n\s*\n+'), '\n')
+        .trim();
   }
 
   static bool get _usesExternalWindowsPreview =>

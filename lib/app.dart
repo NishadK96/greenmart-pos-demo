@@ -8,6 +8,7 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/auth_gate.dart';
 import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
+import 'features/kitchen/presentation/kitchen_pos_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
 import 'features/printers/presentation/printer_settings_screen.dart';
@@ -38,6 +39,11 @@ final _router = GoRouter(
         GoRoute(
           path: '/pos',
           pageBuilder: (_, state) => _instantPage(state, const PosScreen()),
+        ),
+        GoRoute(
+          path: '/kitchen-pos',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const KitchenPosScreen()),
         ),
         GoRoute(
           path: '/products',

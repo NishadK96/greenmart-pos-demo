@@ -8,6 +8,7 @@ import '../features/cash_register/domain/cash_register_entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
 import '../features/zatca/domain/zatca_entities.dart';
 import '../features/invoice_layouts/domain/invoice_layout_entities.dart';
+import '../features/kitchen/domain/kitchen_entities.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -1538,6 +1539,184 @@ class Api {
     'invoice-$transactionId.pdf',
   );
 
+  Future<RestaurantSettings> restaurantSettings({
+    required String accessToken,
+    required String locationId,
+  }) async => RestaurantSettings.fromJson(
+    await _getDataObject(
+      Uri.parse(ApiEndPoints.restaurantSettingsUrl(locationId)),
+      accessToken,
+      'restaurant settings',
+    ),
+  );
+
+  Future<Set<String>> connectorPermissions(String accessToken) async {
+    final data = await _getDataObject(
+      Uri.parse(ApiEndPoints.authContextUrl),
+      accessToken,
+      'account permissions',
+    );
+    return (data['permissions'] as List? ?? const [])
+        .whereType<String>()
+        .toSet();
+  }
+
+  Future<RestaurantSettings> updateRestaurantSettings({
+    required String accessToken,
+    required String locationId,
+    required Map<String, dynamic> changes,
+  }) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.restaurantSettingsUrl(locationId)),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode(changes),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'restaurant settings update');
+    return RestaurantSettings.fromJson(_map(root['data']));
+  }
+
+  Future<String> kitchenTemplatePreview({
+    required String accessToken,
+    required String locationId,
+    required String template,
+  }) async {
+    final data = await _getDataObject(
+      Uri.parse(ApiEndPoints.kitchenTemplatePreviewUrl(locationId, template)),
+      accessToken,
+      'kitchen template preview',
+    );
+    return data['html_content']?.toString() ?? '';
+  }
+
+  Future<KitchenPrinterOptions> kitchenPrinterOptions({
+    required String accessToken,
+    required String locationId,
+  }) async => KitchenPrinterOptions.fromJson(
+    await _getDataObject(
+      Uri.parse(ApiEndPoints.kitchenPrinterOptionsUrl(locationId)),
+      accessToken,
+      'kitchen printer options',
+    ),
+  );
+
+  Future<List<KitchenPrinterRoute>> kitchenPrinterRoutes({
+    required String accessToken,
+    required String locationId,
+  }) async {
+    final data = await _getDataObject(
+      Uri.parse(ApiEndPoints.kitchenPrinterRoutesUrl(locationId)),
+      accessToken,
+      'kitchen printer routes',
+    );
+    return (data['routes'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) =>
+              KitchenPrinterRoute.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<KitchenPrinterRoute> saveKitchenPrinterRoute({
+    required String accessToken,
+    required String locationId,
+    String? routeId,
+    required Map<String, dynamic> values,
+  }) async {
+    final uri = Uri.parse(
+      routeId == null
+          ? ApiEndPoints.kitchenPrinterRoutesUrl(locationId)
+          : ApiEndPoints.kitchenPrinterRouteUrl(locationId, routeId),
+    );
+    final response = routeId == null
+        ? await _client.post(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode(values),
+          )
+        : await _client.patch(
+            uri,
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode(values),
+          );
+    final root = _requireObject(response, 'kitchen printer route');
+    return KitchenPrinterRoute.fromJson(_map(root['data']));
+  }
+
+  Future<void> deleteKitchenPrinterRoute({
+    required String accessToken,
+    required String locationId,
+    required String routeId,
+  }) async {
+    final response = await _client
+        .delete(
+          Uri.parse(ApiEndPoints.kitchenPrinterRouteUrl(locationId, routeId)),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'kitchen printer route deletion');
+  }
+
+  Future<KitchenJobsResult> kitchenPrintJobs({
+    required String accessToken,
+    required String locationId,
+    String? status,
+  }) async {
+    final uri = Uri.parse(
+      ApiEndPoints.kitchenPrintJobsUrl(locationId),
+    ).replace(queryParameters: status == null ? null : {'status': status});
+    return KitchenJobsResult.fromJson(
+      await _getDataObject(uri, accessToken, 'kitchen print jobs'),
+    );
+  }
+
+  Future<KitchenJobsResult> generateKitchenPrintJobs({
+    required String accessToken,
+    required String transactionId,
+    String? locationId,
+  }) async {
+    final uri =
+        Uri.parse(
+          ApiEndPoints.transactionKitchenPrintJobsUrl(transactionId),
+        ).replace(
+          queryParameters: locationId == null
+              ? null
+              : {'location_id': locationId},
+        );
+    final response = await _client
+        .post(uri, headers: _jsonHeaders(accessToken), body: '{}')
+        .timeout(const Duration(seconds: 30));
+    final root = _requireObject(response, 'kitchen print-job generation');
+    return KitchenJobsResult.fromJson(_map(root['data']));
+  }
+
+  Future<KitchenPrintJob> updateKitchenPrintJobStatus({
+    required String accessToken,
+    required String jobId,
+    required String status,
+    required String clientPrintId,
+    String? error,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.kitchenPrintJobStatusUrl(jobId)),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'status': status,
+            'client_print_id': clientPrintId,
+            if (error != null && error.isNotEmpty) 'error': error,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'kitchen print-job status');
+    final data = _map(root['data']);
+    // Status acknowledgements are intentionally compact. Preserve the job id
+    // and state; callers refresh the location list for the complete payload.
+    return KitchenPrintJob.fromJson(data);
+  }
+
   Future<ErpInvoicePdf> _invoicePdf(
     String accessToken,
     String url,
@@ -1770,6 +1949,7 @@ class Api {
     required int grossDiscount,
     required String clientTransactionId,
     bool isCreditSale = false,
+    bool isKitchenOrder = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -1781,6 +1961,7 @@ class Api {
           'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
           'status': 'final',
+          if (isKitchenOrder) 'is_kitchen_order': true,
           'discount_type': grossDiscountType,
           'discount_amount': grossDiscountType == 'percentage'
               ? grossDiscountRate

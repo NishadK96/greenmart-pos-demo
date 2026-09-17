@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
+import '../../shared/widgets/product_card_style_picker.dart';
 import '../../shared/widgets/document_preview_actions.dart';
 import '../backend/presentation/backend_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
@@ -503,13 +504,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Widget _catalog(AppState state, List<Product> products) => Column(
     children: [
-      Align(
-        alignment: Alignment.centerRight,
-        child: TextButton.icon(
-          onPressed: () => context.go('/kitchen-pos'),
-          icon: const Icon(Icons.restaurant_menu_outlined, size: 18),
-          label: Text(context.tr('Switch to Kitchen POS')),
-        ),
+      Row(
+        children: [
+          const ProductCardStylePicker(mode: 'retail'),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => context.go('/kitchen-pos'),
+                icon: const Icon(Icons.restaurant_menu_outlined, size: 18),
+                label: Text(context.tr('Switch to Kitchen POS')),
+              ),
+            ),
+          ),
+        ],
       ),
       _searchBar(state, products),
       const SizedBox(height: 9),
@@ -533,7 +541,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     padding: EdgeInsets.zero,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: columns,
-                      mainAxisExtent: mobile ? 184 : 188,
+                      mainAxisExtent:
+                          ref.watch(productCardImagesProvider)['retail'] == true
+                          ? (mobile ? 184 : 188)
+                          : 174,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
@@ -793,13 +804,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ProductImage(
-                    product.imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.contain,
+                if (ref.watch(productCardImagesProvider)['retail'] == true)
+                  Expanded(
+                    child: ProductImage(
+                      product.imageUrl,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                ),
+                if (ref.watch(productCardImagesProvider)['retail'] != true)
+                  const Spacer(),
                 IconButton(
                   tooltip: context.tr('Favorite'),
                   padding: EdgeInsets.zero,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -269,6 +270,7 @@ class BackendController extends AsyncNotifier<void> {
             grossDiscount: state.cartGrossDiscount,
             clientTransactionId: _pendingClientTransactionId!,
             isCreditSale: paymentMethod == 'credit',
+            isKitchenOrder: false,
             grossDiscountType: state.grossDiscountType,
             grossDiscountRate: state.grossDiscountRate,
           );

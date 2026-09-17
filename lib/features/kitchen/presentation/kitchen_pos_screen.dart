@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
+import '../../../shared/widgets/product_card_style_picker.dart';
+import '../../../shared/widgets/ui.dart' show ProductImage;
 import '../../store/app_store.dart';
 import 'kitchen_printing_controller.dart';
 
@@ -30,6 +35,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   String _note = '';
   int _addQuantity = 1;
   bool _showMobileOrder = false;
+  bool _sending = false;
+  String? _pendingClientTransactionId;
+  String? _savedTransactionId;
+
+  bool get _orderLocked => _pendingClientTransactionId != null;
 
   @override
   void dispose() {
@@ -57,6 +67,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _add(Product product) {
+    if (_orderLocked) return;
     setState(() {
       final old = _lines[product.id];
       _lines[product.id] = CartLine(
@@ -69,6 +80,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _changeQuantity(CartLine line, int delta) {
+    if (_orderLocked) return;
     setState(() {
       final next = line.quantity + delta;
       if (next <= 0) {
@@ -80,7 +92,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _hold() {
-    if (_lines.isEmpty) return;
+    if (_lines.isEmpty || _orderLocked) return;
     setState(() {
       _held = List<CartLine>.unmodifiable(_lines.values);
       _lines.clear();
@@ -108,23 +120,92 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _sendToKitchen() {
-    if (_lines.isEmpty) {
+  void _sendToKitchen() => unawaited(_submitKitchenOrder());
+
+  Future<void> _submitKitchenOrder() async {
+    if (_sending) return;
+    if (_lines.isEmpty && _savedTransactionId == null) {
       _show('Add an item before sending an order.');
       return;
     }
     final kitchen = ref.read(kitchenPrintingControllerProvider).asData?.value;
-    if (kitchen?.hasActiveRoutes != true) {
+    if (_savedTransactionId == null && kitchen?.hasActiveRoutes != true) {
       _show('Set up a kitchen printer route in Printer settings first.');
       return;
     }
-    // The Connector print-job API accepts only a finalized sell transaction
-    // with is_kitchen_order=1. Its current sale endpoint discards that field.
-    // Never turn this kitchen draft into a charged retail sale or report success.
-    _show(
-      'Kitchen order submission needs the backend Connector sale API to save '
-      'is_kitchen_order=1. This draft has not been sent or printed.',
-    );
+    final store = ref.read(appStoreProvider);
+    final locationId = kitchen?.locationId.isNotEmpty == true
+        ? kitchen!.locationId
+        : store.locations.firstOrNull?.id;
+    final customer = store.customer ?? store.customers.firstOrNull;
+    if (_savedTransactionId == null &&
+        (locationId == null || locationId.isEmpty || customer == null)) {
+      _show('Refresh customer and business location data before sending.');
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      var transactionId = _savedTransactionId;
+      if (transactionId == null) {
+        _pendingClientTransactionId ??= _newClientTransactionId();
+        final note = [
+          _service,
+          if (_service == 'Dine in' && _table.text.trim().isNotEmpty)
+            'Table ${_table.text.trim()}',
+          if (_note.trim().isNotEmpty) _note.trim(),
+        ].join(' · ');
+        transactionId = await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .createKitchenOrder(
+              locationId: locationId!,
+              customer: customer!,
+              lines: _lines.values.toList(growable: false),
+              clientTransactionId: _pendingClientTransactionId!,
+              saleNote: note,
+            );
+        if (!mounted) return;
+        setState(() => _savedTransactionId = transactionId);
+      }
+      final summary = await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .processTransaction(transactionId, locationId: locationId);
+      if (!mounted) return;
+      setState(() {
+        _lines.clear();
+        _note = '';
+        _table.clear();
+        _pendingClientTransactionId = null;
+        _savedTransactionId = null;
+        _showMobileOrder = false;
+      });
+      _show(
+        'Kitchen order #$transactionId saved and ${summary.printedCount} '
+        'ticket(s) sent to the paired printer(s).',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _showMobileOrder = true);
+      _show(
+        _savedTransactionId == null
+            ? 'Kitchen order not confirmed. Retry this same order: $error'
+            : 'Kitchen order #$_savedTransactionId is saved. Printing needs attention; retry without creating another sale: $error',
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  String _newClientTransactionId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final value = bytes
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return '${value.substring(0, 8)}-${value.substring(8, 12)}-'
+        '${value.substring(12, 16)}-${value.substring(16, 20)}-'
+        '${value.substring(20)}';
   }
 
   @override
@@ -323,7 +404,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: OutlinedButton.icon(
-        onPressed: () => setState(() => _service = label),
+        onPressed: _orderLocked ? null : () => setState(() => _service = label),
         icon: Icon(icon, size: 16),
         label: Text(label),
         style: OutlinedButton.styleFrom(
@@ -331,6 +412,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           foregroundColor: selected ? Colors.white : AppColors.ink,
           side: BorderSide(color: selected ? Colors.white : _border),
           minimumSize: const Size(0, 40),
+          visualDensity: VisualDensity.standard,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
@@ -341,7 +424,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   Widget _mobileServiceButton(String label) {
     final selected = _service == label;
     return OutlinedButton(
-      onPressed: () => setState(() => _service = label),
+      onPressed: _orderLocked ? null : () => setState(() => _service = label),
       style: OutlinedButton.styleFrom(
         backgroundColor: selected ? AppColors.primary : Colors.white,
         foregroundColor: selected ? Colors.white : AppColors.ink,
@@ -357,8 +440,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
 
   Widget _tableCard({bool mobile = false}) => Container(
     key: const ValueKey('kitchen-table-card'),
-    width: mobile ? double.infinity : 140,
-    height: mobile ? 40 : 48,
+    width: mobile ? double.infinity : 156,
+    height: mobile ? 44 : 40,
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(
       color: Colors.white,
@@ -373,18 +456,33 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           color: AppColors.ink,
         ),
         const SizedBox(width: 7),
+        const Text(
+          'Table #',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(width: 6),
         Expanded(
           child: TextField(
             controller: _table,
+            readOnly: _orderLocked,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
             textAlignVertical: TextAlignVertical.center,
-            style: const TextStyle(fontSize: 14, color: AppColors.ink),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
             decoration: const InputDecoration(
-              hintText: 'Table #',
-              isCollapsed: true,
+              hintText: '—',
+              isDense: true,
               filled: false,
-              contentPadding: EdgeInsets.zero,
+              contentPadding: EdgeInsets.symmetric(horizontal: 2, vertical: 8),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -409,51 +507,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: desktop ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _categoryChip('', 'All'),
-                      for (final category in categories)
-                        _categoryChip(
-                          category.id,
-                          arabic && category.nameAr.trim().isNotEmpty
-                              ? category.nameAr
-                              : category.nameEn.trim().isNotEmpty
-                              ? category.nameEn
-                              : category.name,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (MediaQuery.sizeOf(context).width < 600)
-                PopupMenuButton<String>(
-                  key: const ValueKey('kitchen-category-menu'),
-                  tooltip: 'Choose category',
-                  onSelected: (id) => setState(() => _category = id),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: '', child: Text('All')),
-                    for (final category in categories)
-                      PopupMenuItem(
-                        value: category.id,
-                        child: Text(
-                          arabic && category.nameAr.trim().isNotEmpty
-                              ? category.nameAr
-                              : category.nameEn.trim().isNotEmpty
-                              ? category.nameEn
-                              : category.name,
-                        ),
-                      ),
-                  ],
-                  icon: const Icon(Icons.keyboard_arrow_down),
-                ),
-            ],
+          const Align(
+            alignment: Alignment.centerRight,
+            child: ProductCardStylePicker(mode: 'kitchen'),
           ),
-          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -500,7 +557,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 const SizedBox(width: 6),
                 OutlinedButton(
                   key: const ValueKey('kitchen-add-quantity'),
-                  onPressed: _editAddQuantity,
+                  onPressed: _orderLocked ? null : _editAddQuantity,
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
                     minimumSize: const Size(48, 48),
@@ -551,28 +608,83 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
           const SizedBox(height: 8),
           if (desktop)
-            Expanded(child: _productGrid(products))
+            Expanded(child: _categoryProductArea(products, categories, arabic))
           else
-            SizedBox(height: 420, child: _productGrid(products)),
+            SizedBox(
+              height: 420,
+              child: _categoryProductArea(products, categories, arabic),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _categoryProductArea(
+    List<Product> products,
+    List<Category> categories,
+    bool arabic,
+  ) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          key: const ValueKey('kitchen-category-panel'),
+          width: mobile ? 100 : 180,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Categories',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _categoryChip('', 'All'),
+                    for (final category in categories)
+                      _categoryChip(
+                        category.id,
+                        arabic && category.nameAr.trim().isNotEmpty
+                            ? category.nameAr
+                            : category.nameEn.trim().isNotEmpty
+                            ? category.nameEn
+                            : category.name,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: _productGrid(products)),
+      ],
     );
   }
 
   Widget _categoryChip(String id, String label) {
     final selected = _category == id;
     return Padding(
-      padding: const EdgeInsets.only(right: 7),
+      padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton(
         onPressed: () => setState(() => _category = id),
         style: OutlinedButton.styleFrom(
           backgroundColor: selected ? AppColors.primary : Colors.white,
           foregroundColor: selected ? Colors.white : AppColors.ink,
           side: BorderSide(color: selected ? AppColors.primary : _border),
-          minimumSize: const Size(62, 36),
+          minimumSize: const Size(double.infinity, 64),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: Text(label),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }
@@ -621,12 +733,19 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ? 4
             : constraints.maxWidth >= 440
             ? 3
-            : 2;
+            : constraints.maxWidth >= 260
+            ? 2
+            : 1;
         return GridView.builder(
           itemCount: products.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisExtent: constraints.maxWidth < 440 ? 92 : 104,
+            mainAxisExtent:
+                ref.watch(productCardImagesProvider)['kitchen'] == true
+                ? 176
+                : constraints.maxWidth < 440
+                ? 92
+                : 104,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -641,12 +760,23 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               child: InkWell(
                 key: ValueKey('kitchen-product-${product.id}'),
                 borderRadius: BorderRadius.circular(9),
-                onTap: () => _add(product),
+                onTap: _orderLocked ? null : () => _add(product),
                 child: Padding(
                   padding: const EdgeInsets.all(8),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      if (ref.watch(productCardImagesProvider)['kitchen'] ==
+                          true) ...[
+                        Expanded(
+                          child: ProductImage(
+                            product.imageUrl,
+                            width: double.infinity,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                       Text(
                         product.displayName(
                           Localizations.localeOf(context).languageCode == 'ar',
@@ -699,7 +829,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               ),
             ),
             TextButton(
-              onPressed: _lines.isEmpty ? null : () => setState(_lines.clear),
+              onPressed: _lines.isEmpty || _orderLocked
+                  ? null
+                  : () => setState(_lines.clear),
               style: TextButton.styleFrom(foregroundColor: AppColors.danger),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -718,7 +850,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         else
           SizedBox(height: 220, child: _orderItems()),
         OutlinedButton.icon(
-          onPressed: _editNote,
+          onPressed: _orderLocked ? null : _editNote,
           icon: const Icon(Icons.note_add_outlined, size: 19),
           label: Align(
             alignment: Alignment.centerLeft,
@@ -754,17 +886,28 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        const Text(
-          'Order entry preview — sending and printing require the backend '
-          'kitchen-order flag to be saved.',
-          style: TextStyle(color: AppColors.muted, fontSize: 11),
+        Text(
+          _savedTransactionId != null
+              ? 'Order #$_savedTransactionId is saved. Retry kitchen printing; do not create the sale again.'
+              : _orderLocked
+              ? 'Submission was not confirmed. Retry this same order to avoid a duplicate sale.'
+              : 'This finalizes an unpaid kitchen sale and prints routed kitchen tickets.',
+          style: const TextStyle(color: AppColors.muted, fontSize: 11),
         ),
         const SizedBox(height: 8),
         FilledButton.icon(
           key: const ValueKey('send-to-kitchen'),
-          onPressed: _sendToKitchen,
+          onPressed: _sending ? null : _sendToKitchen,
           icon: const Icon(Icons.soup_kitchen_rounded),
-          label: const Text('Send to Kitchen (F9)'),
+          label: Text(
+            _sending
+                ? 'Saving and printing…'
+                : _savedTransactionId != null
+                ? 'Retry kitchen printing (F9)'
+                : _orderLocked
+                ? 'Retry kitchen submission (F9)'
+                : 'Send to Kitchen (F9)',
+          ),
           style: FilledButton.styleFrom(
             minimumSize: const Size(0, 54),
             shape: RoundedRectangleBorder(
@@ -777,7 +920,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: _lines.isEmpty ? null : _hold,
+                onPressed: _lines.isEmpty || _orderLocked ? null : _hold,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),

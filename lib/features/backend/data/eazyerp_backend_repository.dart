@@ -337,6 +337,7 @@ class EazyErpBackendRepository implements BackendRepository {
     required int grossDiscount,
     required String clientTransactionId,
     bool isCreditSale = false,
+    bool isKitchenOrder = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -351,11 +352,15 @@ class EazyErpBackendRepository implements BackendRepository {
       grossDiscount: grossDiscount,
       clientTransactionId: clientTransactionId,
       isCreditSale: isCreditSale,
+      isKitchenOrder: isKitchenOrder,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
     );
     return CreatedSale(
-      id: json['id']?.toString() ?? '',
+      id:
+          (json['transaction_id'] ?? json['server_transaction_id'] ?? json['id'])
+              ?.toString() ??
+          '',
       invoiceNo:
           json['official_invoice_no']?.toString() ??
           json['invoice_no']?.toString() ??
@@ -364,6 +369,7 @@ class EazyErpBackendRepository implements BackendRepository {
       idempotentReplay:
           json['idempotent_replay'] == true ||
           json['idempotent_replay']?.toString() == '1',
+      kitchenPrintJobsUrl: json['kitchen_print_jobs_url']?.toString(),
     );
   }
 

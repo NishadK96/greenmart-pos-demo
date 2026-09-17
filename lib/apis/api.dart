@@ -1941,15 +1941,16 @@ class Api {
   Future<Map<String, dynamic>> createSale({
     required String accessToken,
     required String locationId,
-    required String cashRegisterId,
+    String? cashRegisterId,
     required Customer customer,
     required List<CartLine> lines,
-    required String paymentMethod,
+    String? paymentMethod,
     required int total,
     required int grossDiscount,
     required String clientTransactionId,
     bool isCreditSale = false,
     bool isKitchenOrder = false,
+    String? saleNote,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -1958,10 +1959,13 @@ class Api {
         {
           'client_transaction_id': clientTransactionId,
           'location_id': int.parse(locationId),
-          'cash_register_id': int.parse(cashRegisterId),
+          if (cashRegisterId != null && cashRegisterId.isNotEmpty)
+            'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
           'status': 'final',
-          if (isKitchenOrder) 'is_kitchen_order': true,
+          'is_kitchen_order': isKitchenOrder ? 1 : 0,
+          if (saleNote?.trim().isNotEmpty == true)
+            'sale_note': saleNote!.trim(),
           'discount_type': grossDiscountType,
           'discount_amount': grossDiscountType == 'percentage'
               ? grossDiscountRate
@@ -1982,9 +1986,9 @@ class Api {
                 'discount_amount': line.discount / 100,
               },
           ],
-          if (!isCreditSale)
+          if (!isCreditSale && !isKitchenOrder)
             'payments': [
-              {'amount': total / 100, 'method': paymentMethod},
+              {'amount': total / 100, 'method': paymentMethod ?? 'cash'},
             ],
         },
       ],
@@ -2007,10 +2011,14 @@ class Api {
       );
     }
     dynamic rawResult = decoded;
-    if (rawResult is Map && rawResult['data'] is Map) {
+    if (rawResult is Map &&
+        (rawResult['data'] is Map || rawResult['data'] is List)) {
       rawResult = rawResult['data'];
     }
     if (rawResult is List && rawResult.isNotEmpty) rawResult = rawResult.first;
+    if (rawResult is Map && rawResult['0'] is Map) {
+      rawResult = rawResult['0'];
+    }
     if (rawResult is! Map) {
       throw const ApiException('Invalid create-sale response.');
     }

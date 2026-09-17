@@ -7,6 +7,7 @@ import 'package:eazy_pos/features/printers/application/printer_controller.dart';
 import 'package:eazy_pos/features/printers/application/printer_document_service.dart';
 import 'package:eazy_pos/features/printers/data/printer_settings_repository.dart';
 import 'package:eazy_pos/features/printers/domain/printer_settings.dart';
+import 'package:eazy_pos/features/kitchen/domain/kitchen_entities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,53 @@ void main() {
       additionalUrl,
     ]);
   });
+
+  test('ERP kitchen printers retain their local Windows pairings', () async {
+    final repository = PrinterSettingsRepository();
+    await repository.save(
+      const PrinterSettings().copyWith(
+        kitchenPrinterBindings: const {'5': r'windows-printer://hot-kitchen'},
+        kitchenPrinterBindingNames: const {'5': 'Hot kitchen printer'},
+      ),
+    );
+
+    final restored = await repository.load();
+    final state = PrinterState(settings: restored, loading: false);
+
+    expect(state.kitchenPrinter('5')?.url, r'windows-printer://hot-kitchen');
+    expect(state.kitchenPrinter('5')?.name, 'Hot kitchen printer');
+    expect(state.kitchenPrinter('99'), isNull);
+  });
+
+  test(
+    'durable kitchen payload renders as a printable Arabic-safe PDF',
+    () async {
+      final bytes = await PrinterDocumentService.kitchenTicket(
+        const KitchenPrintJob(
+          id: '101',
+          status: 'pending',
+          transactionId: '145',
+          locationId: '3',
+          template: 'food_preparation',
+          printer: KitchenErpPrinter(id: '5', name: 'Hot kitchen'),
+          attempts: 0,
+          htmlContent:
+              '<div class="kitchen-order__business">Eazy Restaurant</div>'
+              '<div class="kitchen-order__number">#INV-0145</div>',
+          items: [
+            KitchenJobItem(
+              productName: 'برجر دجاج',
+              quantity: 2,
+              note: 'بدون بصل',
+            ),
+          ],
+        ),
+      );
+
+      expect(bytes.take(4), [0x25, 0x50, 0x44, 0x46]);
+      expect(bytes.length, greaterThan(500));
+    },
+  );
 
   test('billing templates generate distinct print layouts', () async {
     Future<List<int>> build(String template) {

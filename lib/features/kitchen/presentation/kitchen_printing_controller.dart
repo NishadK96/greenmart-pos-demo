@@ -8,7 +8,20 @@ import '../../auth/auth_controller.dart';
 import '../../printers/application/printer_controller.dart';
 import '../../printers/application/printer_document_service.dart';
 import '../../store/app_store.dart';
+import '../../../shared/models/entities.dart';
 import '../domain/kitchen_entities.dart';
+
+class KitchenPrintSummary {
+  const KitchenPrintSummary({
+    required this.jobCount,
+    required this.printedCount,
+    required this.unassignedCount,
+  });
+
+  final int jobCount;
+  final int printedCount;
+  final int unassignedCount;
+}
 
 class KitchenPrintingState {
   const KitchenPrintingState({
@@ -215,11 +228,49 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     }
   }
 
-  Future<void> processTransaction(
+  Future<String> createKitchenOrder({
+    required String locationId,
+    required Customer customer,
+    required List<CartLine> lines,
+    required String clientTransactionId,
+    String? saleNote,
+  }) async {
+    final response = await _authorized(
+      (token) => ref
+          .read(apiProvider)
+          .createSale(
+            accessToken: token,
+            locationId: locationId,
+            customer: customer,
+            lines: lines,
+            total: lines.fold<int>(0, (total, line) => total + line.subtotal),
+            grossDiscount: 0,
+            clientTransactionId: clientTransactionId,
+            isKitchenOrder: true,
+            saleNote: saleNote,
+          ),
+    );
+    final transactionId =
+        (response['transaction_id'] ??
+                response['server_transaction_id'] ??
+                response['id'])
+            ?.toString() ??
+        '';
+    if (transactionId.isEmpty) {
+      throw const ApiException(
+        'The kitchen sale response did not include a transaction ID. Retry with the same order.',
+      );
+    }
+    return transactionId;
+  }
+
+  Future<KitchenPrintSummary> processTransaction(
     String transactionId, {
     String? locationId,
   }) async {
-    if (transactionId.isEmpty) return;
+    if (transactionId.isEmpty) {
+      throw const ApiException('Kitchen transaction ID is missing.');
+    }
     final current = _current;
     late final KitchenJobsResult result;
     try {
@@ -236,10 +287,10 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
       _set(
         current.copyWith(
           message:
-              'Sale completed, but kitchen jobs could not be generated: $error',
+              'Kitchen order saved, but jobs could not be generated: $error',
         ),
       );
-      return;
+      rethrow;
     }
     _set(
       current.copyWith(
@@ -252,9 +303,15 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
       ),
     );
     final failures = <String>[];
-    for (final job in result.jobs.where((job) => job.status == 'pending')) {
+    var printedCount = result.jobs
+        .where((job) => job.status == 'printed')
+        .length;
+    for (final job in result.jobs.where(
+      (job) => job.status == 'pending' || job.status == 'failed',
+    )) {
       try {
         await printJob(job);
+        printedCount++;
       } catch (error) {
         failures.add('${job.printer.name}: $error');
       }
@@ -263,10 +320,29 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
       _set(
         _current.copyWith(
           message:
-              'Sale completed, but ${failures.length} kitchen print job(s) failed. Open Printer settings to retry.',
+              'Kitchen order saved, but ${failures.length} print job(s) failed. Retry printing or open Printer settings.',
         ),
       );
+      throw StateError('Printing failed for ${failures.join(', ')}');
     }
+    if (result.jobs.isEmpty || result.unassignedItems.isNotEmpty) {
+      final message = result.jobs.isEmpty
+          ? 'Kitchen order saved, but no printer jobs were generated.'
+          : 'Kitchen order saved, but ${result.unassignedItems.length} item(s) have no printer route.';
+      _set(_current.copyWith(message: message));
+      throw StateError(message);
+    }
+    if (printedCount != result.jobs.length) {
+      const message =
+          'Some kitchen jobs are still marked as printing. Check their printer status before retrying to avoid duplicate tickets.';
+      _set(_current.copyWith(message: message));
+      throw StateError(message);
+    }
+    return KitchenPrintSummary(
+      jobCount: result.jobs.length,
+      printedCount: printedCount,
+      unassignedCount: result.unassignedItems.length,
+    );
   }
 
   Future<void> printJob(KitchenPrintJob job) async {

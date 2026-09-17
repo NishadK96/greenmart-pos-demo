@@ -73,7 +73,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       );
       _salePdfCache.clear();
       state = AsyncData(catalog);
-      await _cacheOfflineLayout(catalog);
+      await _cacheOfflineLayouts(catalog);
     } catch (error, stackTrace) {
       state = previous == null
           ? AsyncError(error, stackTrace)
@@ -190,53 +190,106 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   }
 
   Future<ErpInvoiceLayoutCatalog> _load() async {
-    final catalog = await _authorized(
-      (token) => ref
-          .read(apiProvider)
-          .invoiceLayouts(
-            accessToken: token,
-            locationId: _locationId,
-            documentType: _documentType,
-          ),
-    );
-    await _cacheOfflineLayout(catalog);
-    return catalog;
+    try {
+      final catalog = await _authorized(
+        (token) => ref
+            .read(apiProvider)
+            .invoiceLayouts(
+              accessToken: token,
+              locationId: _locationId,
+              documentType: _documentType,
+            ),
+      );
+      await _cacheOfflineLayouts(catalog);
+      return catalog;
+    } catch (_) {
+      final cached = await ref
+          .read(offlineInvoiceLayoutRepositoryProvider)
+          .loadCatalog(_locationId, _documentType);
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
-  Future<void> _cacheOfflineLayout(ErpInvoiceLayoutCatalog catalog) async {
-    final layout = catalog.selectedLayout;
-    if (layout == null || !layout.offlineSupported) return;
+  Future<void> _cacheOfflineLayouts(ErpInvoiceLayoutCatalog catalog) async {
+    final repository = ref.read(offlineInvoiceLayoutRepositoryProvider);
+    await repository.saveCatalog(catalog);
+    final supported = catalog.layouts
+        .where((layout) => layout.offlineSupported)
+        .toList(growable: false);
+    if (supported.isEmpty) return;
     try {
-      final bundle = await _authorized((token) async {
+      final bundles = await _authorized((token) async {
         final api = ref.read(apiProvider);
-        final manifest = await api.offlineInvoiceLayoutConfig(
-          accessToken: token,
-          layoutId: layout.id,
-          locationId: catalog.locationId,
-          documentType: catalog.documentType,
+        return Future.wait(
+          supported.map((layout) async {
+            try {
+              final manifest = await api.offlineInvoiceLayoutConfig(
+                accessToken: token,
+                layoutId: layout.id,
+                locationId: catalog.locationId,
+                documentType: catalog.documentType,
+              );
+              final cached = await repository.loadLayout(
+                catalog.locationId,
+                catalog.documentType,
+                layout.id,
+              );
+              final revision =
+                  (manifest['layout'] as Map?)?['revision']?.toString() ?? '';
+              if (cached != null &&
+                  revision.isNotEmpty &&
+                  cached.revision == revision) {
+                return MapEntry(layout, cached);
+              }
+              final descriptors = <Map<String, dynamic>>[
+                ..._descriptorList(manifest['assets']),
+                ..._descriptorList((manifest['typography'] as Map?)?['assets']),
+              ];
+              final entries = await Future.wait(
+                descriptors.map((descriptor) async {
+                  final id = descriptor['id']?.toString() ?? '';
+                  final url = descriptor['url']?.toString() ?? '';
+                  if (id.isEmpty || url.isEmpty) return null;
+                  try {
+                    return MapEntry(
+                      id,
+                      await api.authenticatedAsset(token, url),
+                    );
+                  } catch (_) {
+                    return null;
+                  }
+                }),
+              );
+              final assets = <String, Uint8List>{
+                for (final entry in entries)
+                  if (entry != null) entry.key: entry.value,
+              };
+              return MapEntry(
+                layout,
+                OfflineInvoiceLayoutBundle(manifest: manifest, assets: assets),
+              );
+            } catch (_) {
+              return null;
+            }
+          }),
         );
-        final descriptors = <Map<String, dynamic>>[
-          ..._descriptorList(manifest['assets']),
-          ..._descriptorList((manifest['typography'] as Map?)?['assets']),
-        ];
-        final assets = <String, Uint8List>{};
-        for (final descriptor in descriptors) {
-          final id = descriptor['id']?.toString() ?? '';
-          final url = descriptor['url']?.toString() ?? '';
-          if (id.isEmpty || url.isEmpty) continue;
-          try {
-            assets[id] = await api.authenticatedAsset(token, url);
-          } catch (_) {
-            // A missing optional image must not prevent the manifest itself
-            // from being available for offline receipts.
-          }
-        }
-        return OfflineInvoiceLayoutBundle(manifest: manifest, assets: assets);
       });
-      await ref.read(offlineInvoiceLayoutRepositoryProvider).save(bundle);
+      for (final entry
+          in bundles
+              .whereType<
+                MapEntry<ErpInvoiceLayout, OfflineInvoiceLayoutBundle>
+              >()) {
+        await repository.save(
+          entry.value,
+          layoutId: entry.key.id,
+          selected:
+              entry.key.id == catalog.currentLayoutId || entry.key.isSelected,
+        );
+      }
     } catch (_) {
-      // Refreshing an offline cache is best effort and must never block the
-      // normal online layout/printing flow.
+      // Refreshing offline caches is best effort and must never block normal
+      // online layout or printing flows.
     }
   }
 

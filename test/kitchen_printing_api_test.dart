@@ -2,11 +2,61 @@ import 'dart:convert';
 
 import 'package:eazy_pos/apis/api.dart';
 import 'package:eazy_pos/features/kitchen/domain/kitchen_entities.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('kitchen sale is final, unpaid, and accepts 0.transaction_id', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/sell');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final sale = (body['sells'] as List).single as Map<String, dynamic>;
+        expect(sale['status'], 'final');
+        expect(sale['is_kitchen_order'], 1);
+        expect(sale['client_transaction_id'], isNotEmpty);
+        expect(sale.containsKey('payments'), isFalse);
+        expect(sale.containsKey('cash_register_id'), isFalse);
+        expect(sale['sale_note'], 'Dine in · Table 1');
+        return http.Response(
+          jsonEncode({
+            'data': {
+              '0': {'transaction_id': 145},
+            },
+          }),
+          200,
+        );
+      }),
+    );
+    const product = Product(
+      id: '2',
+      name: 'Tea',
+      sku: 'TEA',
+      barcode: '123',
+      categoryId: '4',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '3',
+    );
+    final result = await api.createSale(
+      accessToken: 'token',
+      locationId: '3',
+      customer: const Customer(id: '5', name: 'Walk-in Customer'),
+      lines: const [CartLine(product: product)],
+      total: 1000,
+      grossDiscount: 0,
+      clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a001',
+      isKitchenOrder: true,
+      saleNote: 'Dine in · Table 1',
+    );
+    expect(result['transaction_id'], 145);
+  });
+
   test('Connector permissions are read from auth context', () async {
     final api = Api(
       client: MockClient((request) async {

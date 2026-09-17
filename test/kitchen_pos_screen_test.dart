@@ -70,7 +70,7 @@ void main() {
         expect(tableRect.right, lessThanOrEqualTo(size.width));
         expect(tableRect.bottom, lessThanOrEqualTo(size.height));
         expect(
-          find.byKey(const ValueKey('kitchen-category-menu')),
+          find.byKey(const ValueKey('kitchen-category-panel')),
           findsOneWidget,
         );
         expect(

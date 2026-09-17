@@ -37,10 +37,12 @@ class CreatedSale {
     required this.invoiceNo,
     required this.invoicePdfUrl,
     required this.idempotentReplay,
+    this.kitchenPrintJobsUrl,
   });
 
   final String id, invoiceNo, invoicePdfUrl;
   final bool idempotentReplay;
+  final String? kitchenPrintJobsUrl;
 }
 
 abstract interface class BackendRepository {
@@ -170,6 +172,7 @@ abstract interface class BackendRepository {
     required int grossDiscount,
     required String clientTransactionId,
     bool isCreditSale = false,
+    bool isKitchenOrder = false,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   });

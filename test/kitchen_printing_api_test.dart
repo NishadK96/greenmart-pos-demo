@@ -8,6 +8,51 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('restaurant tables are filtered by location and mapped', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/table');
+        expect(request.url.queryParameters, {'location_id': '2'});
+        return http.Response(
+          '{"data":[{"id":5,"name":"Table 1","description":null}]}',
+          200,
+        );
+      }),
+    );
+    final tables = await api.restaurantTables('token', '2');
+    expect(tables.single.id, '5');
+    expect(tables.single.name, 'Table 1');
+    expect(tables.single.description, isEmpty);
+  });
+
+  for (final scenario in [
+    (admin: true, permissions: <String>[], allowed: true),
+    (admin: false, permissions: ['business_settings.access'], allowed: true),
+    (admin: false, permissions: <String>[], allowed: false),
+  ]) {
+    test(
+      'kitchen settings access: admin=${scenario.admin}, permissions=${scenario.permissions}',
+      () async {
+        final api = Api(
+          client: MockClient((request) async {
+            expect(request.url.path, '/connector/api/auth/context');
+            return http.Response(
+              jsonEncode({
+                'data': {
+                  'is_admin': scenario.admin,
+                  'permissions': scenario.permissions,
+                },
+              }),
+              200,
+            );
+          }),
+        );
+        final access = await api.connectorAccess('token');
+        expect(access.allows('business_settings.access'), scenario.allowed);
+      },
+    );
+  }
+
   test('kitchen sale is final, unpaid, and accepts 0.transaction_id', () async {
     final api = Api(
       client: MockClient((request) async {

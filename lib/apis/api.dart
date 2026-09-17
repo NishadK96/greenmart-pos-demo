@@ -296,6 +296,21 @@ class Api {
   }
 
   Future<void> logoutWebDevice(String csrfToken) async {
+    try {
+      await _logoutWebDevice(csrfToken);
+    } on ApiException catch (error) {
+      if (error.statusCode != 419 &&
+          !error.message.toLowerCase().contains('csrf token mismatch')) {
+        rethrow;
+      }
+      // A failed login may leave the form open past the Laravel session's
+      // lifetime. Refresh the cookie/token pair before retrying this action.
+      final bootstrap = await webAuthBootstrap();
+      await _logoutWebDevice(bootstrap.csrfToken);
+    }
+  }
+
+  Future<void> _logoutWebDevice(String csrfToken) async {
     final response = await _client
         .post(
           Uri.parse(ApiEndPoints.webAuthLogoutDeviceUrl),
@@ -1588,15 +1603,46 @@ class Api {
     ),
   );
 
-  Future<Set<String>> connectorPermissions(String accessToken) async {
+  Future<Set<String>> connectorPermissions(String accessToken) async =>
+      (await connectorAccess(accessToken)).permissions;
+
+  Future<List<RestaurantTable>> restaurantTables(
+    String token,
+    String locationId,
+  ) async {
+    final items = await _getDataList(
+      Uri.parse(
+        ApiEndPoints.restaurantTablesUrl,
+      ).replace(queryParameters: {'location_id': locationId}),
+      token,
+      'restaurant tables',
+    );
+    return items
+        .map(
+          (item) => RestaurantTable(
+            id: item['id'].toString(),
+            name: item['name']?.toString() ?? '',
+            description: item['description']?.toString() ?? '',
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<ConnectorAccess> connectorAccess(String accessToken) async {
     final data = await _getDataObject(
       Uri.parse(ApiEndPoints.authContextUrl),
       accessToken,
       'account permissions',
     );
-    return (data['permissions'] as List? ?? const [])
-        .whereType<String>()
-        .toSet();
+    return ConnectorAccess(
+      isAdmin:
+          data['is_admin'] == true ||
+          data['is_admin'] == 1 ||
+          data['is_admin'] == '1',
+      permissions: (data['permissions'] as List? ?? const [])
+          .whereType<String>()
+          .toSet(),
+    );
   }
 
   Future<RestaurantSettings> updateRestaurantSettings({

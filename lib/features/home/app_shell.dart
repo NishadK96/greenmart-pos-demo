@@ -24,6 +24,7 @@ const destinations = [
   ('/customers', 'Customers', Icons.people_outline),
   ('/sales', 'Sales', Icons.receipt_long_outlined),
   ('/reports', 'Reports', Icons.query_stats),
+  ('/restaurant', 'Restaurant', Icons.restaurant_outlined),
   ('/sync', 'Sync', Icons.sync),
   ('/zatca', 'ZATCA', Icons.verified_user_outlined),
   ('/settings', 'Settings', Icons.settings_outlined),

@@ -9,6 +9,46 @@ import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
+  test(
+    'saved web account reset refreshes expired CSRF and retries once',
+    () async {
+      var attempts = 0;
+      final api = Api(
+        client: MockClient((request) async {
+          if (request.method == 'GET') {
+            expect(request.url.path, endsWith('/bootstrap'));
+            return http.Response('{"csrf_token":"fresh-token"}', 200);
+          }
+          attempts++;
+          expect(
+            request.headers['X-CSRF-TOKEN'],
+            attempts == 1 ? 'stale-token' : 'fresh-token',
+          );
+          return attempts == 1
+              ? http.Response('{"message":"CSRF token mismatch."}', 419)
+              : http.Response('{"message":"The device was logged out."}', 200);
+        }),
+      );
+      await api.logoutWebDevice('stale-token');
+      expect(attempts, 2);
+    },
+  );
+
+  test('saved web account reset does not hide server failures', () async {
+    var attempts = 0;
+    final api = Api(
+      client: MockClient((_) async {
+        attempts++;
+        return http.Response('{"message":"Reset unavailable"}', 503);
+      }),
+    );
+    await expectLater(
+      api.logoutWebDevice('token'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(attempts, 1);
+  });
+
   test('business details maps the POS overselling setting', () async {
     final api = Api(
       client: MockClient(

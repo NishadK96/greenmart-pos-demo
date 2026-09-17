@@ -4,6 +4,24 @@ import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
+  test('products without configured tax do not receive an implicit rate', () {
+    const product = Product(
+      id: 'untaxed',
+      name: 'Tea',
+      sku: 'TEA',
+      barcode: '1',
+      categoryId: '1',
+      purchasePrice: 500,
+      sellingPrice: 10000,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '1',
+    );
+    expect(product.taxPercent, 0);
+    expect(const CartLine(product: product).tax, 0);
+    expect(const CartLine(product: product).total, 10000);
+  });
+
   test('order tax is removable and follows held cart lifecycle', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -210,6 +228,7 @@ void main() {
       name: 'Test product',
       sku: 'TEST-1',
       barcode: 'TEST-1',
+      taxPercent: 5,
       categoryId: '1',
       purchasePrice: 800,
       sellingPrice: 1000,
@@ -276,6 +295,7 @@ void main() {
       name: 'Priced product',
       sku: 'PRICE-1',
       barcode: 'PRICE-1',
+      taxPercent: 5,
       categoryId: '1',
       purchasePrice: 700,
       sellingPrice: 1000,

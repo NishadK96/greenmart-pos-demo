@@ -9,6 +9,7 @@ import 'features/auth/auth_gate.dart';
 import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/kitchen/presentation/kitchen_pos_screen.dart';
+import 'features/kitchen/presentation/restaurant_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
 import 'features/printers/presentation/printer_settings_screen.dart';
@@ -106,6 +107,11 @@ final _router = GoRouter(
           pageBuilder: (_, state) => _instantPage(state, const ReportsScreen()),
         ),
         GoRoute(
+          path: '/restaurant',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const RestaurantScreen()),
+        ),
+        GoRoute(
           path: '/sync',
           pageBuilder: (_, state) => _instantPage(state, const SyncScreen()),
         ),
@@ -118,6 +124,11 @@ final _router = GoRouter(
           path: '/settings/printers',
           pageBuilder: (_, state) =>
               _instantPage(state, const PrinterSettingsScreen()),
+        ),
+        GoRoute(
+          path: '/settings/taxes',
+          pageBuilder: (context, state) =>
+              _instantPage(state, const TaxSettingsScreen()),
         ),
         GoRoute(
           path: '/settings/subscription',

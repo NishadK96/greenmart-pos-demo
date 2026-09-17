@@ -31,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (ref.read(authControllerProvider).isLoading) return;
     FocusScope.of(context).unfocus();
     final username = email.text.trim();
     if (username.isEmpty || password.text.isEmpty) {
@@ -63,6 +64,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       true;
 
   Future<void> _resetDeviceAndRetry() async {
+    if (resettingDevice || ref.read(authControllerProvider).isLoading) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -91,7 +93,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authControllerProvider.notifier).resetSavedDevice();
       if (!mounted) return;
       setState(() {
-        resettingDevice = false;
         deviceBusinessMismatch = false;
         error = null;
       });
@@ -110,6 +111,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'Unable to reset saved accounts. Check your connection and try again.',
         );
       });
+    } finally {
+      if (mounted) setState(() => resettingDevice = false);
     }
   }
 
@@ -128,7 +131,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loading = ref.watch(authControllerProvider).isLoading;
+    final loading =
+        ref.watch(authControllerProvider).isLoading || resettingDevice;
     final size = MediaQuery.sizeOf(context);
     final showFeaturePanel = size.width >= 900;
 

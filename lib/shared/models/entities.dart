@@ -29,7 +29,7 @@ class Product {
     required this.stock,
     required this.minimumStock,
     required this.variationId,
-    this.taxPercent = 5,
+    this.taxPercent = 0,
     this.unit = 'pc',
     this.active = true,
     this.imageUrl = '',
@@ -557,6 +557,22 @@ class SyncQueueItem {
   final String localId, entityType, entityId;
   final DateTime createdAt;
   final SyncStatus status;
+}
+
+class RestaurantTable {
+  const RestaurantTable({
+    required this.id,
+    required this.name,
+    required this.description,
+  });
+  final String id, name, description;
+}
+
+class ConnectorAccess {
+  const ConnectorAccess({required this.isAdmin, required this.permissions});
+  final bool isAdmin;
+  final Set<String> permissions;
+  bool allows(String permission) => isAdmin || permissions.contains(permission);
 }
 
 class TaxConfiguration {

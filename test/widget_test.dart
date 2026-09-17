@@ -20,6 +20,7 @@ import 'package:eazy_pos/features/purchases/presentation/purchase_controller.dar
 import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/reports/presentation/reports_screen.dart';
 import 'package:eazy_pos/features/store/app_store.dart';
+import 'package:eazy_pos/features/kitchen/presentation/restaurant_screen.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
@@ -775,11 +776,46 @@ void main() {
       InventoryScreen(),
       CustomersScreen(),
       SyncScreen(),
+      TaxSettingsScreen(),
+      RestaurantScreen(),
     ]) {
       await tester.pumpWidget(_MobileScreenTestApp(child: screen));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('tax settings tile navigates', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(
+          path: '/settings',
+          builder: (_, _) => const Scaffold(body: SettingsScreen()),
+        ),
+        GoRoute(
+          path: '/settings/taxes',
+          builder: (_, _) => const Scaffold(body: TaxSettingsScreen()),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: buildTheme(compact: true),
+          localizationsDelegates: const [AppLocalizations.delegate],
+          supportedLocales: const [Locale('en'), Locale('ar')],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Tax settings'));
+    await tester.tap(find.text('Tax settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open POS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('connected workspaces fail safely at phone width', (

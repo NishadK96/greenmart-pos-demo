@@ -6458,7 +6458,7 @@ class SettingsScreen extends ConsumerWidget {
             ? business!.taxLabel
             : 'No default business tax',
         Icons.percent,
-        null,
+        '/settings/taxes',
       ),
       ('Business locations', locationNames, Icons.location_on_outlined, null),
       (
@@ -6543,6 +6543,62 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class TaxSettingsScreen extends ConsumerWidget {
+  const TaxSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(appStoreProvider);
+    return PagePad(
+      child: ListView(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => context.go('/settings'),
+                tooltip: context.tr('Settings'),
+                icon: const Icon(Icons.arrow_back),
+              ),
+              const Expanded(child: PageTitle('Tax settings')),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Surface(
+            child: Text(
+              'Tax rates are managed in EazyERP. To set or remove tax on the current sale, use Edit Order Tax in the POS cart.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (state.taxes.isEmpty)
+            const EmptyState('No tax rates are available.')
+          else
+            for (final tax in state.taxes)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Surface(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.percent),
+                    title: Text(tax.name),
+                    trailing: Text(
+                      '${tax.value ?? 0}%',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.go('/pos'),
+            icon: const Icon(Icons.point_of_sale),
+            label: const Text('Open POS'),
+          ),
         ],
       ),
     );

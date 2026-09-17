@@ -841,6 +841,20 @@ const Map<String, String> _ar = {
   'Business profile': 'ملف النشاط التجاري',
   'Tax settings': 'إعدادات الضريبة',
   'Invoice settings': 'إعدادات الفاتورة',
+  'Restaurant': 'المطعم',
+  'Open Kitchen POS': 'فتح نقطة بيع المطبخ',
+  'Tables': 'الطاولات',
+  'Kitchen printing': 'طباعة المطبخ',
+  'Create kitchen orders, browse ERP tables and manage kitchen printing.':
+      'إنشاء طلبات المطبخ وعرض طاولات ERP وإدارة طباعة المطبخ.',
+  'Tables are managed in EazyERP. Occupancy and booking status are not provided by this API.':
+      'تتم إدارة الطاولات في EazyERP. لا توفر هذه الواجهة حالة الإشغال أو الحجز.',
+  'No restaurant tables are configured for this location.':
+      'لا توجد طاولات مطعم مهيأة لهذا الفرع.',
+  'Tax rates are managed in EazyERP. To set or remove tax on the current sale, use Edit Order Tax in the POS cart.':
+      'تتم إدارة معدلات الضريبة في EazyERP. لتحديد أو إزالة ضريبة الطلب الحالي استخدم تعديل ضريبة الطلب في سلة نقطة البيع.',
+  'No tax rates are available.': 'لا توجد معدلات ضريبة متاحة.',
+  'Open POS': 'فتح نقطة البيع',
   'Printer settings': 'إعدادات الطابعة',
   'Sync settings': 'إعدادات المزامنة',
   'Appearance': 'المظهر',

@@ -391,10 +391,10 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     var jobsAccessDenied = false;
     var canManageSettings = false;
     try {
-      final permissions = await _authorized(
-        (token) => ref.read(apiProvider).connectorPermissions(token),
+      final access = await _authorized(
+        (token) => ref.read(apiProvider).connectorAccess(token),
       );
-      canManageSettings = permissions.contains('business_settings.access');
+      canManageSettings = access.allows('business_settings.access');
     } on ApiException {
       // Reading settings remains useful when the permission feed is unavailable.
     }

@@ -57,6 +57,8 @@ abstract final class ApiEndPoints {
       '${Config.baseUrl}/connector/api/business-settings';
   static const invoiceLayoutsUrl =
       '${Config.baseUrl}/connector/api/invoice-layouts';
+  static const invoiceTemplateDesignsUrl =
+      '${Config.baseUrl}/connector/api/invoice-template-designs';
   static String invoiceLayoutPreviewUrl(String layoutId) =>
       '$invoiceLayoutsUrl/$layoutId/preview';
   static String invoiceLayoutOfflineConfigUrl(String layoutId) =>

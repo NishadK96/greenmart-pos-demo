@@ -338,6 +338,7 @@ class EazyErpBackendRepository implements BackendRepository {
     required String clientTransactionId,
     bool isCreditSale = false,
     bool isKitchenOrder = false,
+    String? orderTaxId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -353,12 +354,15 @@ class EazyErpBackendRepository implements BackendRepository {
       clientTransactionId: clientTransactionId,
       isCreditSale: isCreditSale,
       isKitchenOrder: isKitchenOrder,
+      orderTaxId: orderTaxId,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
     );
     return CreatedSale(
       id:
-          (json['transaction_id'] ?? json['server_transaction_id'] ?? json['id'])
+          (json['transaction_id'] ??
+                  json['server_transaction_id'] ??
+                  json['id'])
               ?.toString() ??
           '',
       invoiceNo:

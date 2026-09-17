@@ -63,6 +63,11 @@ extension LocalizationBuildContext on BuildContext {
 }
 
 const Map<String, String> _ar = {
+  'Edit Order Tax': 'تعديل ضريبة الطلب',
+  'Order tax': 'ضريبة الطلب',
+  'No order tax': 'بدون ضريبة طلب',
+  'Order tax is separate from product tax. No order tax does not remove product taxes.':
+      'ضريبة الطلب منفصلة عن ضريبة المنتج. إلغاء ضريبة الطلب لا يلغي ضرائب المنتجات.',
   'Restaurant & kitchen printing': 'إعدادات المطعم وطباعة المطبخ',
   'ERP controls item routing and durable jobs. This device controls the physical printers.':
       'يتحكم نظام ERP في توجيه الأصناف ومهام الطباعة، ويتحكم هذا الجهاز في الطابعات الفعلية.',
@@ -201,6 +206,11 @@ const Map<String, String> _ar = {
   'Allow decimal quantities': 'السماح بالكميات العشرية',
   'Allow overselling': 'السماح بالبيع فوق المخزون',
   'Available offline': 'متاح دون اتصال',
+  'Built-in invoice designs': 'تصاميم الفواتير المدمجة',
+  'Preview a watermarked sample, or use a design for this business location.':
+      'عاين نموذجاً بعلامة مائية أو اختر تصميماً لهذا الفرع.',
+  'No built-in invoice designs are available.':
+      'لا توجد تصاميم فواتير مدمجة متاحة.',
   'Assign a customer to the current order.': 'عيّن عميلاً للطلب الحالي.',
   'Barcode sticker layout': 'تنسيق ملصق الباركود',
   'Both standard & simplified': 'قياسية ومبسطة',

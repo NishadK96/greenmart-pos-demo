@@ -271,6 +271,7 @@ class BackendController extends AsyncNotifier<void> {
             clientTransactionId: _pendingClientTransactionId!,
             isCreditSale: paymentMethod == 'credit',
             isKitchenOrder: false,
+            orderTaxId: state.orderTaxId,
             grossDiscountType: state.grossDiscountType,
             grossDiscountRate: state.grossDiscountRate,
           );
@@ -312,6 +313,7 @@ class BackendController extends AsyncNotifier<void> {
     state.cartGrossDiscount,
     state.grossDiscountType,
     state.grossDiscountRate,
+    state.orderTaxId,
     for (final line in state.cart)
       '${line.product.id}:${line.product.variationId}:${line.quantity}:'
           '${line.unitPrice}:${line.discount}',

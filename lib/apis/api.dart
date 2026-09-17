@@ -1408,6 +1408,38 @@ class Api {
     return value == true || value == 1 || value?.toString() == '1';
   }
 
+  Future<List<ErpInvoiceDesign>> invoiceTemplateDesigns(String token) async {
+    final response = await _client
+        .get(
+          Uri.parse(ApiEndPoints.invoiceTemplateDesignsUrl),
+          headers: _authorizedHeaders(token),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _requireObject(response, 'invoice template designs');
+    final data = json['data'] ?? json;
+    final raw = data is List
+        ? data
+        : (data is Map ? (data['templates'] ?? data['designs']) : null);
+    if (raw is! List)
+      throw const ApiException('Invalid invoice template designs response.');
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) => ErpInvoiceDesign.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .where((item) => item.key.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<ErpInvoicePdf> previewInvoiceDesign(
+    String token,
+    String design,
+  ) => _invoicePdf(
+    token,
+    '${ApiEndPoints.invoiceTemplateDesignsUrl}/${Uri.encodeComponent(design)}/preview',
+    'design-$design-preview.pdf',
+  );
+
   Future<ErpInvoiceLayoutCatalog> invoiceLayouts({
     required String accessToken,
     required String locationId,
@@ -1487,16 +1519,22 @@ class Api {
   Future<ErpInvoiceLayoutCatalog> assignInvoiceLayout({
     required String accessToken,
     required String locationId,
-    required String layoutId,
+    String? layoutId,
+    String? design,
     String documentType = 'pos',
   }) async {
+    if ((layoutId == null) == (design == null)) {
+      throw ArgumentError('Provide either a layout ID or a design key.');
+    }
     final response = await _client
         .patch(
           Uri.parse(ApiEndPoints.locationInvoiceLayoutUrl(locationId)),
           headers: _jsonHeaders(accessToken),
           body: jsonEncode({
             'document_type': documentType,
-            'invoice_layout_id': int.tryParse(layoutId) ?? layoutId,
+            if (layoutId != null)
+              'invoice_layout_id': int.tryParse(layoutId) ?? layoutId,
+            if (design != null) 'design': design,
           }),
         )
         .timeout(const Duration(seconds: 20));
@@ -1951,6 +1989,7 @@ class Api {
     bool isCreditSale = false,
     bool isKitchenOrder = false,
     String? saleNote,
+    String? orderTaxId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -1963,6 +2002,9 @@ class Api {
             'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
           'status': 'final',
+          'tax_rate_id': orderTaxId == null || orderTaxId.isEmpty
+              ? null
+              : int.parse(orderTaxId),
           'is_kitchen_order': isKitchenOrder ? 1 : 0,
           if (saleNote?.trim().isNotEmpty == true)
             'sale_note': saleNote!.trim(),

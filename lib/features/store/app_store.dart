@@ -28,6 +28,7 @@ class AppState {
     this.grossDiscount = 0,
     this.grossDiscountType = 'fixed',
     this.grossDiscountRate = 0,
+    this.orderTaxId = '',
     this.allowOverselling = false,
   });
   final List<Product> products;
@@ -65,10 +66,16 @@ class AppState {
   final int grossDiscount;
   final String grossDiscountType;
   final double grossDiscountRate;
+  final String orderTaxId;
+  double get orderTaxPercent =>
+      taxes.where((tax) => tax.id == orderTaxId).firstOrNull?.value ?? 0;
+  int get cartOrderTax =>
+      ((maximumGrossDiscount - cartGrossDiscount) * orderTaxPercent / 100)
+          .round();
   final bool allowOverselling;
   int get cartSubtotal => cart.fold<int>(0, (v, e) => v + e.subtotal);
   int get cartLineDiscount => cart.fold<int>(0, (v, e) => v + e.discount);
-  int get cartTax => cart.fold<int>(0, (v, e) => v + e.tax);
+  int get cartTax => cart.fold<int>(0, (v, e) => v + e.tax) + cartOrderTax;
   int get maximumGrossDiscount =>
       cart.fold<int>(0, (value, line) => value + line.total);
   int get cartGrossDiscount {
@@ -87,7 +94,8 @@ class AppState {
   int get cartDiscount => cartLineDiscount + cartGrossDiscount;
   int get cartTotal =>
       cart.fold<int>(0, (value, line) => value + line.total) -
-      cartGrossDiscount;
+      cartGrossDiscount +
+      cartOrderTax;
   int get itemCount => cart.fold(0, (v, e) => v + e.quantity);
   AppState copyWith({
     List<Product>? products,
@@ -114,6 +122,7 @@ class AppState {
     int? grossDiscount,
     String? grossDiscountType,
     double? grossDiscountRate,
+    String? orderTaxId,
     bool? allowOverselling,
   }) => AppState(
     products: products ?? this.products,
@@ -139,6 +148,7 @@ class AppState {
     grossDiscount: grossDiscount ?? this.grossDiscount,
     grossDiscountType: grossDiscountType ?? this.grossDiscountType,
     grossDiscountRate: grossDiscountRate ?? this.grossDiscountRate,
+    orderTaxId: orderTaxId ?? this.orderTaxId,
     allowOverselling: allowOverselling ?? this.allowOverselling,
   );
 }
@@ -211,13 +221,16 @@ class AppStore extends Notifier<AppState> {
     cart: state.cart.where((e) => e.product.id != id).toList(),
   );
   void clearCart() => state = state.copyWith(
+    orderTaxId: '',
     cart: [],
     clearCustomer: true,
     grossDiscount: 0,
     grossDiscountType: 'fixed',
     grossDiscountRate: 0,
   );
+  void setOrderTax(String id) => state = state.copyWith(orderTaxId: id);
   void clearCashierContext() => state = state.copyWith(
+    orderTaxId: '',
     cart: [],
     heldCarts: [],
     clearCustomer: true,
@@ -230,6 +243,7 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(
       heldCarts: [
         HeldCart(
+          orderTaxId: state.orderTaxId,
           lines: [...state.cart],
           grossDiscount: state.cartGrossDiscount,
           grossDiscountType: state.grossDiscountType,
@@ -238,6 +252,7 @@ class AppStore extends Notifier<AppState> {
         ...state.heldCarts,
       ],
       cart: [],
+      orderTaxId: '',
       grossDiscount: 0,
       grossDiscountType: 'fixed',
       grossDiscountRate: 0,
@@ -248,6 +263,7 @@ class AppStore extends Notifier<AppState> {
   void resumeLastHeldCart() {
     if (state.heldCarts.isEmpty || state.cart.isNotEmpty) return;
     state = state.copyWith(
+      orderTaxId: state.heldCarts.first.orderTaxId,
       cart: [...state.heldCarts.first.lines],
       grossDiscount: state.heldCarts.first.grossDiscount,
       grossDiscountType: state.heldCarts.first.grossDiscountType,
@@ -426,6 +442,7 @@ class AppStore extends Notifier<AppState> {
       cart: [],
       clearCustomer: true,
       lastSale: sale,
+      orderTaxId: '',
       grossDiscount: 0,
       grossDiscountType: 'fixed',
       grossDiscountRate: 0,

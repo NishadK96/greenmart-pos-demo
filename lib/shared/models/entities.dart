@@ -414,12 +414,14 @@ class HeldCart {
     this.grossDiscount = 0,
     this.grossDiscountType = 'fixed',
     this.grossDiscountRate = 0,
+    this.orderTaxId = '',
   });
 
   final List<CartLine> lines;
   final int grossDiscount;
   final String grossDiscountType;
   final double grossDiscountRate;
+  final String orderTaxId;
 }
 
 class Sale {

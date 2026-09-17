@@ -4,6 +4,45 @@ import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
+  test('order tax is removable and follows held cart lifecycle', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final store = container.read(appStoreProvider.notifier);
+    const product = Product(
+      id: '1',
+      name: 'Tea',
+      sku: 'TEA',
+      barcode: '1',
+      categoryId: '1',
+      purchasePrice: 500,
+      sellingPrice: 10000,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '1',
+      taxPercent: 0,
+    );
+    store.restoreOfflineCatalog(
+      products: const [product],
+      categories: const [],
+      customers: const [],
+      locations: const [],
+      paymentOptions: const [],
+      taxes: const [LookupOption(id: '5', name: 'VAT', value: 5)],
+    );
+    store.addToCart(product);
+    store.setOrderTax('5');
+    expect(container.read(appStoreProvider).cartOrderTax, 500);
+    expect(container.read(appStoreProvider).cartTotal, 10500);
+    store.holdCart();
+    expect(container.read(appStoreProvider).orderTaxId, '');
+    store.resumeLastHeldCart();
+    expect(container.read(appStoreProvider).orderTaxId, '5');
+    store.setOrderTax('');
+    expect(container.read(appStoreProvider).cartTotal, 10000);
+    expect(container.read(appStoreProvider).cartOrderTax, 0);
+    store.clearCart();
+    expect(container.read(appStoreProvider).orderTaxId, '');
+  });
   test('checkout payment options exclude custom payment slots', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

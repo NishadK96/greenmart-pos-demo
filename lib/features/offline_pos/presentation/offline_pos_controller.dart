@@ -166,7 +166,12 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       clientTransactionId: clientId,
       provisionalInvoiceRef: provisional,
       createdAt: queuedSale.createdAt,
-      payload: _salePayload(queuedSale, context, clientId, provisional),
+      payload: {
+        ..._salePayload(queuedSale, context, clientId, provisional),
+        'tax_rate_id': appState.orderTaxId.isEmpty
+            ? null
+            : int.parse(appState.orderTaxId),
+      },
     );
     final updated = current.copyWith(queue: [...current.queue, record]);
     state = AsyncData(updated);

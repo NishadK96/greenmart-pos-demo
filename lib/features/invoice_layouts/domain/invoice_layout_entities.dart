@@ -1,5 +1,19 @@
 import 'dart:typed_data';
 
+class ErpInvoiceDesign {
+  const ErpInvoiceDesign({required this.key, required this.name});
+  factory ErpInvoiceDesign.fromJson(Map<String, dynamic> json) {
+    final key = (json['design'] ?? json['key'] ?? json['id'] ?? '').toString();
+    return ErpInvoiceDesign(
+      key: key,
+      name: (json['design_name'] ?? json['name'] ?? json['label'] ?? key)
+          .toString(),
+    );
+  }
+  final String key;
+  final String name;
+}
+
 class ErpInvoiceLayout {
   const ErpInvoiceLayout({
     required this.id,

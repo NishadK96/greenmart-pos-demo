@@ -3234,7 +3234,23 @@ class _CurrentOrder extends ConsumerWidget {
             child: _compactTotal(context, 'Subtotal', state.cartSubtotal),
           ),
           const SizedBox(width: 12),
-          Expanded(child: _compactTotal(context, 'Tax', state.cartTax)),
+          Expanded(
+            child: InkWell(
+              key: const ValueKey('edit-order-tax'),
+              onTap: () => _editOrderTax(context, ref, state),
+              child: Row(
+                children: [
+                  Expanded(child: _compactTotal(context, 'Tax', state.cartTax)),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
       if (state.cartLineDiscount > 0)
@@ -3278,6 +3294,69 @@ class _CurrentOrder extends ConsumerWidget {
         ),
     ],
   );
+
+  Future<void> _editOrderTax(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+  ) async {
+    var selected = state.orderTaxId;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('Edit Order Tax')),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: state.taxes.any((tax) => tax.id == selected)
+                    ? selected
+                    : '',
+                decoration: InputDecoration(labelText: context.tr('Order tax')),
+                isExpanded: true,
+                items: [
+                  DropdownMenuItem(
+                    value: '',
+                    child: Text(context.tr('No order tax')),
+                  ),
+                  for (final tax in state.taxes)
+                    DropdownMenuItem(
+                      value: tax.id,
+                      child: Text(
+                        '${tax.name} (${tax.value ?? 0}%)',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (value) => selected = value ?? '',
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.tr(
+                  'Order tax is separate from product tax. No order tax does not remove product taxes.',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, selected),
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    );
+    if (result != null && context.mounted)
+      ref.read(appStoreProvider.notifier).setOrderTax(result);
+  }
 
   Widget _compactTotal(BuildContext context, String label, int value) => Row(
     children: [

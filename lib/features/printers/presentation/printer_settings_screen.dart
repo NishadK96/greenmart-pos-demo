@@ -166,6 +166,8 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         },
                       ),
                       const SizedBox(height: 14),
+                      const _InvoiceDesignsPanel(),
+                      const SizedBox(height: 14),
                       _DocumentSettings(
                         settings: settings,
                         onChanged: controller.update,
@@ -389,18 +391,140 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
   );
 }
 
+class _InvoiceDesignsPanel extends ConsumerWidget {
+  const _InvoiceDesignsPanel();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final designs = ref.watch(invoiceDesignsProvider);
+    final layouts = ref.watch(invoiceLayoutControllerProvider);
+    final controller = ref.read(invoiceLayoutControllerProvider.notifier);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Built-in invoice designs',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => ref.invalidate(invoiceDesignsProvider),
+                  tooltip: context.tr('Reload ERP layouts'),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Text(
+              'Preview a watermarked sample, or use a design for this business location.',
+            ),
+            const SizedBox(height: 12),
+            designs.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(error.toString()),
+                  TextButton(
+                    onPressed: () => ref.invalidate(invoiceDesignsProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+              data: (items) => items.isEmpty
+                  ? const Text('No built-in invoice designs are available.')
+                  : LayoutBuilder(
+                      builder: (_, constraints) {
+                        final columns = constraints.maxWidth >= 980
+                            ? 3
+                            : constraints.maxWidth >= 640
+                            ? 2
+                            : 1;
+                        final width =
+                            (constraints.maxWidth - (columns - 1) * 12) /
+                            columns;
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: items.map((design) {
+                            final selected =
+                                layouts.asData?.value?.selectedLayout?.design ==
+                                design.key;
+                            final layout = ErpInvoiceLayout(
+                              id: design.key,
+                              name: design.name,
+                              design: design.key,
+                              designName: '',
+                              isSelected: selected,
+                              previewUrl: '',
+                            );
+                            return SizedBox(
+                              width: width,
+                              child: AbsorbPointer(
+                                absorbing: layouts.isLoading,
+                                child: _ErpLayoutCard(
+                                  layout: layout,
+                                  selected: selected,
+                                  showOfflineStatus: false,
+                                  onPreview: () => _showErpInvoicePreview(
+                                    context,
+                                    layout: layout,
+                                    load: () =>
+                                        controller.previewDesign(design.key),
+                                  ),
+                                  onAssign: () async {
+                                    try {
+                                      await controller.assign(
+                                        null,
+                                        design: design.key,
+                                      );
+                                      if (context.mounted)
+                                        PrinterSettingsScreen._message(
+                                          context,
+                                          '${design.name} is now the default ERP invoice layout.',
+                                        );
+                                    } catch (error) {
+                                      if (context.mounted)
+                                        PrinterSettingsScreen._message(
+                                          context,
+                                          error.toString(),
+                                        );
+                                    }
+                                  },
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ErpLayoutCard extends StatelessWidget {
   const _ErpLayoutCard({
     required this.layout,
     required this.selected,
     required this.onPreview,
     required this.onAssign,
+    this.showOfflineStatus = true,
   });
 
   final ErpInvoiceLayout layout;
   final bool selected;
   final VoidCallback onPreview;
   final VoidCallback onAssign;
+  final bool showOfflineStatus;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -441,30 +565,31 @@ class _ErpLayoutCard extends StatelessWidget {
           style: const TextStyle(color: AppColors.muted, fontSize: 12),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(
-              layout.offlineSupported
-                  ? Icons.offline_pin_outlined
-                  : Icons.cloud_outlined,
-              size: 16,
-              color: layout.offlineSupported
-                  ? AppColors.primary
-                  : AppColors.muted,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              layout.offlineSupported ? 'Available offline' : 'Online only',
-              style: TextStyle(
+        if (showOfflineStatus)
+          Row(
+            children: [
+              Icon(
+                layout.offlineSupported
+                    ? Icons.offline_pin_outlined
+                    : Icons.cloud_outlined,
+                size: 16,
                 color: layout.offlineSupported
                     ? AppColors.primary
                     : AppColors.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 5),
+              Text(
+                layout.offlineSupported ? 'Available offline' : 'Online only',
+                style: TextStyle(
+                  color: layout.offlineSupported
+                      ? AppColors.primary
+                      : AppColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 13),
         Row(
           children: [

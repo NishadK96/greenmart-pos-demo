@@ -22,6 +22,10 @@ final invoiceLayoutControllerProvider =
       InvoiceLayoutController.new,
     );
 
+final invoiceDesignsProvider = FutureProvider<List<ErpInvoiceDesign>>(
+  (ref) => ref.read(invoiceLayoutControllerProvider.notifier).designs(),
+);
+
 class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   String _locationId = '';
   String _documentType = 'pos';
@@ -57,7 +61,15 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     state = await AsyncValue.guard(_load);
   }
 
-  Future<void> assign(String layoutId) async {
+  Future<List<ErpInvoiceDesign>> designs() => _authorized(
+    (token) => ref.read(apiProvider).invoiceTemplateDesigns(token),
+  );
+
+  Future<ErpInvoicePdf> previewDesign(String design) => _authorized(
+    (token) => ref.read(apiProvider).previewInvoiceDesign(token, design),
+  );
+
+  Future<void> assign(String? layoutId, {String? design}) async {
     final previous = state.asData?.value;
     state = const AsyncLoading();
     try {
@@ -68,6 +80,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
               accessToken: token,
               locationId: _locationId,
               layoutId: layoutId,
+              design: design,
               documentType: _documentType,
             ),
       );

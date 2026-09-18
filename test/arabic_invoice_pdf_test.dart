@@ -7,9 +7,42 @@ import 'package:eazy_pos/features/printers/domain/printer_settings.dart';
 import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/purchases/presentation/purchase_document_export.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
+import 'package:eazy_pos/features/invoice_layouts/domain/invoice_layout_entities.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'offline labels preserve ERP Arabic and supplement bilingual defaults',
+    () {
+      String label(
+        String key,
+        String value,
+        String fallback, {
+        bool bilingual = true,
+      }) => PrinterDocumentService.offlineInvoiceLabel(
+        key,
+        value,
+        fallback,
+        arabic: true,
+        bilingual: bilingual,
+      );
+      expect(label('payment', '', 'Payment'), 'Payment / الدفع');
+      expect(label('tax', '', 'Tax', bilingual: false), 'الضريبة');
+      expect(label('product', 'الصنف', 'Product'), 'الصنف');
+      expect(label('quantity', 'Hours', 'Qty'), 'Hours / الكمية');
+      expect(
+        PrinterDocumentService.offlineInvoiceLabel(
+          'tax',
+          '',
+          'Tax',
+          arabic: false,
+          bilingual: false,
+        ),
+        'Tax',
+      );
+    },
+  );
 
   test('Arabic purchase order and sales receipt PDFs render', () async {
     final purchase = PurchaseDocument(
@@ -77,6 +110,25 @@ void main() {
       ),
       PrinterDocumentService.formatFor('80mm'),
     );
+    final offlineBytes = await PrinterDocumentService.offlineLayoutReceipt(
+      sale,
+      const OfflineInvoiceLayoutBundle(
+        manifest: {
+          'locale': {
+            'bilingual': true,
+            'primary_locale': 'ar-SA',
+            'direction': 'rtl',
+          },
+          'page': {'width_mm': 58, 'height_mm': 297},
+          'business': {'name_ar': 'متجر إيزي', 'name_en': 'Eazy Store'},
+          'labels': {'invoice_heading': 'Invoice', 'quantity': 'Hours'},
+          'money': {'currency_code': 'SAR'},
+        },
+      ),
+      // A bilingual ERP layout must remain bilingual in an English UI.
+      arabic: false,
+    );
+    expect(offlineBytes.length, greaterThan(10000));
 
     expect(purchaseBytes.length, greaterThan(10000));
     expect(receiptBytes.length, greaterThan(10000));
@@ -95,6 +147,9 @@ void main() {
       File(
         '${directory.path}/bilingual-printer-sample.pdf',
       ).writeAsBytesSync(bilingualSampleBytes);
+      File(
+        '${directory.path}/offline-bilingual-receipt.pdf',
+      ).writeAsBytesSync(offlineBytes);
     }
   });
 }

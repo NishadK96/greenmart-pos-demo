@@ -613,6 +613,13 @@ class PrinterDocumentService {
     bool arabic = false,
   }) async {
     final manifest = bundle.manifest;
+    final locale = _map(manifest['locale']);
+    final bilingual = locale['bilingual'] == true;
+    arabic =
+        arabic ||
+        bilingual ||
+        '${locale['primary_locale'] ?? locale['language']}'.startsWith('ar') ||
+        locale['direction'] == 'rtl';
     final page = _map(manifest['page']);
     final labels = _map(manifest['labels']);
     final business = _map(manifest['business']);
@@ -635,7 +642,13 @@ class PrinterDocumentService {
         '$currency ${(value / 100).toStringAsFixed(decimals)}';
     String label(String key, String fallback) {
       final value = labels[key]?.toString().trim() ?? '';
-      return value.isEmpty ? fallback : value;
+      return offlineInvoiceLabel(
+        key,
+        value,
+        fallback,
+        arabic: arabic,
+        bilingual: bilingual,
+      );
     }
 
     final nameAr = business['name_ar']?.toString().trim() ?? '';
@@ -702,14 +715,18 @@ class PrinterDocumentService {
               textAlign: pw.TextAlign.center,
             ),
           pw.SizedBox(height: 8),
-          PdfFonts.text(
+          PdfFonts.bilingual(
             label('invoice_heading', 'PROVISIONAL INVOICE'),
             textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
           ),
           pw.Divider(),
           _documentFact(label('invoice_number', 'Invoice'), sale.invoiceNo),
-          _documentFact(label('date', 'Date'), sale.createdAt.toString()),
+          _documentFact(
+            label('date', 'Date'),
+            sale.createdAt.toString().split('.').first,
+          ),
           if (visible['customer'] != false)
             _documentFact(label('customer', 'Customer'), sale.customer.name),
           if (sale.customer.taxNumber?.isNotEmpty == true)
@@ -717,29 +734,39 @@ class PrinterDocumentService {
               label('client_tax', 'Customer VAT'),
               sale.customer.taxNumber!,
             ),
-          _documentFact('Payment', _paymentLabel(sale.paymentMethod, arabic)),
+          _documentFact(
+            label('payment', 'Payment'),
+            _paymentLabel(sale.paymentMethod, arabic),
+          ),
           pw.Divider(),
-          pw.TableHelper.fromTextArray(
-            headers: [
-              label('product', 'Product'),
-              label('quantity', 'Qty'),
-              label('unit_price', 'Unit price'),
-              label('line_subtotal', 'Total'),
-            ],
-            data: sale.items
-                .map(
-                  (item) => [
+          pw.Table(
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.7),
+              1: pw.FlexColumnWidth(1.6),
+              2: pw.FlexColumnWidth(1.8),
+              3: pw.FlexColumnWidth(1.8),
+            },
+            border: pw.TableBorder.all(width: .4),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                children: [
+                  label('product', 'Product'),
+                  label('quantity', 'Qty'),
+                  label('unit_price', 'Unit price'),
+                  label('line_subtotal', 'Total'),
+                ].map((value) => _offlineTableCell(value, bold: true)).toList(),
+              ),
+              for (final item in sale.items)
+                pw.TableRow(
+                  children: [
                     item.product.displayName(arabic),
                     item.quantity.toString(),
                     amount(item.unitPrice),
                     amount(item.total),
-                  ],
-                )
-                .toList(),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-            border: pw.TableBorder.all(width: .4),
-            cellPadding: const pw.EdgeInsets.all(4),
+                  ].map((value) => _offlineTableCell(value)).toList(),
+                ),
+            ],
           ),
           pw.SizedBox(height: 8),
           _line(
@@ -764,7 +791,9 @@ class PrinterDocumentService {
           pw.SizedBox(height: 8),
           PdfFonts.text(
             _map(provisional['watermark'])[arabic ? 'ar' : 'en']?.toString() ??
-                'PROVISIONAL - PENDING SYNCHRONIZATION',
+                (arabic
+                    ? 'فاتورة مؤقتة - بانتظار المزامنة'
+                    : 'PROVISIONAL - PENDING SYNCHRONIZATION'),
             textAlign: pw.TextAlign.center,
             style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
           ),
@@ -784,6 +813,55 @@ class PrinterDocumentService {
   static Map<String, dynamic> _map(dynamic value) =>
       value is Map ? Map<String, dynamic>.from(value) : const {};
 
+  /// Keep ERP custom labels, supplementing English-only labels in bilingual
+  /// layouts rather than tying the printed document to the UI language.
+  static String offlineInvoiceLabel(
+    String key,
+    String value,
+    String fallback, {
+    required bool arabic,
+    required bool bilingual,
+  }) {
+    const translations = {
+      'invoice_heading': 'فاتورة مؤقتة',
+      'invoice_number': 'رقم الفاتورة',
+      'date': 'التاريخ',
+      'customer': 'العميل',
+      'client_tax': 'الرقم الضريبي للعميل',
+      'payment': 'الدفع',
+      'product': 'المنتج',
+      'quantity': 'الكمية',
+      'unit_price': 'سعر الوحدة',
+      'line_subtotal': 'الإجمالي',
+      'subtotal': 'المجموع الفرعي',
+      'discount': 'الخصم',
+      'tax': 'الضريبة',
+      'total': 'الإجمالي',
+      'paid': 'المدفوع',
+    };
+    final text = value.isEmpty ? fallback : value;
+    if (!arabic || PdfFonts.containsArabic(text)) return text;
+    final translated = translations[key];
+    if (translated == null) return text;
+    if (bilingual) return '$text / $translated';
+    // Preserve non-default custom labels; these must be translated in ERP.
+    return value.isEmpty || value == fallback
+        ? translated
+        : '$text / $translated';
+  }
+
+  static pw.Widget _offlineTableCell(String value, {bool bold = false}) =>
+      pw.Padding(
+        padding: const pw.EdgeInsets.all(3),
+        child: PdfFonts.bilingual(
+          value,
+          style: pw.TextStyle(
+            fontSize: 8,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          ),
+        ),
+      );
+
   static double _number(dynamic value, double fallback) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
 
@@ -801,7 +879,7 @@ class PrinterDocumentService {
               ),
             ),
             pw.SizedBox(width: 8),
-            pw.Text(
+            PdfFonts.text(
               value,
               style: bold ? pw.TextStyle(fontWeight: pw.FontWeight.bold) : null,
             ),

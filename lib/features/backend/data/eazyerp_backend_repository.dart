@@ -108,31 +108,51 @@ class EazyErpBackendRepository implements BackendRepository {
       _api.paymentOptions(accessToken),
       _api.businessDetails(accessToken),
       _api.loggedInUser(accessToken),
-      _api.profitLoss(accessToken),
-      _api.stockReport(accessToken),
       _api.units(accessToken),
       _api.taxes(accessToken),
       _api.brands(accessToken),
     ]);
     final products = await productsFuture;
     final customers = await customersFuture;
-    final salesFuture = _api.sales(accessToken, products, customers);
     final results = await supportingDataFuture;
-    final sales = await salesFuture;
     return BackendSnapshot(
       products: products,
       categories: results[0] as List<Category>,
       customers: customers,
-      sales: sales,
+      sales: const [],
       locations: results[1] as List<BusinessLocation>,
       paymentOptions: results[2] as List<PaymentOption>,
       business: results[3] as BusinessProfile,
       user: results[4] as UserProfile,
-      profitLoss: results[5] as ProfitLoss,
-      stockItems: results[6] as List<StockItem>,
-      units: results[7] as List<LookupOption>,
-      taxes: results[8] as List<LookupOption>,
-      brands: results[9] as List<LookupOption>,
+      profitLoss: const ProfitLoss(
+        totalSales: 0,
+        totalPurchases: 0,
+        totalExpenses: 0,
+        grossProfit: 0,
+        netProfit: 0,
+      ),
+      stockItems: const [],
+      units: results[5] as List<LookupOption>,
+      taxes: results[6] as List<LookupOption>,
+      brands: results[7] as List<LookupOption>,
+    );
+  }
+
+  @override
+  Future<BackendInsights> loadInsights(
+    String accessToken,
+    List<Product> products,
+    List<Customer> customers,
+  ) async {
+    final results = await Future.wait<Object>([
+      _api.sales(accessToken, products, customers),
+      _api.stockReport(accessToken),
+      _api.profitLoss(accessToken),
+    ]);
+    return BackendInsights(
+      sales: results[0] as List<Sale>,
+      stockItems: results[1] as List<StockItem>,
+      profitLoss: results[2] as ProfitLoss,
     );
   }
 

@@ -18,9 +18,11 @@ final backendControllerProvider =
 class BackendController extends AsyncNotifier<void> {
   String? _pendingSaleFingerprint;
   String? _pendingClientTransactionId;
+  int _insightsGeneration = 0;
 
   @override
   Future<void> build() async {
+    final generation = ++_insightsGeneration;
     final token = await ref.watch(authControllerProvider.future);
     final store = ref.read(appStoreProvider.notifier);
     if (token == null || token.isEmpty) {
@@ -54,6 +56,14 @@ class BackendController extends AsyncNotifier<void> {
         taxes: snapshot.taxes,
         brands: snapshot.brands,
       );
+      unawaited(
+        _refreshInsights(
+          token,
+          generation: generation,
+          products: snapshot.products,
+          customers: snapshot.customers,
+        ),
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
         await ref.read(authControllerProvider.notifier).logout();
@@ -64,6 +74,35 @@ class BackendController extends AsyncNotifier<void> {
     } catch (_) {
       final cached = await ref.read(offlinePosControllerProvider.future);
       if (!cached.catalog.isNotEmpty) rethrow;
+    }
+  }
+
+  Future<void> _refreshInsights(
+    String token, {
+    required int generation,
+    required List<Product> products,
+    required List<Customer> customers,
+  }) async {
+    try {
+      final insights = await ref
+          .read(backendRepositoryProvider)
+          .loadInsights(token, products, customers);
+      if (!ref.mounted || generation != _insightsGeneration) return;
+      ref
+          .read(appStoreProvider.notifier)
+          .replaceRemoteInsights(
+            sales: insights.sales,
+            stockItems: insights.stockItems,
+            profitLoss: insights.profitLoss,
+          );
+    } on ApiException catch (error) {
+      if (error.statusCode == 401 &&
+          ref.mounted &&
+          generation == _insightsGeneration) {
+        await ref.read(authControllerProvider.notifier).logout();
+      }
+    } catch (_) {
+      // Dashboard insights can be refreshed later without blocking sign-in.
     }
   }
 

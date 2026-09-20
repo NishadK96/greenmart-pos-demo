@@ -31,6 +31,18 @@ class BackendSnapshot {
   final List<LookupOption> brands;
 }
 
+class BackendInsights {
+  const BackendInsights({
+    required this.sales,
+    required this.stockItems,
+    required this.profitLoss,
+  });
+
+  final List<Sale> sales;
+  final List<StockItem> stockItems;
+  final ProfitLoss profitLoss;
+}
+
 class CreatedSale {
   const CreatedSale({
     required this.id,
@@ -47,6 +59,12 @@ class CreatedSale {
 
 abstract interface class BackendRepository {
   Future<BackendSnapshot> load(String accessToken);
+
+  Future<BackendInsights> loadInsights(
+    String accessToken,
+    List<Product> products,
+    List<Customer> customers,
+  );
 
   Future<LookupOption> createUnit({
     required String accessToken,

@@ -415,6 +415,16 @@ class AppStore extends Notifier<AppState> {
     brands: brands,
   );
 
+  void replaceRemoteInsights({
+    required List<Sale> sales,
+    required List<StockItem> stockItems,
+    required ProfitLoss profitLoss,
+  }) => state = state.copyWith(
+    sales: sales,
+    stockItems: stockItems,
+    profitLoss: profitLoss,
+  );
+
   Sale checkout(String method, {String? serverId, String? invoiceNo}) {
     final now = DateTime.now();
     final customer = state.customer ?? state.customers.first;

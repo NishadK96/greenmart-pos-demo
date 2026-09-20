@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../apis/api.dart';
@@ -191,12 +193,23 @@ class AuthController extends AsyncNotifier<String?> {
       _activeSessionId = null;
       _webCsrfToken = null;
     } else {
+      // Reset the native identity locally before contacting the server. The
+      // user must be able to move this installation to another business even
+      // when the old device session is unreachable or already invalid.
       final headers = await _sessions.deviceHeaders();
-      final accounts = await ref.read(apiProvider).savedSessions(headers);
-      await ref.read(apiProvider).logoutDevice(headers);
-      await _sessions.resetDevice(accounts.map((account) => account.sessionId));
+      await _sessions.resetDevice();
+      unawaited(_revokeNativeDevice(headers));
     }
     state = const AsyncData(null);
+  }
+
+  Future<void> _revokeNativeDevice(Map<String, String> headers) async {
+    try {
+      await ref.read(apiProvider).logoutDevice(headers);
+    } catch (_) {
+      // The local identity has already been removed. Server cleanup is best
+      // effort so an unavailable old session cannot trap the user at login.
+    }
   }
 
   Future<void> logout() async {

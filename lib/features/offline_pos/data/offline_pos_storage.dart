@@ -97,6 +97,7 @@ class OfflinePosStorage {
             'minimum_stock': product.minimumStock,
             'variation_id': product.variationId,
             'tax_percent': product.taxPercent,
+            'selling_price_includes_tax': product.sellingPriceIncludesTax,
             'unit': product.unit,
             'unit_id': product.unitId,
             'tax_id': product.taxId,
@@ -155,6 +156,10 @@ class OfflinePosStorage {
             minimumStock: (item['minimum_stock'] as num?)?.toInt() ?? 0,
             variationId: '${item['variation_id'] ?? ''}',
             taxPercent: (item['tax_percent'] as num?)?.toDouble() ?? 0,
+            // Cached catalog prices have always used sell_price_inc_tax. Treat
+            // older records without this marker as inclusive during migration.
+            sellingPriceIncludesTax:
+                item['selling_price_includes_tax'] != false,
             unit: '${item['unit'] ?? 'pc'}',
             unitId: '${item['unit_id'] ?? ''}',
             taxId: '${item['tax_id'] ?? ''}',

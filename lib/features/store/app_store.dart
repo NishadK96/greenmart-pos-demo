@@ -229,6 +229,14 @@ class AppStore extends Notifier<AppState> {
     grossDiscountRate: 0,
   );
   void setOrderTax(String id) => state = state.copyWith(orderTaxId: id);
+  void replaceTaxes(List<LookupOption> taxes) {
+    final selectedExists = taxes.any((tax) => tax.id == state.orderTaxId);
+    state = state.copyWith(
+      taxes: List.unmodifiable(taxes),
+      orderTaxId: selectedExists ? state.orderTaxId : '',
+    );
+  }
+
   void clearCashierContext() => state = state.copyWith(
     orderTaxId: '',
     cart: [],

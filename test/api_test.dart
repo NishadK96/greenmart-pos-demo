@@ -9,6 +9,46 @@ import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
+  test('tax mutations use connector CRUD endpoints and payloads', () async {
+    final requests = <http.Request>[];
+    final api = Api(
+      client: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          '{"success":true}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await api.createTax(accessToken: 'token', name: 'VAT', amount: 15);
+    await api.updateTax(
+      accessToken: 'token',
+      id: '4',
+      name: 'VAT 2',
+      amount: 5,
+    );
+    await api.deleteTax(accessToken: 'token', id: '4');
+
+    expect(requests.map((request) => request.method), [
+      'POST',
+      'PATCH',
+      'DELETE',
+    ]);
+    expect(requests[0].url.path, endsWith('/connector/api/tax'));
+    expect(jsonDecode(requests[0].body), {'name': 'VAT', 'amount': 15.0});
+    expect(requests[1].url.path, endsWith('/connector/api/tax/4'));
+    expect(jsonDecode(requests[1].body), {'name': 'VAT 2', 'amount': 5.0});
+    expect(requests[2].url.path, endsWith('/connector/api/tax/4'));
+    expect(
+      requests.every(
+        (request) => request.headers['Authorization'] == 'Bearer token',
+      ),
+      isTrue,
+    );
+  });
+
   test(
     'saved web account reset refreshes expired CSRF and retries once',
     () async {
@@ -680,6 +720,50 @@ void main() {
     expect((sale['payments'] as List).single['amount'], 42);
     expect((sale['payments'] as List).single['method'], 'cash');
   });
+
+  test(
+    'create sale converts tax-inclusive price to exclusive unit price',
+    () async {
+      late Map<String, dynamic> payload;
+      final api = Api(
+        client: MockClient((request) async {
+          payload = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('[{"id":11,"invoice_no":"INV-11"}]', 200);
+        }),
+      );
+      const product = Product(
+        id: '1',
+        variationId: '2',
+        name: 'Grape',
+        sku: '20001',
+        barcode: '20001',
+        categoryId: '3',
+        purchasePrice: 1000,
+        sellingPrice: 1500,
+        stock: 2,
+        minimumStock: 1,
+        taxPercent: 15,
+        sellingPriceIncludesTax: true,
+      );
+
+      await api.createSale(
+        accessToken: 'token',
+        locationId: '1',
+        cashRegisterId: '27',
+        customer: const Customer(id: '1', name: 'Walk-in'),
+        lines: const [CartLine(product: product)],
+        paymentMethod: 'cash',
+        total: 1500,
+        grossDiscount: 0,
+        clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a003',
+      );
+
+      final sale = (payload['sells'] as List).single as Map<String, dynamic>;
+      final line = (sale['products'] as List).single as Map<String, dynamic>;
+      expect(line['unit_price'], 13.04);
+      expect((sale['payments'] as List).single['amount'], 15);
+    },
+  );
 
   test(
     'create sale accepts the idempotent backend response contract',

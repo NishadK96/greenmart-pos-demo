@@ -22,6 +22,29 @@ void main() {
     expect(const CartLine(product: product).total, 10000);
   });
 
+  test('tax-inclusive selling price extracts VAT without increasing total', () {
+    const product = Product(
+      id: 'inclusive',
+      name: 'Grape',
+      sku: '20001',
+      barcode: '20001',
+      categoryId: '1',
+      purchasePrice: 1000,
+      sellingPrice: 1500,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '1',
+      taxPercent: 15,
+      sellingPriceIncludesTax: true,
+    );
+    const line = CartLine(product: product);
+
+    expect(line.unitPriceExcludingTax, 1304);
+    expect(line.unitTax, 196);
+    expect(line.tax, 196);
+    expect(line.total, 1500);
+  });
+
   test('order tax is removable and follows held cart lifecycle', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

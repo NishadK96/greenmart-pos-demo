@@ -125,7 +125,10 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
     if (cached != null) _hydrate(cached.catalog);
   }
 
-  Future<Sale> queueCurrentSale({String? clientTransactionId}) async {
+  Future<Sale> queueCurrentSale({
+    String? clientTransactionId,
+    String paymentMethod = 'cash',
+  }) async {
     final current = state.value ?? await future;
     final context = current.context;
     if (context == null || !context.active) {
@@ -149,7 +152,19 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
         'This cart contains local-only data and cannot be synchronized offline.',
       );
     }
-    final sale = ref.read(appStoreProvider.notifier).checkout('cash');
+    final normalizedMethod = paymentMethod.toLowerCase() == 'credit'
+        ? 'due'
+        : paymentMethod.toLowerCase();
+    final allowedMethods = current.catalog.paymentOptions
+        .map((option) => option.code.toLowerCase())
+        .toSet();
+    if (normalizedMethod != 'due' &&
+        !allowedMethods.contains(normalizedMethod)) {
+      throw const ApiException(
+        'This payment method is not enabled for offline sales at this location.',
+      );
+    }
+    final sale = ref.read(appStoreProvider.notifier).checkout(normalizedMethod);
     final clientId = clientTransactionId ?? _uuid();
     final provisional =
         'OFF-${sale.createdAt.millisecondsSinceEpoch.toString().substring(5)}';
@@ -167,7 +182,13 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       provisionalInvoiceRef: provisional,
       createdAt: queuedSale.createdAt,
       payload: {
-        ..._salePayload(queuedSale, context, clientId, provisional),
+        ..._salePayload(
+          queuedSale,
+          context,
+          clientId,
+          provisional,
+          paymentMethod: normalizedMethod,
+        ),
         'tax_rate_id': appState.orderTaxId.isEmpty
             ? null
             : int.parse(appState.orderTaxId),
@@ -241,8 +262,9 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
     Sale sale,
     OfflinePosContext context,
     String clientId,
-    String provisional,
-  ) {
+    String provisional, {
+    required String paymentMethod,
+  }) {
     final lineDiscounts = sale.items.fold<int>(
       0,
       (total, line) => total + line.discount,
@@ -269,23 +291,23 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
             'product_id': int.parse(line.product.id),
             'variation_id': int.parse(line.product.variationId),
             'quantity': line.quantity,
-            'unit_price':
-                line.unitPrice / (1 + (line.product.taxPercent / 100)) / 100,
-            'unit_price_inc_tax': line.unitPrice / 100,
-            'item_tax':
-                (line.unitPrice -
-                    (line.unitPrice / (1 + (line.product.taxPercent / 100)))) /
-                100,
+            'unit_price': line.unitPriceExcludingTax / 100,
+            'unit_price_inc_tax': line.unitPriceIncludingTax / 100,
+            'item_tax': line.unitTax / 100,
             'line_discount_type': 'fixed',
             'line_discount_amount': line.discount / line.quantity / 100,
             if (line.product.taxId.isNotEmpty)
               'tax_id': int.tryParse(line.product.taxId),
-            'cached_price': {'unit_price_inc_tax': line.unitPrice / 100},
+            'cached_price': {
+              'unit_price_inc_tax': line.unitPriceIncludingTax / 100,
+            },
           },
       ],
-      'payments': [
-        {'method': 'cash', 'amount': sale.total / 100},
-      ],
+      'payments': paymentMethod == 'due'
+          ? <Map<String, dynamic>>[]
+          : [
+              {'method': paymentMethod, 'amount': sale.total / 100},
+            ],
     };
   }
 
@@ -330,6 +352,16 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       for (final product in ref.read(appStoreProvider).products)
         product.id: product,
     };
+    final paymentOptions = _map(metadata['payment_methods']).entries
+        .map((entry) => PaymentOption(code: entry.key, label: '${entry.value}'))
+        .toList(growable: true);
+    if (!paymentOptions.any(
+      (option) => option.code.toLowerCase() == 'credit',
+    )) {
+      paymentOptions.add(
+        const PaymentOption(code: 'credit', label: 'Credit sale'),
+      );
+    }
     return OfflineCatalog(
       products: products
           .map(
@@ -351,11 +383,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
             ),
           )
           .toList(growable: false),
-      paymentOptions: _map(metadata['payment_methods']).entries
-          .map(
-            (entry) => PaymentOption(code: entry.key, label: '${entry.value}'),
-          )
-          .toList(growable: false),
+      paymentOptions: List.unmodifiable(paymentOptions),
       taxes: taxes,
       changesCursor: changesCursor,
       cachedAt: DateTime.now(),
@@ -387,6 +415,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       minimumStock: existing?.minimumStock ?? 0,
       variationId: '${variation['id'] ?? ''}',
       taxPercent: taxAmounts[taxId] ?? 0,
+      sellingPriceIncludesTax: true,
       unit: existing?.unit ?? 'pc',
       unitId: '${item['unit_id'] ?? existing?.unitId ?? ''}',
       taxId: taxId,

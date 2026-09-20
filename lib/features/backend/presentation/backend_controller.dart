@@ -291,12 +291,12 @@ class BackendController extends AsyncNotifier<void> {
           await ref.read(authControllerProvider.notifier).refreshAccessToken();
           return await _checkout(paymentMethod, allowTokenRefresh: false);
         } catch (_) {
-          return await _queueOfflineCashSale(paymentMethod);
+          return await _queueOfflineSale(paymentMethod);
         }
       }
       rethrow;
     } catch (_) {
-      return await _queueOfflineCashSale(paymentMethod);
+      return await _queueOfflineSale(paymentMethod);
     }
   }
 
@@ -331,15 +331,13 @@ class BackendController extends AsyncNotifier<void> {
         '${value.substring(20)}';
   }
 
-  Future<Sale> _queueOfflineCashSale(String paymentMethod) async {
-    if (paymentMethod != 'cash') {
-      throw const ApiException(
-        'Only cash sales can be completed while offline.',
-      );
-    }
+  Future<Sale> _queueOfflineSale(String paymentMethod) async {
     final sale = await ref
         .read(offlinePosControllerProvider.notifier)
-        .queueCurrentSale(clientTransactionId: _pendingClientTransactionId);
+        .queueCurrentSale(
+          clientTransactionId: _pendingClientTransactionId,
+          paymentMethod: paymentMethod,
+        );
     _pendingSaleFingerprint = null;
     _pendingClientTransactionId = null;
     return sale;

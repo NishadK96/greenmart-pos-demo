@@ -840,6 +840,17 @@ const Map<String, String> _ar = {
       'إعداد نشاطك التجاري والخدمات المتصلة.',
   'Business profile': 'ملف النشاط التجاري',
   'Tax settings': 'إعدادات الضريبة',
+  'Tax rates are synchronized with EazyERP.':
+      'تتم مزامنة معدلات الضريبة مع EazyERP.',
+  'Your EazyERP permissions control which tax rates you can create, edit, or delete.':
+      'تحدد صلاحيات EazyERP معدلات الضريبة التي يمكنك إضافتها أو تعديلها أو حذفها.',
+  'Add tax rate': 'إضافة معدل ضريبة',
+  'Edit tax rate': 'تعديل معدل الضريبة',
+  'Tax name': 'اسم الضريبة',
+  'Delete tax rate?': 'حذف معدل الضريبة؟',
+  'Tax settings updated.': 'تم تحديث إعدادات الضريبة.',
+  'Tax settings require an online session.':
+      'تتطلب إعدادات الضريبة اتصالاً بالإنترنت.',
   'Invoice settings': 'إعدادات الفاتورة',
   'Restaurant': 'المطعم',
   'Open Kitchen POS': 'فتح نقطة بيع المطبخ',

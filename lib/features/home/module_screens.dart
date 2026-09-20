@@ -22,6 +22,8 @@ import '../zatca/presentation/zatca_controller.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
 import '../offline_pos/presentation/offline_pos_controller.dart';
+import '../../core/network/api_provider.dart';
+import '../auth/auth_controller.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
@@ -6290,7 +6292,7 @@ class SyncScreen extends ConsumerWidget {
                 Text(
                   offlineState?.ready == true
                       ? '${offlineState!.pendingCount} sale(s) waiting to synchronize. ${offlineState.catalog.products.length} products cached. Authorization expires ${DateFormat('dd MMM yyyy, HH:mm').format(offlineState.context!.authorizedUntil.toLocal())}.'
-                      : 'Connect once with an open register to authorize this device for offline cash sales.',
+                      : 'Connect once with an open register to authorize this device for offline sales.',
                   style: const TextStyle(color: AppColors.muted),
                 ),
                 const SizedBox(height: 14),
@@ -6549,12 +6551,198 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class TaxSettingsScreen extends ConsumerWidget {
+class TaxSettingsScreen extends ConsumerStatefulWidget {
   const TaxSettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(appStoreProvider);
+  ConsumerState<TaxSettingsScreen> createState() => _TaxSettingsScreenState();
+}
+
+class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
+  List<LookupOption> _taxes = const [];
+  ConnectorAccess? _access;
+  bool _loading = true;
+  bool _saving = false;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_load);
+  }
+
+  Future<T> _authorized<T>(
+    Future<T> Function(Api api, String token) request,
+  ) async {
+    var token = await ref.read(authControllerProvider.future);
+    if (token == null || token.isEmpty || token == 'offline-local-session') {
+      throw const ApiException('Tax settings require an online session.');
+    }
+    final api = ref.read(apiProvider);
+    try {
+      return await request(api, token);
+    } on ApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      token = await ref
+          .read(authControllerProvider.notifier)
+          .refreshAccessToken();
+      return request(api, token);
+    }
+  }
+
+  Future<void> _load() async {
+    if (mounted)
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    try {
+      final results = await _authorized(
+        (api, token) =>
+            Future.wait<Object>([api.taxes(token), api.connectorAccess(token)]),
+      );
+      if (!mounted) return;
+      _taxes = results[0] as List<LookupOption>;
+      _access = results[1] as ConnectorAccess;
+      ref.read(appStoreProvider.notifier).replaceTaxes(_taxes);
+    } catch (error) {
+      if (mounted) _error = error;
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _allows(String permission) => _access?.allows(permission) == true;
+
+  Future<void> _edit([LookupOption? tax]) async {
+    final canSave = _allows(
+      tax == null ? 'tax_rate.create' : 'tax_rate.update',
+    );
+    if (!canSave || _saving) return;
+    final name = TextEditingController(text: tax?.name ?? '');
+    final amount = TextEditingController(text: tax?.value?.toString() ?? '');
+    final result = await showDialog<({String name, double amount})>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(tax == null ? 'Add tax rate' : 'Edit tax rate'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Tax name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Rate',
+                  suffixText: '%',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(amount.text.trim());
+              if (name.text.trim().isEmpty ||
+                  value == null ||
+                  value < 0 ||
+                  value > 100)
+                return;
+              Navigator.pop(dialogContext, (
+                name: name.text.trim(),
+                amount: value,
+              ));
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    amount.dispose();
+    if (result == null) return;
+    await _mutate(
+      (api, token) => tax == null
+          ? api.createTax(
+              accessToken: token,
+              name: result.name,
+              amount: result.amount,
+            )
+          : api.updateTax(
+              accessToken: token,
+              id: tax.id,
+              name: result.name,
+              amount: result.amount,
+            ),
+    );
+  }
+
+  Future<void> _delete(LookupOption tax) async {
+    if (!_allows('tax_rate.delete') || _saving) return;
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Delete tax rate?'),
+            content: Text(
+              'Delete ${tax.name}? Existing transactions will not be changed.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ==
+        true;
+    if (confirmed)
+      await _mutate(
+        (api, token) => api.deleteTax(accessToken: token, id: tax.id),
+      );
+  }
+
+  Future<void> _mutate(
+    Future<void> Function(Api api, String token) action,
+  ) async {
+    setState(() => _saving = true);
+    try {
+      await _authorized(action);
+      await _load();
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tax settings updated.')));
+    } catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return PagePad(
       child: ListView(
         children: [
@@ -6569,16 +6757,29 @@ class TaxSettingsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const Surface(
+          Surface(
             child: Text(
-              'Tax rates are managed in EazyERP. To set or remove tax on the current sale, use Edit Order Tax in the POS cart.',
+              _access == null
+                  ? 'Tax rates are synchronized with EazyERP.'
+                  : 'Your EazyERP permissions control which tax rates you can create, edit, or delete.',
             ),
           ),
           const SizedBox(height: 12),
-          if (state.taxes.isEmpty)
+          if (_loading)
+            const Center(child: CircularProgressIndicator())
+          else if (_error != null)
+            Surface(
+              child: Column(
+                children: [
+                  Text(_error.toString()),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            )
+          else if (_taxes.isEmpty)
             const EmptyState('No tax rates are available.')
           else
-            for (final tax in state.taxes)
+            for (final tax in _taxes)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Surface(
@@ -6586,14 +6787,38 @@ class TaxSettingsScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.percent),
                     title: Text(tax.name),
-                    trailing: Text(
-                      '${tax.value ?? 0}%',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    onTap: _allows('tax_rate.update') ? () => _edit(tax) : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${tax.value ?? 0}%',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (_allows('tax_rate.update'))
+                          IconButton(
+                            onPressed: _saving ? null : () => _edit(tax),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                        if (_allows('tax_rate.delete'))
+                          IconButton(
+                            onPressed: _saving ? null : () => _delete(tax),
+                            icon: const Icon(Icons.delete_outline),
+                            color: AppColors.danger,
+                          ),
+                      ],
                     ),
                   ),
                 ),
               ),
           const SizedBox(height: 12),
+          if (_allows('tax_rate.create'))
+            FilledButton.icon(
+              onPressed: _saving ? null : () => _edit(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add tax rate'),
+            ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: () => context.go('/pos'),
             icon: const Icon(Icons.point_of_sale),

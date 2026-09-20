@@ -597,6 +597,36 @@ class Api {
   Future<List<LookupOption>> taxes(String accessToken) =>
       _lookupOptions(ApiEndPoints.taxesUrl, accessToken, 'taxes');
 
+  Future<void> createTax({
+    required String accessToken,
+    required String name,
+    required double amount,
+  }) => _catalogMutation(
+    method: 'POST',
+    url: ApiEndPoints.taxesUrl,
+    accessToken: accessToken,
+    body: {'name': name, 'amount': amount},
+  );
+
+  Future<void> updateTax({
+    required String accessToken,
+    required String id,
+    required String name,
+    required double amount,
+  }) => _catalogMutation(
+    method: 'PATCH',
+    url: ApiEndPoints.taxUrl(id),
+    accessToken: accessToken,
+    body: {'name': name, 'amount': amount},
+  );
+
+  Future<void> deleteTax({required String accessToken, required String id}) =>
+      _catalogMutation(
+        method: 'DELETE',
+        url: ApiEndPoints.taxUrl(id),
+        accessToken: accessToken,
+      );
+
   Future<List<LookupOption>> brands(String accessToken) =>
       _lookupOptions(ApiEndPoints.brandsUrl, accessToken, 'brands');
 
@@ -2069,7 +2099,7 @@ class Api {
                 'product_id': int.parse(line.product.id),
                 'variation_id': int.parse(line.product.variationId),
                 'quantity': line.quantity,
-                'unit_price': line.unitPrice / 100,
+                'unit_price': line.unitPriceExcludingTax / 100,
                 'discount_type': 'fixed',
                 'discount_amount': line.discount / 100,
               },
@@ -2816,6 +2846,7 @@ class Api {
       minimumStock: _number(json['alert_quantity']).floor(),
       variationId: variation['id']?.toString() ?? '',
       taxPercent: _number(productTax['amount']),
+      sellingPriceIncludesTax: true,
       unit: (json['unit'] is Map<String, dynamic>)
           ? (json['unit']['short_name']?.toString() ?? 'pc')
           : 'pc',

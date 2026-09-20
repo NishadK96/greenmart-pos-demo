@@ -68,7 +68,7 @@ class _OfflineApi extends Api {
       'locations': [
         {'id': 1, 'name': 'Main'},
       ],
-      'payment_methods': {'cash': 'Cash'},
+      'payment_methods': {'cash': 'Cash', 'card': 'Card'},
       'taxes': [
         {'id': 4, 'name': 'VAT', 'amount': 15},
       ],
@@ -123,15 +123,28 @@ void main() {
     expect(prepared.ready, isTrue);
     expect(prepared.catalog.products.single.name, 'Coffee');
     expect(prepared.catalog.changesCursor, 1402);
+    expect(
+      prepared.catalog.paymentOptions.map((option) => option.code),
+      containsAll(['cash', 'card', 'credit']),
+    );
 
     final store = firstRun.read(appStoreProvider.notifier);
     store.addToCart(firstRun.read(appStoreProvider).products.single);
     final provisional = await firstRun
         .read(offlinePosControllerProvider.notifier)
-        .queueCurrentSale();
+        .queueCurrentSale(paymentMethod: 'card');
 
     expect(provisional.invoiceNo, startsWith('OFF-'));
     expect(provisional.syncStatus.name, 'pending');
+    final queuedPayload = firstRun
+        .read(offlinePosControllerProvider)
+        .requireValue
+        .queue
+        .single
+        .payload;
+    expect(queuedPayload['payments'], [
+      {'method': 'card', 'amount': provisional.total / 100},
+    ]);
     expect(
       firstRun.read(offlinePosControllerProvider).requireValue.pendingCount,
       1,
@@ -153,5 +166,30 @@ void main() {
     expect(api.syncCalls, 1);
     expect(synchronized.pendingCount, 0);
     expect(synchronized.queue.single.status, 'synchronized');
+  });
+
+  test('offline credit sale omits payments and is stored as due', () async {
+    final container = _container(_OfflineApi());
+    addTearDown(container.dispose);
+    await container.read(offlinePosControllerProvider.future);
+    await container
+        .read(offlinePosControllerProvider.notifier)
+        .prepare(locationId: '1', cashRegisterId: '12');
+    final store = container.read(appStoreProvider.notifier);
+    store.addToCart(container.read(appStoreProvider).products.single);
+
+    final sale = await container
+        .read(offlinePosControllerProvider.notifier)
+        .queueCurrentSale(paymentMethod: 'credit');
+    final payload = container
+        .read(offlinePosControllerProvider)
+        .requireValue
+        .queue
+        .single
+        .payload;
+
+    expect(sale.paymentMethod, 'due');
+    expect(payload['payments'], isEmpty);
+    expect(payload.containsKey('unpaid_balance'), isFalse);
   });
 }

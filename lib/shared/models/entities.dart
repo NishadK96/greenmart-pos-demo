@@ -30,6 +30,7 @@ class Product {
     required this.minimumStock,
     required this.variationId,
     this.taxPercent = 0,
+    this.sellingPriceIncludesTax = false,
     this.unit = 'pc',
     this.active = true,
     this.imageUrl = '',
@@ -51,6 +52,7 @@ class Product {
   final String imageUrl;
   final int purchasePrice, sellingPrice, stock, minimumStock;
   final double taxPercent;
+  final bool sellingPriceIncludesTax;
   final bool active;
   Product copyWith({
     String? name,
@@ -79,6 +81,7 @@ class Product {
     minimumStock: minimumStock ?? this.minimumStock,
     variationId: variationId,
     taxPercent: taxPercent,
+    sellingPriceIncludesTax: sellingPriceIncludesTax,
     unit: unit ?? this.unit,
     unitId: unitId ?? this.unitId,
     taxId: taxId ?? this.taxId,
@@ -387,8 +390,20 @@ class CartLine {
   int get returnUnitPrice => saleUnitPriceIncTax ?? unitPrice;
   int get unitPrice => unitPriceOverride ?? product.sellingPrice;
   int get subtotal => unitPrice * quantity;
-  int get tax => ((subtotal - discount) * product.taxPercent / 100).round();
-  int get total => subtotal - discount + tax;
+  int get taxableAmount => (subtotal - discount).clamp(0, subtotal);
+  int get tax => product.sellingPriceIncludesTax
+      ? (taxableAmount - taxableAmount / (1 + product.taxPercent / 100)).round()
+      : (taxableAmount * product.taxPercent / 100).round();
+  int get total =>
+      product.sellingPriceIncludesTax ? taxableAmount : taxableAmount + tax;
+  int get unitPriceExcludingTax => product.sellingPriceIncludesTax
+      ? (unitPrice / (1 + product.taxPercent / 100)).round()
+      : unitPrice;
+  int get unitTax => product.sellingPriceIncludesTax
+      ? unitPrice - unitPriceExcludingTax
+      : (unitPrice * product.taxPercent / 100).round();
+  int get unitPriceIncludingTax =>
+      product.sellingPriceIncludesTax ? unitPrice : unitPrice + unitTax;
   CartLine copyWith({
     int? quantity,
     int? discount,

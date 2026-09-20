@@ -802,6 +802,9 @@ void main() {
     addTearDown(router.dispose);
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedOutAuthController.new),
+        ],
         child: MaterialApp.router(
           routerConfig: router,
           theme: buildTheme(compact: true),
@@ -1070,6 +1073,9 @@ class _MobileScreenTestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ProviderScope(
+    overrides: [
+      authControllerProvider.overrideWith(_SignedOutAuthController.new),
+    ],
     child: MaterialApp(
       theme: buildTheme(compact: true),
       localizationsDelegates: const [AppLocalizations.delegate],

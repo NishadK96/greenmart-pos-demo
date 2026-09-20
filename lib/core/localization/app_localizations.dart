@@ -71,7 +71,37 @@ const Map<String, String> _ar = {
   'Assign products': 'تعيين المنتجات',
   'Modifier actions': 'إجراءات الإضافات',
   'Modifier group updated.': 'تم تحديث مجموعة الإضافات.',
+  'Modifier group created.': 'تم إنشاء مجموعة الإضافات.',
   'Product assignments updated.': 'تم تحديث تعيينات المنتجات.',
+  'Create modifier groups, configure their rules and assign them to POS products.':
+      'أنشئ مجموعات الإضافات واضبط قواعدها وعيّنها لمنتجات نقطة البيع.',
+  'New group': 'مجموعة جديدة',
+  'Creating modifier groups requires the product.create permission.':
+      'يتطلب إنشاء مجموعات الإضافات صلاحية product.create.',
+  'Account permissions could not be loaded. Refresh and try again.':
+      'تعذر تحميل صلاحيات الحساب. حدّث الصفحة وحاول مرة أخرى.',
+  'No modifier groups are configured.': 'لا توجد مجموعات إضافات مُعدّة.',
+  'Create modifier group': 'إنشاء مجموعة إضافات',
+  'Group name *': 'اسم المجموعة *',
+  'Enter a group name.': 'أدخل اسم المجموعة.',
+  'Group SKU (optional)': 'رمز SKU للمجموعة (اختياري)',
+  'A unique SKU is generated when left blank.':
+      'سيتم إنشاء رمز SKU فريد عند ترك الحقل فارغاً.',
+  'Options': 'الخيارات',
+  'Add option': 'إضافة خيار',
+  'Remove option': 'إزالة الخيار',
+  'Option name *': 'اسم الخيار *',
+  'Enter an option name.': 'أدخل اسم الخيار.',
+  'Option SKU (optional)': 'رمز SKU للخيار (اختياري)',
+  'Price adjustment': 'تعديل السعر',
+  'Option active': 'الخيار نشط',
+  'Create group': 'إنشاء المجموعة',
+  'Maximum selections cannot be below the minimum.':
+      'لا يمكن أن يكون الحد الأقصى للاختيارات أقل من الحد الأدنى.',
+  'A required group must allow at least one selection.':
+      'يجب أن تسمح المجموعة المطلوبة باختيار واحد على الأقل.',
+  'Enter 0 or more.': 'أدخل صفراً أو أكثر.',
+  'Enter a valid price.': 'أدخل سعراً صالحاً.',
   'Selection required': 'الاختيار مطلوب',
   'Active in POS': 'نشط في نقطة البيع',
   'Minimum selections': 'الحد الأدنى للاختيارات',

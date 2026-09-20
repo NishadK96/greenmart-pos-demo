@@ -276,6 +276,62 @@ void main() {
     },
   );
 
+  test('modifier group creation uses connector contract', () async {
+    late http.Request captured;
+    final api = Api(
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"data":{"id":78,"name":"Toppings","is_active":true,'
+          '"is_required":true,"min_selections":1,"max_selections":2,'
+          '"options":[{"variation_id":401,"name":"Cheese",'
+          '"sub_sku":"CHEESE","price_adjustment":5.0}]}}',
+          201,
+        );
+      }),
+    );
+
+    final result = await api.createModifierGroup(
+      accessToken: 'token',
+      name: 'Toppings',
+      sku: 'TOPPINGS-001',
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 2,
+      options: const [
+        (
+          name: 'Cheese',
+          subSku: 'CHEESE',
+          priceAdjustment: 500,
+          isActive: true,
+        ),
+      ],
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/connector/api/modifier-groups');
+    expect(captured.headers['Authorization'], 'Bearer token');
+    expect(jsonDecode(captured.body), {
+      'name': 'Toppings',
+      'sku': 'TOPPINGS-001',
+      'is_active': true,
+      'is_required': true,
+      'min_selections': 1,
+      'max_selections': 2,
+      'options': [
+        {
+          'name': 'Cheese',
+          'sub_sku': 'CHEESE',
+          'price_adjustment': 5.0,
+          'is_active': true,
+        },
+      ],
+    });
+    expect(result.id, '78');
+    expect(result.options.single.variationId, '401');
+    expect(result.options.single.priceAdjustment, 500);
+  });
+
   test('login sends credentials to the backend-managed endpoint', () async {
     final api = Api(
       loginUrl: 'https://example.test/connector/api/login',

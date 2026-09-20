@@ -49,6 +49,25 @@ final restaurantModifierGroupsProvider = FutureProvider.autoDispose((
   }
 });
 
+final restaurantModifierAccessProvider = FutureProvider.autoDispose((
+  ref,
+) async {
+  final token = await ref.watch(authControllerProvider.future);
+  if (token == null || token.isEmpty || token == 'offline-local-session') {
+    throw const ApiException('Modifier settings require an online session.');
+  }
+  final api = ref.read(apiProvider);
+  try {
+    return await api.connectorAccess(token);
+  } on ApiException catch (error) {
+    if (error.statusCode != 401) rethrow;
+    final refreshed = await ref
+        .read(authControllerProvider.notifier)
+        .refreshAccessToken();
+    return api.connectorAccess(refreshed);
+  }
+});
+
 enum _RestaurantView { tables, modifiers, printing }
 
 class RestaurantScreen extends ConsumerStatefulWidget {
@@ -220,6 +239,9 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
           final products = ref.watch(
             appStoreProvider.select((state) => state.products),
           );
+          final access = ref.watch(restaurantModifierAccessProvider);
+          final canCreate =
+              access.asData?.value.allows('product.create') == true;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -227,8 +249,14 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Modifier groups are created in EazyERP. Configure their rules and assign them to POS products here.',
+                      'Create modifier groups, configure their rules and assign them to POS products.',
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: canCreate ? _createGroup : null,
+                    icon: const Icon(Icons.add),
+                    label: const Text('New group'),
                   ),
                   IconButton(
                     tooltip: context.tr('Refresh'),
@@ -239,8 +267,19 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+              if (access.hasError)
+                Text(
+                  'Account permissions could not be loaded. Refresh and try again.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                )
+              else if (access.hasValue && !canCreate)
+                const Text(
+                  'Creating modifier groups requires the product.create permission.',
+                ),
+              if ((access.hasError || (access.hasValue && !canCreate)))
+                const SizedBox(height: 12),
               if (groups.isEmpty)
-                const Text('No modifier groups are configured in EazyERP.'),
+                const Text('No modifier groups are configured.'),
               for (final group in groups)
                 Card(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -286,6 +325,48 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
           );
         },
       );
+
+  Future<void> _createGroup() async {
+    final draft = await showDialog<_ModifierGroupDraft>(
+      context: context,
+      builder: (_) => const _CreateModifierGroupDialog(),
+    );
+    if (draft == null || !mounted) return;
+    try {
+      await ref
+          .read(apiProvider)
+          .createModifierGroup(
+            accessToken: await _token(),
+            name: draft.name,
+            sku: draft.sku,
+            isActive: draft.isActive,
+            isRequired: draft.isRequired,
+            minSelections: draft.minSelections,
+            maxSelections: draft.maxSelections,
+            options: [
+              for (final option in draft.options)
+                (
+                  name: option.name,
+                  subSku: option.subSku,
+                  priceAdjustment: option.priceAdjustment,
+                  isActive: option.isActive,
+                ),
+            ],
+          );
+      ref.invalidate(restaurantModifierGroupsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Modifier group created.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
 
   Future<String> _token() async {
     final token = await ref.read(authControllerProvider.future);
@@ -373,6 +454,342 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
         ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
+  }
+}
+
+class _ModifierGroupDraft {
+  const _ModifierGroupDraft({
+    required this.name,
+    required this.sku,
+    required this.isActive,
+    required this.isRequired,
+    required this.minSelections,
+    required this.maxSelections,
+    required this.options,
+  });
+
+  final String name, sku;
+  final bool isActive, isRequired;
+  final int minSelections;
+  final int? maxSelections;
+  final List<_ModifierOptionDraft> options;
+}
+
+class _ModifierOptionDraft {
+  const _ModifierOptionDraft({
+    required this.name,
+    required this.subSku,
+    required this.priceAdjustment,
+    required this.isActive,
+  });
+
+  final String name, subSku;
+  final int priceAdjustment;
+  final bool isActive;
+}
+
+class _EditableModifierOption {
+  _EditableModifierOption();
+
+  final name = TextEditingController();
+  final subSku = TextEditingController();
+  final price = TextEditingController(text: '0.00');
+  bool isActive = true;
+
+  void dispose() {
+    name.dispose();
+    subSku.dispose();
+    price.dispose();
+  }
+}
+
+class _CreateModifierGroupDialog extends StatefulWidget {
+  const _CreateModifierGroupDialog();
+
+  @override
+  State<_CreateModifierGroupDialog> createState() =>
+      _CreateModifierGroupDialogState();
+}
+
+class _CreateModifierGroupDialogState
+    extends State<_CreateModifierGroupDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _sku = TextEditingController();
+  final _minimum = TextEditingController(text: '0');
+  final _maximum = TextEditingController();
+  final List<_EditableModifierOption> _options = [_EditableModifierOption()];
+  bool _active = true;
+  bool _required = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _sku.dispose();
+    _minimum.dispose();
+    _maximum.dispose();
+    for (final option in _options) {
+      option.dispose();
+    }
+    super.dispose();
+  }
+
+  int? _wholeNumber(String value) => int.tryParse(value.trim());
+
+  int? _money(String value) {
+    final amount = double.tryParse(value.trim());
+    return amount == null ? null : (amount * 100).round();
+  }
+
+  void _addOption() => setState(() => _options.add(_EditableModifierOption()));
+
+  void _removeOption(int index) {
+    if (_options.length == 1) return;
+    final removed = _options.removeAt(index);
+    removed.dispose();
+    setState(() {});
+  }
+
+  void _submit() {
+    if (_formKey.currentState?.validate() != true) return;
+    final min = _wholeNumber(_minimum.text) ?? 0;
+    final max = _maximum.text.trim().isEmpty
+        ? null
+        : _wholeNumber(_maximum.text);
+    if (max != null && max < min) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Maximum selections cannot be below the minimum.'),
+        ),
+      );
+      return;
+    }
+    if (_required && max != null && max < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A required group must allow at least one selection.'),
+        ),
+      );
+      return;
+    }
+    final activeOptions = _options.where((option) => option.isActive).length;
+    if (min > activeOptions || (max != null && max > activeOptions)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selection limits must fit the enabled options.'),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).pop(
+      _ModifierGroupDraft(
+        name: _name.text.trim(),
+        sku: _sku.text.trim(),
+        isActive: _active,
+        isRequired: _required,
+        minSelections: min,
+        maxSelections: max,
+        options: [
+          for (final option in _options)
+            _ModifierOptionDraft(
+              name: option.name.text.trim(),
+              subSku: option.subSku.text.trim(),
+              priceAdjustment: _money(option.price.text) ?? 0,
+              isActive: option.isActive,
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Create modifier group'),
+    content: SizedBox(
+      width: 620,
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _name,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Group name *'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter a group name.'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _sku,
+                decoration: const InputDecoration(
+                  labelText: 'Group SKU (optional)',
+                  helperText: 'A unique SKU is generated when left blank.',
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Active in POS'),
+                value: _active,
+                onChanged: (value) => setState(() => _active = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Selection required'),
+                value: _required,
+                onChanged: (value) => setState(() {
+                  _required = value;
+                  if (value && (_wholeNumber(_minimum.text) ?? 0) == 0) {
+                    _minimum.text = '1';
+                  }
+                }),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _minimum,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Minimum selections',
+                      ),
+                      validator: (value) {
+                        final number = _wholeNumber(value ?? '');
+                        return number == null || number < 0
+                            ? 'Enter 0 or more.'
+                            : null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _maximum,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Maximum selections',
+                        hintText: 'No limit',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final number = _wholeNumber(value);
+                        return number == null || number < 0
+                            ? 'Enter 0 or more.'
+                            : null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Options',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _addOption,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add option'),
+                  ),
+                ],
+              ),
+              for (var index = 0; index < _options.length; index++)
+                _optionCard(index),
+            ],
+          ),
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Create group')),
+    ],
+  );
+
+  Widget _optionCard(int index) {
+    final option = _options[index];
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Option ${index + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Remove option',
+                  onPressed: _options.length == 1
+                      ? null
+                      : () => _removeOption(index),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+            TextFormField(
+              controller: option.name,
+              decoration: const InputDecoration(labelText: 'Option name *'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter an option name.'
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: option.subSku,
+                    decoration: const InputDecoration(
+                      labelText: 'Option SKU (optional)',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: option.price,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Price adjustment',
+                    ),
+                    validator: (value) {
+                      final amount = _money(value ?? '');
+                      return amount == null || amount < 0
+                          ? 'Enter a valid price.'
+                          : null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Option active'),
+              value: option.isActive,
+              onChanged: (value) => setState(() => option.isActive = value),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

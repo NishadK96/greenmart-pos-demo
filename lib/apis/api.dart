@@ -1671,6 +1671,51 @@ class Api {
     ),
   );
 
+  Future<ModifierGroup> createModifierGroup({
+    required String accessToken,
+    required String name,
+    String sku = '',
+    bool isActive = true,
+    bool isRequired = false,
+    int minSelections = 0,
+    int? maxSelections,
+    required List<
+      ({String name, String subSku, int priceAdjustment, bool isActive})
+    >
+    options,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.modifierGroupsUrl),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({
+            'name': name.trim(),
+            if (sku.trim().isNotEmpty) 'sku': sku.trim(),
+            'is_active': isActive,
+            'is_required': isRequired,
+            'min_selections': minSelections,
+            'max_selections': maxSelections,
+            'options': [
+              for (final option in options)
+                {
+                  'name': option.name.trim(),
+                  if (option.subSku.trim().isNotEmpty)
+                    'sub_sku': option.subSku.trim(),
+                  'price_adjustment': option.priceAdjustment / 100,
+                  'is_active': option.isActive,
+                },
+            ],
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'modifier group creation');
+    final groups = _modifierGroupsFromJson([root['data'] ?? root]);
+    if (groups.isEmpty) {
+      throw const ApiException('Invalid modifier group response.');
+    }
+    return groups.single;
+  }
+
   Future<ModifierGroup> updateModifierGroup({
     required String accessToken,
     required ModifierGroup group,

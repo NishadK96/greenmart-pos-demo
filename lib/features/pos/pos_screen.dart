@@ -11,6 +11,7 @@ import '../../core/utils/money.dart';
 import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../../shared/widgets/product_card_style_picker.dart';
+import '../../shared/widgets/modifier_selection_dialog.dart';
 import '../../shared/widgets/document_preview_actions.dart';
 import '../backend/presentation/backend_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
@@ -355,7 +356,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
     final selectedId = ref.read(_posCartKeyboardProvider).selectedProductId;
     final selected = state.cart
-        .where((line) => line.product.id == selectedId)
+        .where((line) => line.lineId == selectedId)
         .firstOrNull;
     _showUnitPriceEditor(context, ref, selected ?? state.cart.last);
   }
@@ -406,13 +407,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final keyboard = ref.read(_posCartKeyboardProvider.notifier);
     if (keyboardState.paySelected) return KeyEventResult.handled;
     var selectedIndex = visualLines.indexWhere(
-      (line) => line.product.id == keyboardState.selectedProductId,
+      (line) => line.lineId == keyboardState.selectedProductId,
     );
     if (selectedIndex < 0) selectedIndex = 0;
     if (selectedIndex == visualLines.length - 1) {
       keyboard.selectPay();
     } else {
-      keyboard.select(visualLines[selectedIndex + 1].product.id);
+      keyboard.select(visualLines[selectedIndex + 1].lineId);
     }
     return KeyEventResult.handled;
   }
@@ -1115,21 +1116,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     ),
   );
 
-  void _addProduct(Product product) {
+  Future<void> _addProduct(Product product) async {
+    final modifiers = await selectProductModifiers(context, product);
+    if (modifiers == null || !mounted) return;
+    final lineId = CartLine(product: product, modifiers: modifiers).lineId;
     final previousQuantity = ref
         .read(appStoreProvider)
         .cart
-        .where((line) => line.product.id == product.id)
+        .where((line) => line.lineId == lineId)
         .fold<double>(0, (total, line) => total + line.quantity);
-    ref.read(appStoreProvider.notifier).addToCart(product);
+    ref
+        .read(appStoreProvider.notifier)
+        .addToCart(product, modifiers: modifiers);
     final updatedQuantity = ref
         .read(appStoreProvider)
         .cart
-        .where((line) => line.product.id == product.id)
+        .where((line) => line.lineId == lineId)
         .fold<double>(0, (total, line) => total + line.quantity);
     if (updatedQuantity <= previousQuantity) return;
     _searchController.clear();
-    ref.read(_posCartKeyboardProvider.notifier).select(product.id);
+    ref.read(_posCartKeyboardProvider.notifier).select(lineId);
     setState(() {
       _query = '';
       _recent.remove(product.id);
@@ -2282,7 +2288,7 @@ Future<void> _showUnitPriceEditor(
   if (amount == null) return;
   ref
       .read(appStoreProvider.notifier)
-      .unitPrice(line.product.id, amount < 0 ? null : amount);
+      .unitPrice(line.lineId, amount < 0 ? null : amount);
 }
 
 Future<void> _showGrossDiscountEditor(
@@ -2435,15 +2441,18 @@ class _CurrentOrder extends ConsumerWidget {
     }
     final mobile = MediaQuery.sizeOf(context).width < 700;
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
-    final lineHeight = compactHeight ? 86.0 : 92.0;
+    final hasModifiers = state.cart.any((line) => line.modifiers.isNotEmpty);
+    final lineHeight = hasModifiers
+        ? (compactHeight ? 102.0 : 108.0)
+        : (compactHeight ? 86.0 : 92.0);
     final separatorHeight = compactHeight ? 5.0 : 6.0;
     final visualLines = state.cart.reversed.toList(growable: false);
     final selectedProductId =
         visualLines.any(
-          (line) => line.product.id == keyboardState.selectedProductId,
+          (line) => line.lineId == keyboardState.selectedProductId,
         )
         ? keyboardState.selectedProductId
-        : visualLines.firstOrNull?.product.id;
+        : visualLines.firstOrNull?.lineId;
     if (selectedProductId != keyboardState.selectedProductId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
@@ -2512,10 +2521,9 @@ class _CurrentOrder extends ConsumerWidget {
                           itemBuilder: (_, index) {
                             final line =
                                 state.cart[state.cart.length - 1 - index];
-                            final selected =
-                                line.product.id == selectedProductId;
+                            final selected = line.lineId == selectedProductId;
                             return KeyedSubtree(
-                              key: ValueKey('cart-line-${line.product.id}'),
+                              key: ValueKey('cart-line-${line.lineId}'),
                               child: Builder(
                                 builder: (lineContext) {
                                   if (selected) {
@@ -2596,7 +2604,7 @@ class _CurrentOrder extends ConsumerWidget {
         ref.read(_posCartKeyboardProvider).selectedProductId ??
         selectedProductId;
     var selectedIndex = visualLines.indexWhere(
-      (line) => line.product.id == liveSelectedProductId,
+      (line) => line.lineId == liveSelectedProductId,
     );
     if (selectedIndex < 0) selectedIndex = 0;
     final selectedLine = visualLines[selectedIndex];
@@ -2604,7 +2612,7 @@ class _CurrentOrder extends ConsumerWidget {
 
     if (paySelected) {
       if (key == LogicalKeyboardKey.arrowUp) {
-        keyboard.select(visualLines.last.product.id);
+        keyboard.select(visualLines.last.lineId);
         return KeyEventResult.handled;
       }
       if (key == LogicalKeyboardKey.arrowDown) {
@@ -2626,23 +2634,21 @@ class _CurrentOrder extends ConsumerWidget {
         return KeyEventResult.handled;
       }
       final next = (selectedIndex + delta).clamp(0, visualLines.length - 1);
-      keyboard.select(visualLines[next].product.id);
+      keyboard.select(visualLines[next].lineId);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.add ||
         key == LogicalKeyboardKey.numpadAdd ||
         key == LogicalKeyboardKey.equal) {
       keyboard.clearQuantity();
-      ref.read(appStoreProvider.notifier).quantity(selectedLine.product.id, 1);
+      ref.read(appStoreProvider.notifier).quantity(selectedLine.lineId, 1);
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.minus ||
         key == LogicalKeyboardKey.numpadSubtract) {
       keyboard.clearQuantity();
       if (selectedLine.quantity > 1) {
-        ref
-            .read(appStoreProvider.notifier)
-            .quantity(selectedLine.product.id, -1);
+        ref.read(appStoreProvider.notifier).quantity(selectedLine.lineId, -1);
       } else {
         _confirmRemoveLine(context, ref, selectedLine);
       }
@@ -2688,10 +2694,7 @@ class _CurrentOrder extends ConsumerWidget {
         }
         ref
             .read(appStoreProvider.notifier)
-            .quantity(
-              selectedLine.product.id,
-              requested - selectedLine.quantity,
-            );
+            .quantity(selectedLine.lineId, requested - selectedLine.quantity);
       } else {
         _openKeyboardLineActions(context, ref, selectedLine);
       }
@@ -2775,7 +2778,7 @@ class _CurrentOrder extends ConsumerWidget {
       ),
     );
     if (remove == true) {
-      ref.read(appStoreProvider.notifier).remove(line.product.id);
+      ref.read(appStoreProvider.notifier).remove(line.lineId);
     }
   }
 
@@ -2848,7 +2851,7 @@ class _CurrentOrder extends ConsumerWidget {
     required String quantityBuffer,
   }) => MouseRegion(
     onEnter: (_) =>
-        ref.read(_posCartKeyboardProvider.notifier).select(line.product.id),
+        ref.read(_posCartKeyboardProvider.notifier).select(line.lineId),
     child: Semantics(
       selected: selected,
       label:
@@ -2904,6 +2907,19 @@ class _CurrentOrder extends ConsumerWidget {
                                 fontSize: 13,
                               ),
                             ),
+                            if (line.modifiers.isNotEmpty)
+                              Text(
+                                line.modifiers
+                                    .map((modifier) => modifier.name)
+                                    .join(' • '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             const SizedBox(height: 1),
                             InkWell(
                               onTap: () => _discount(context, ref, line),
@@ -2940,7 +2956,7 @@ class _CurrentOrder extends ConsumerWidget {
                         ),
                         onPressed: () => ref
                             .read(appStoreProvider.notifier)
-                            .remove(line.product.id),
+                            .remove(line.lineId),
                         icon: const Icon(
                           Icons.close_rounded,
                           color: AppColors.danger,
@@ -3034,7 +3050,7 @@ class _CurrentOrder extends ConsumerWidget {
                             Icons.remove_rounded,
                             () => ref
                                 .read(appStoreProvider.notifier)
-                                .quantity(line.product.id, -1),
+                                .quantity(line.lineId, -1),
                           ),
                           SizedBox(
                             width: 28,
@@ -3055,7 +3071,7 @@ class _CurrentOrder extends ConsumerWidget {
                             Icons.add_rounded,
                             () => ref
                                 .read(appStoreProvider.notifier)
-                                .quantity(line.product.id, 1),
+                                .quantity(line.lineId, 1),
                           ),
                         ],
                       ),
@@ -3820,7 +3836,7 @@ class _CurrentOrder extends ConsumerWidget {
     );
     Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
     if (amount != null)
-      ref.read(appStoreProvider.notifier).discount(line.product.id, amount);
+      ref.read(appStoreProvider.notifier).discount(line.lineId, amount);
   }
 
   void _note(BuildContext context) {

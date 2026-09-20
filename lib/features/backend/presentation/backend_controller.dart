@@ -355,7 +355,8 @@ class BackendController extends AsyncNotifier<void> {
     state.orderTaxId,
     for (final line in state.cart)
       '${line.product.id}:${line.product.variationId}:${line.quantity}:'
-          '${line.unitPrice}:${line.discount}',
+          '${line.unitPrice}:${line.discount}:'
+          '${line.modifiers.map((modifier) => modifier.signature).join(',')}',
   ].join('|');
 
   String _uuidV4() {

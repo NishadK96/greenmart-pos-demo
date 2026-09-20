@@ -301,6 +301,16 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
             'cached_price': {
               'unit_price_inc_tax': line.unitPriceIncludingTax / 100,
             },
+            if (line.modifiers.isNotEmpty)
+              'modifiers': [
+                for (final modifier in line.modifiers)
+                  {
+                    'modifier_group_id': int.parse(modifier.modifierGroupId),
+                    'variation_id': int.parse(modifier.variationId),
+                    'quantity': modifier.quantity,
+                    'unit_price_inc_tax': modifier.unitPrice / 100,
+                  },
+              ],
           },
       ],
       'payments': paymentMethod == 'due'
@@ -421,7 +431,50 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       taxId: taxId,
       active: true,
       imageUrl: existing?.imageUrl ?? '',
+      nameEn: existing?.nameEn ?? '',
+      nameAr: existing?.nameAr ?? '',
+      modifierGroups: _modifierGroups(item['modifier_groups']),
     );
+  }
+
+  List<ModifierGroup> _modifierGroups(dynamic value) => _items(value)
+      .map(
+        (group) => ModifierGroup(
+          id: '${group['id'] ?? ''}',
+          name: '${group['name'] ?? ''}',
+          isActive: _flag(group['is_active'], fallback: true),
+          isRequired: _flag(group['is_required']),
+          minSelections: _number(group['min_selections']).round(),
+          maxSelections: group['max_selections'] == null
+              ? null
+              : _number(group['max_selections']).round(),
+          options: _items(group['options'])
+              .map(
+                (option) => ModifierOption(
+                  variationId: '${option['variation_id'] ?? ''}',
+                  name: '${option['name'] ?? ''}',
+                  subSku: '${option['sub_sku'] ?? ''}',
+                  isActive: _flag(option['is_active'], fallback: true),
+                  isAvailable: _flag(option['is_available'], fallback: true),
+                  priceAdjustment: (_number(option['price_adjustment']) * 100)
+                      .round(),
+                  priceIncludesTax: _flag(
+                    option['price_includes_tax'],
+                    fallback: true,
+                  ),
+                ),
+              )
+              .toList(growable: false),
+        ),
+      )
+      .where((group) => group.id.isNotEmpty)
+      .toList(growable: false);
+
+  bool _flag(dynamic value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return const {'true', '1', 'yes'}.contains(value.toString().toLowerCase());
   }
 
   Customer _customer(Map<String, dynamic> item) => Customer(

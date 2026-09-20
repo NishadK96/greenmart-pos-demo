@@ -1658,6 +1658,67 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<ModifierGroup>> modifierGroups(
+    String accessToken, {
+    bool activeOnly = false,
+  }) async => _modifierGroupsFromJson(
+    await _getDataList(
+      Uri.parse(
+        ApiEndPoints.modifierGroupsUrl,
+      ).replace(queryParameters: {'active_only': activeOnly ? '1' : '0'}),
+      accessToken,
+      'modifier groups',
+    ),
+  );
+
+  Future<ModifierGroup> updateModifierGroup({
+    required String accessToken,
+    required ModifierGroup group,
+  }) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.modifierGroupUrl(group.id)),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({
+            'is_required': group.isRequired,
+            'min_selections': group.minSelections,
+            'max_selections': group.maxSelections,
+            'is_active': group.isActive,
+            'options': [
+              for (final option in group.options)
+                {
+                  'variation_id': int.parse(option.variationId),
+                  'is_active': option.isActive,
+                },
+            ],
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'modifier group update');
+    final groups = _modifierGroupsFromJson([root['data'] ?? root]);
+    if (groups.isEmpty) {
+      throw const ApiException('Invalid modifier group response.');
+    }
+    return groups.single;
+  }
+
+  Future<void> assignProductModifierGroups({
+    required String accessToken,
+    required String productId,
+    required List<String> modifierGroupIds,
+  }) async {
+    final response = await _client
+        .put(
+          Uri.parse(ApiEndPoints.productModifierGroupsUrl(productId)),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({
+            'modifier_group_ids': modifierGroupIds.map(int.parse).toList(),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'product modifier assignment');
+  }
+
   Future<ConnectorAccess> connectorAccess(String accessToken) async {
     final data = await _getDataObject(
       Uri.parse(ApiEndPoints.authContextUrl),
@@ -2102,6 +2163,18 @@ class Api {
                 'unit_price': line.unitPriceExcludingTax / 100,
                 'discount_type': 'fixed',
                 'discount_amount': line.discount / 100,
+                if (line.modifiers.isNotEmpty)
+                  'modifiers': [
+                    for (final modifier in line.modifiers)
+                      {
+                        'modifier_group_id': int.parse(
+                          modifier.modifierGroupId,
+                        ),
+                        'variation_id': int.parse(modifier.variationId),
+                        'quantity': modifier.quantity,
+                        'unit_price_inc_tax': modifier.unitPrice / 100,
+                      },
+                  ],
               },
           ],
           if (!isCreditSale && !isKitchenOrder)
@@ -2857,7 +2930,77 @@ class Api {
       taxId: productTax['id']?.toString() ?? json['tax']?.toString() ?? '',
       active: json['is_inactive'] != 1,
       imageUrl: json['image_url']?.toString() ?? '',
+      modifierGroups: _modifierGroupsFromJson(json['modifier_groups']),
     );
+  }
+
+  List<ModifierGroup> _modifierGroupsFromJson(dynamic value) =>
+      (value as List? ?? const [])
+          .whereType<Map>()
+          .map((raw) {
+            final group = Map<String, dynamic>.from(raw);
+            final maximum = group['max_selections'];
+            return ModifierGroup(
+              id: group['id']?.toString() ?? '',
+              name: group['name']?.toString() ?? '',
+              isActive: _bool(group['is_active'], fallback: true),
+              isRequired: _bool(group['is_required']),
+              minSelections: _number(group['min_selections']).round(),
+              maxSelections: maximum == null ? null : _number(maximum).round(),
+              options: (group['options'] as List? ?? const [])
+                  .whereType<Map>()
+                  .map((rawOption) {
+                    final option = Map<String, dynamic>.from(rawOption);
+                    return ModifierOption(
+                      variationId: option['variation_id']?.toString() ?? '',
+                      name: option['name']?.toString() ?? '',
+                      subSku: option['sub_sku']?.toString() ?? '',
+                      isActive: _bool(option['is_active'], fallback: true),
+                      isAvailable: _bool(
+                        option['is_available'],
+                        fallback: true,
+                      ),
+                      priceAdjustment: _money(option['price_adjustment']),
+                      priceIncludesTax: _bool(
+                        option['price_includes_tax'],
+                        fallback: true,
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
+            );
+          })
+          .where((group) => group.id.isNotEmpty)
+          .toList(growable: false);
+
+  List<SelectedModifier> _selectedModifiersFromJson(dynamic value) =>
+      (value as List? ?? const [])
+          .whereType<Map>()
+          .map((raw) {
+            final item = Map<String, dynamic>.from(raw);
+            return SelectedModifier(
+              modifierGroupId:
+                  (item['modifier_group_id'] ?? item['modifier_set_id'])
+                      ?.toString() ??
+                  '',
+              modifierGroupName: item['modifier_group_name']?.toString() ?? '',
+              variationId: item['variation_id']?.toString() ?? '',
+              name: (item['name'] ?? item['variation'])?.toString() ?? '',
+              quantity: _number(item['quantity']).round().clamp(1, 999999),
+              unitPrice: _money(
+                item['unit_price_inc_tax'] ?? item['price_adjustment'],
+              ),
+              sellLineId: item['sell_line_id']?.toString(),
+            );
+          })
+          .where((item) => item.variationId.isNotEmpty)
+          .toList(growable: false);
+
+  bool _bool(dynamic value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    return const {'true', '1', 'yes'}.contains(value.toString().toLowerCase());
   }
 
   double _number(dynamic value) =>
@@ -2922,6 +3065,11 @@ class Api {
   ) {
     final lines = (json['sell_lines'] as List? ?? const [])
         .whereType<Map<String, dynamic>>()
+        .where(
+          (line) =>
+              line['parent_sell_line_id'] == null &&
+              line['children_type']?.toString() != 'modifier',
+        )
         .map((line) {
           final product = products[line['product_id'].toString()];
           if (product == null) return null;
@@ -2934,6 +3082,7 @@ class Api {
             saleUnitPriceIncTax: line['unit_price_inc_tax'] == null
                 ? null
                 : _money(line['unit_price_inc_tax']),
+            modifiers: _selectedModifiersFromJson(line['modifiers']),
           );
         })
         .whereType<CartLine>()

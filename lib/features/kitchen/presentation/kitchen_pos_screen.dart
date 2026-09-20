@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/product_card_style_picker.dart';
+import '../../../shared/widgets/modifier_selection_dialog.dart';
 import '../../../shared/widgets/ui.dart' show ProductImage;
 import '../../store/app_store.dart';
 import 'kitchen_printing_controller.dart';
@@ -66,13 +67,17 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         .toList(growable: false);
   }
 
-  void _add(Product product) {
+  Future<void> _add(Product product) async {
     if (_orderLocked) return;
+    final modifiers = await selectProductModifiers(context, product);
+    if (modifiers == null || !mounted || _orderLocked) return;
+    final lineId = CartLine(product: product, modifiers: modifiers).lineId;
     setState(() {
-      final old = _lines[product.id];
-      _lines[product.id] = CartLine(
+      final old = _lines[lineId];
+      _lines[lineId] = CartLine(
         product: product,
         quantity: (old?.quantity ?? 0) + _addQuantity,
+        modifiers: modifiers,
       );
       _search.clear();
     });
@@ -84,9 +89,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     setState(() {
       final next = line.quantity + delta;
       if (next <= 0) {
-        _lines.remove(line.product.id);
+        _lines.remove(line.lineId);
       } else {
-        _lines[line.product.id] = line.copyWith(quantity: next);
+        _lines[line.lineId] = line.copyWith(quantity: next);
       }
     });
   }
@@ -105,8 +110,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (held == null) return;
     setState(() {
       for (final line in held) {
-        final old = _lines[line.product.id];
-        _lines[line.product.id] = old == null
+        final old = _lines[line.lineId];
+        _lines[line.lineId] = old == null
             ? line
             : old.copyWith(quantity: old.quantity + line.quantity);
       }
@@ -1004,6 +1009,18 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     RiyalAmount(line.subtotal),
+                    if (line.modifiers.isNotEmpty)
+                      Text(
+                        line.modifiers
+                            .map((modifier) => modifier.name)
+                            .join(' • '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 11,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1033,7 +1050,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               const SizedBox(width: 3),
               IconButton(
                 tooltip: 'Remove item',
-                onPressed: () => setState(() => _lines.remove(line.product.id)),
+                onPressed: () => setState(() => _lines.remove(line.lineId)),
                 icon: const Icon(Icons.delete_outline, size: 18),
                 color: AppColors.danger,
                 visualDensity: VisualDensity.compact,

@@ -45,6 +45,42 @@ void main() {
     expect(line.total, 1500);
   });
 
+  test('modifier choices create distinct cart lines and affect totals', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final store = container.read(appStoreProvider.notifier);
+    const product = Product(
+      id: '17',
+      name: 'Burger',
+      sku: 'BURGER',
+      barcode: '17',
+      categoryId: '1',
+      purchasePrice: 1000,
+      sellingPrice: 2500,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '58',
+      sellingPriceIncludesTax: true,
+    );
+    const cheese = SelectedModifier(
+      modifierGroupId: '78',
+      modifierGroupName: 'Toppings',
+      variationId: '401',
+      name: 'Extra cheese',
+      unitPrice: 500,
+    );
+
+    store.addToCart(product, modifiers: const [cheese]);
+    store.addToCart(product, modifiers: const [cheese]);
+    store.addToCart(product);
+
+    final state = container.read(appStoreProvider);
+    expect(state.cart, hasLength(2));
+    expect(state.cart.first.quantity, 2);
+    expect(state.cart.first.total, 6000);
+    expect(state.cartSubtotal, 8500);
+  });
+
   test('order tax is removable and follows held cart lifecycle', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

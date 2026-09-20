@@ -38,6 +38,7 @@ class Product {
     this.taxId = '',
     this.nameEn = '',
     this.nameAr = '',
+    this.modifierGroups = const [],
   });
   final String id,
       name,
@@ -54,6 +55,7 @@ class Product {
   final double taxPercent;
   final bool sellingPriceIncludesTax;
   final bool active;
+  final List<ModifierGroup> modifierGroups;
   Product copyWith({
     String? name,
     String? sku,
@@ -69,6 +71,7 @@ class Product {
     bool? active,
     String? nameEn,
     String? nameAr,
+    List<ModifierGroup>? modifierGroups,
   }) => Product(
     id: id,
     name: name ?? this.name,
@@ -89,6 +92,7 @@ class Product {
     imageUrl: imageUrl ?? this.imageUrl,
     nameEn: nameEn ?? this.nameEn,
     nameAr: nameAr ?? this.nameAr,
+    modifierGroups: modifierGroups ?? this.modifierGroups,
   );
 
   String displayName(bool arabic) {
@@ -96,6 +100,60 @@ class Product {
     if (!arabic && nameEn.trim().isNotEmpty) return nameEn.trim();
     return name;
   }
+}
+
+class ModifierGroup {
+  const ModifierGroup({
+    required this.id,
+    required this.name,
+    this.isActive = true,
+    this.isRequired = false,
+    this.minSelections = 0,
+    this.maxSelections,
+    this.options = const [],
+  });
+
+  final String id, name;
+  final bool isActive, isRequired;
+  final int minSelections;
+  final int? maxSelections;
+  final List<ModifierOption> options;
+}
+
+class ModifierOption {
+  const ModifierOption({
+    required this.variationId,
+    required this.name,
+    this.subSku = '',
+    this.isActive = true,
+    this.isAvailable = true,
+    this.priceAdjustment = 0,
+    this.priceIncludesTax = true,
+  });
+
+  final String variationId, name, subSku;
+  final bool isActive, isAvailable, priceIncludesTax;
+  final int priceAdjustment;
+}
+
+class SelectedModifier {
+  const SelectedModifier({
+    required this.modifierGroupId,
+    required this.modifierGroupName,
+    required this.variationId,
+    required this.name,
+    this.quantity = 1,
+    this.unitPrice = 0,
+    this.priceIncludesTax = true,
+    this.sellLineId,
+  });
+
+  final String modifierGroupId, modifierGroupName, variationId, name;
+  final int quantity, unitPrice;
+  final bool priceIncludesTax;
+  final String? sellLineId;
+
+  String get signature => '$modifierGroupId:$variationId:$quantity';
 }
 
 class LookupOption {
@@ -378,6 +436,7 @@ class CartLine {
     this.sellLineId,
     this.quantityReturned = 0,
     this.saleUnitPriceIncTax,
+    this.modifiers = const [],
   });
   final Product product;
   final int quantity, discount;
@@ -385,11 +444,42 @@ class CartLine {
   final String? sellLineId;
   final int quantityReturned;
   final int? saleUnitPriceIncTax;
+  final List<SelectedModifier> modifiers;
+  String get lineId {
+    if (modifiers.isEmpty) return product.id;
+    final signature = modifiers.map((item) => item.signature).toList()..sort();
+    return '${product.id}|${signature.join('|')}';
+  }
+
+  int get modifierUnitTotalIncludingTax => modifiers.fold(
+    0,
+    (total, item) =>
+        total +
+        (item.priceIncludesTax
+                ? item.unitPrice
+                : item.unitPrice +
+                      (item.unitPrice * product.taxPercent / 100).round()) *
+            item.quantity,
+  );
+  int get modifierUnitTotalExcludingTax => modifiers.fold(
+    0,
+    (total, item) =>
+        total +
+        (item.priceIncludesTax
+                ? (item.unitPrice / (1 + product.taxPercent / 100)).round()
+                : item.unitPrice) *
+            item.quantity,
+  );
   int get returnableQuantity =>
       (quantity - quantityReturned).clamp(0, quantity);
   int get returnUnitPrice => saleUnitPriceIncTax ?? unitPrice;
   int get unitPrice => unitPriceOverride ?? product.sellingPrice;
-  int get subtotal => unitPrice * quantity;
+  int get subtotal =>
+      (unitPrice +
+          (product.sellingPriceIncludesTax
+              ? modifierUnitTotalIncludingTax
+              : modifierUnitTotalExcludingTax)) *
+      quantity;
   int get taxableAmount => (subtotal - discount).clamp(0, subtotal);
   int get tax => product.sellingPriceIncludesTax
       ? (taxableAmount - taxableAmount / (1 + product.taxPercent / 100)).round()
@@ -410,6 +500,7 @@ class CartLine {
     int? unitPriceOverride,
     bool clearUnitPriceOverride = false,
     int? quantityReturned,
+    List<SelectedModifier>? modifiers,
   }) => CartLine(
     product: product,
     quantity: quantity ?? this.quantity,
@@ -420,6 +511,7 @@ class CartLine {
     sellLineId: sellLineId,
     quantityReturned: quantityReturned ?? this.quantityReturned,
     saleUnitPriceIncTax: saleUnitPriceIncTax,
+    modifiers: modifiers ?? this.modifiers,
   );
 }
 

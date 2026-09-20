@@ -63,6 +63,30 @@ extension LocalizationBuildContext on BuildContext {
 }
 
 const Map<String, String> _ar = {
+  'Choose modifiers': 'اختر الإضافات',
+  'Included': 'مشمول',
+  'No options are currently available.': 'لا توجد خيارات متاحة حالياً.',
+  'Modifiers': 'الإضافات',
+  'Configure': 'إعداد',
+  'Assign products': 'تعيين المنتجات',
+  'Modifier actions': 'إجراءات الإضافات',
+  'Modifier group updated.': 'تم تحديث مجموعة الإضافات.',
+  'Product assignments updated.': 'تم تحديث تعيينات المنتجات.',
+  'Selection required': 'الاختيار مطلوب',
+  'Active in POS': 'نشط في نقطة البيع',
+  'Minimum selections': 'الحد الأدنى للاختيارات',
+  'Maximum selections': 'الحد الأقصى للاختيارات',
+  'No limit': 'بلا حد',
+  'Available options': 'الخيارات المتاحة',
+  'Selection limits must fit the enabled options.':
+      'يجب أن تتوافق حدود الاختيار مع الخيارات المفعلة.',
+  'Save assignments': 'حفظ التعيينات',
+  'Modifier settings require an online session.':
+      'تتطلب إعدادات الإضافات اتصالاً بالإنترنت.',
+  'Modifier groups are created in EazyERP. Configure their rules and assign them to POS products here.':
+      'يتم إنشاء مجموعات الإضافات في إيزي ERP. اضبط قواعدها وعيّنها لمنتجات نقطة البيع هنا.',
+  'No modifier groups are configured in EazyERP.':
+      'لا توجد مجموعات إضافات مُعدّة في إيزي ERP.',
   'Edit Order Tax': 'تعديل ضريبة الطلب',
   'Order tax': 'ضريبة الطلب',
   'No order tax': 'بدون ضريبة طلب',

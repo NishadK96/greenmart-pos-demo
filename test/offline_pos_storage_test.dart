@@ -36,6 +36,22 @@ void main() {
             variationId: '91',
             taxPercent: 15,
             taxId: '4',
+            modifierGroups: [
+              ModifierGroup(
+                id: '78',
+                name: 'Milk',
+                isRequired: true,
+                minSelections: 1,
+                maxSelections: 1,
+                options: [
+                  ModifierOption(
+                    variationId: '401',
+                    name: 'Oat milk',
+                    priceAdjustment: 250,
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
         customers: const [Customer(id: '25', name: 'Walk-in Customer')],
@@ -65,6 +81,30 @@ void main() {
     expect(restored.context?.active, isTrue);
     expect(restored.catalog.products.single.name, 'Coffee');
     expect(restored.catalog.products.single.sellingPrice, 1150);
+    expect(
+      restored
+          .catalog
+          .products
+          .single
+          .modifierGroups
+          .single
+          .options
+          .single
+          .name,
+      'Oat milk',
+    );
+    expect(
+      restored
+          .catalog
+          .products
+          .single
+          .modifierGroups
+          .single
+          .options
+          .single
+          .priceAdjustment,
+      250,
+    );
     expect(restored.catalog.customers.single.id, '25');
     expect(restored.catalog.changesCursor, 1402);
     expect(restored.catalog.allowOverselling, isTrue);

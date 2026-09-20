@@ -103,6 +103,31 @@ class OfflinePosStorage {
             'tax_id': product.taxId,
             'active': product.active,
             'image_url': product.imageUrl,
+            'modifier_groups': product.modifierGroups
+                .map(
+                  (group) => {
+                    'id': group.id,
+                    'name': group.name,
+                    'is_active': group.isActive,
+                    'is_required': group.isRequired,
+                    'min_selections': group.minSelections,
+                    'max_selections': group.maxSelections,
+                    'options': group.options
+                        .map(
+                          (option) => {
+                            'variation_id': option.variationId,
+                            'name': option.name,
+                            'sub_sku': option.subSku,
+                            'is_active': option.isActive,
+                            'is_available': option.isAvailable,
+                            'price_adjustment': option.priceAdjustment,
+                            'price_includes_tax': option.priceIncludesTax,
+                          },
+                        )
+                        .toList(),
+                  },
+                )
+                .toList(),
           },
         )
         .toList(),
@@ -165,6 +190,39 @@ class OfflinePosStorage {
             taxId: '${item['tax_id'] ?? ''}',
             active: item['active'] != false,
             imageUrl: '${item['image_url'] ?? ''}',
+            modifierGroups: (item['modifier_groups'] as List? ?? const [])
+                .whereType<Map>()
+                .map((rawGroup) {
+                  final group = Map<String, dynamic>.from(rawGroup);
+                  return ModifierGroup(
+                    id: '${group['id'] ?? ''}',
+                    name: '${group['name'] ?? ''}',
+                    isActive: group['is_active'] != false,
+                    isRequired: group['is_required'] == true,
+                    minSelections:
+                        (group['min_selections'] as num?)?.toInt() ?? 0,
+                    maxSelections: (group['max_selections'] as num?)?.toInt(),
+                    options: (group['options'] as List? ?? const [])
+                        .whereType<Map>()
+                        .map((rawOption) {
+                          final option = Map<String, dynamic>.from(rawOption);
+                          return ModifierOption(
+                            variationId: '${option['variation_id'] ?? ''}',
+                            name: '${option['name'] ?? ''}',
+                            subSku: '${option['sub_sku'] ?? ''}',
+                            isActive: option['is_active'] != false,
+                            isAvailable: option['is_available'] != false,
+                            priceAdjustment:
+                                (option['price_adjustment'] as num?)?.toInt() ??
+                                0,
+                            priceIncludesTax:
+                                option['price_includes_tax'] != false,
+                          );
+                        })
+                        .toList(growable: false),
+                  );
+                })
+                .toList(growable: false),
           );
         })
         .toList(growable: false),

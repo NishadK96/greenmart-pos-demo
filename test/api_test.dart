@@ -104,6 +104,178 @@ void main() {
     expect(business.allowOverselling, isTrue);
   });
 
+  test('products map restaurant modifier groups and availability', () async {
+    final api = Api(
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'data': [
+              {
+                'id': 17,
+                'name': 'Burger',
+                'sku': 'BURGER',
+                'product_variations': [
+                  {
+                    'variations': [
+                      {
+                        'id': 58,
+                        'dpp_inc_tax': 10,
+                        'sell_price_inc_tax': 25,
+                        'variation_location_details': [
+                          {'qty_available': 9},
+                        ],
+                      },
+                    ],
+                  },
+                ],
+                'modifier_groups': [
+                  {
+                    'id': 78,
+                    'name': 'Toppings',
+                    'is_required': true,
+                    'min_selections': 1,
+                    'max_selections': 2,
+                    'options': [
+                      {
+                        'variation_id': 401,
+                        'name': 'Extra cheese',
+                        'is_available': true,
+                        'price_adjustment': 5,
+                        'price_includes_tax': true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+
+    final product = (await api.products('token')).single;
+    final group = product.modifierGroups.single;
+    expect(group.name, 'Toppings');
+    expect(group.isRequired, isTrue);
+    expect(group.maxSelections, 2);
+    expect(group.options.single.priceAdjustment, 500);
+  });
+
+  test('create sale sends selected modifiers on the parent line', () async {
+    late Map<String, dynamic> payload;
+    final api = Api(
+      client: MockClient((request) async {
+        payload = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('[{"id":10,"invoice_no":"INV-10"}]', 200);
+      }),
+    );
+    const product = Product(
+      id: '17',
+      variationId: '58',
+      name: 'Burger',
+      sku: 'BURGER',
+      barcode: '17',
+      categoryId: '3',
+      purchasePrice: 1000,
+      sellingPrice: 2500,
+      stock: 9,
+      minimumStock: 1,
+    );
+
+    await api.createSale(
+      accessToken: 'token',
+      locationId: '1',
+      customer: const Customer(id: '4', name: 'Walk-in'),
+      lines: const [
+        CartLine(
+          product: product,
+          modifiers: [
+            SelectedModifier(
+              modifierGroupId: '78',
+              modifierGroupName: 'Toppings',
+              variationId: '401',
+              name: 'Extra cheese',
+              unitPrice: 500,
+            ),
+          ],
+        ),
+      ],
+      paymentMethod: 'cash',
+      total: 3000,
+      grossDiscount: 0,
+      clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a003',
+    );
+
+    final sale = (payload['sells'] as List).single as Map<String, dynamic>;
+    final line = (sale['products'] as List).single as Map<String, dynamic>;
+    expect(line['modifiers'], [
+      {
+        'modifier_group_id': 78,
+        'variation_id': 401,
+        'quantity': 1,
+        'unit_price_inc_tax': 5.0,
+      },
+    ]);
+    expect((sale['payments'] as List).single['amount'], 30.0);
+  });
+
+  test(
+    'modifier settings and product assignments use connector contract',
+    () async {
+      final requests = <http.Request>[];
+      final api = Api(
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'PATCH') {
+            return http.Response(
+              '{"data":{"id":78,"name":"Toppings","is_active":true,'
+              '"is_required":true,"min_selections":1,"max_selections":2,'
+              '"options":[]}}',
+              200,
+            );
+          }
+          return http.Response('{"success":true}', 200);
+        }),
+      );
+      const group = ModifierGroup(
+        id: '78',
+        name: 'Toppings',
+        isRequired: true,
+        minSelections: 1,
+        maxSelections: 2,
+        options: [ModifierOption(variationId: '401', name: 'Cheese')],
+      );
+
+      await api.updateModifierGroup(accessToken: 'token', group: group);
+      await api.assignProductModifierGroups(
+        accessToken: 'token',
+        productId: '17',
+        modifierGroupIds: const ['78'],
+      );
+
+      expect(requests[0].method, 'PATCH');
+      expect(requests[0].url.path, '/connector/api/modifier-groups/78');
+      expect(jsonDecode(requests[0].body), {
+        'is_required': true,
+        'min_selections': 1,
+        'max_selections': 2,
+        'is_active': true,
+        'options': [
+          {'variation_id': 401, 'is_active': true},
+        ],
+      });
+      expect(requests[1].method, 'PUT');
+      expect(
+        requests[1].url.path,
+        '/connector/api/products/17/modifier-groups',
+      );
+      expect(jsonDecode(requests[1].body), {
+        'modifier_group_ids': [78],
+      });
+    },
+  );
+
   test('login sends credentials to the backend-managed endpoint', () async {
     final api = Api(
       loginUrl: 'https://example.test/connector/api/login',

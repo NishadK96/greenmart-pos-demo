@@ -760,7 +760,7 @@ class PrinterDocumentService {
               for (final item in sale.items)
                 pw.TableRow(
                   children: [
-                    item.product.displayName(arabic),
+                    _itemName(item, arabic),
                     item.quantity.toString(),
                     amount(item.unitPrice),
                     amount(item.total),
@@ -891,7 +891,7 @@ class PrinterDocumentService {
     padding: const pw.EdgeInsets.symmetric(vertical: 2),
     child: pw.Row(
       children: [
-        pw.Expanded(child: PdfFonts.text(item.product.displayName(arabic))),
+        pw.Expanded(child: PdfFonts.text(_itemName(item, arabic))),
         pw.SizedBox(width: 8),
         pw.Text('${item.quantity} x ${_money(item.unitPrice)}'),
       ],
@@ -944,10 +944,7 @@ class PrinterDocumentService {
     ),
     child: pw.Row(
       children: [
-        pw.Expanded(
-          flex: 4,
-          child: PdfFonts.text(item.product.displayName(arabic)),
-        ),
+        pw.Expanded(flex: 4, child: PdfFonts.text(_itemName(item, arabic))),
         pw.Expanded(
           child: pw.Text('${item.quantity}', textAlign: pw.TextAlign.center),
         ),
@@ -965,6 +962,17 @@ class PrinterDocumentService {
 
   static String _money(int minorUnits) =>
       'SAR ${(minorUnits / 100).toStringAsFixed(2)}';
+
+  static String _itemName(CartLine item, bool arabic) {
+    final modifiers = item.modifiers
+        .map(
+          (modifier) =>
+              '+ ${modifier.quantity > 1 ? '${modifier.quantity}× ' : ''}${modifier.name}',
+        )
+        .join('\n');
+    final product = item.product.displayName(arabic);
+    return modifiers.isEmpty ? product : '$product\n$modifiers';
+  }
 
   static String _paymentLabel(String method, bool arabic) {
     if (!arabic) return method.toUpperCase();

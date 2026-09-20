@@ -156,11 +156,15 @@ class AppState {
 class AppStore extends Notifier<AppState> {
   @override
   AppState build() => _seed();
-  void addToCart(Product product) {
-    final i = state.cart.indexWhere((e) => e.product.id == product.id);
+  void addToCart(
+    Product product, {
+    List<SelectedModifier> modifiers = const [],
+  }) {
+    final candidate = CartLine(product: product, modifiers: modifiers);
+    final i = state.cart.indexWhere((e) => e.lineId == candidate.lineId);
     final lines = [...state.cart];
     if (i < 0 && (state.allowOverselling || product.stock > 0)) {
-      lines.add(CartLine(product: product));
+      lines.add(candidate);
     } else if (i >= 0 &&
         (state.allowOverselling || lines[i].quantity < product.stock)) {
       final updated = lines[i].copyWith(quantity: lines[i].quantity + 1);
@@ -173,7 +177,7 @@ class AppStore extends Notifier<AppState> {
 
   void quantity(String id, int delta) {
     final lines = [...state.cart];
-    final i = lines.indexWhere((e) => e.product.id == id);
+    final i = lines.indexWhere((e) => e.lineId == id);
     if (i < 0) return;
     final q = lines[i].quantity + delta;
     if (q <= 0)
@@ -185,7 +189,7 @@ class AppStore extends Notifier<AppState> {
 
   void discount(String id, int amount) {
     final lines = [...state.cart];
-    final i = lines.indexWhere((e) => e.product.id == id);
+    final i = lines.indexWhere((e) => e.lineId == id);
     if (i < 0) return;
     final maximum = lines[i].subtotal;
     lines[i] = lines[i].copyWith(discount: amount.clamp(0, maximum));
@@ -194,7 +198,7 @@ class AppStore extends Notifier<AppState> {
 
   void unitPrice(String id, int? amount) {
     final lines = [...state.cart];
-    final i = lines.indexWhere((e) => e.product.id == id);
+    final i = lines.indexWhere((e) => e.lineId == id);
     if (i < 0) return;
     final updated = amount == null
         ? lines[i].copyWith(clearUnitPriceOverride: true)
@@ -218,7 +222,7 @@ class AppStore extends Notifier<AppState> {
   );
 
   void remove(String id) => state = state.copyWith(
-    cart: state.cart.where((e) => e.product.id != id).toList(),
+    cart: state.cart.where((e) => e.lineId != id).toList(),
   );
   void clearCart() => state = state.copyWith(
     orderTaxId: '',

@@ -61,6 +61,11 @@ abstract final class ApiEndPoints {
   static const invoiceTemplateDesignsUrl =
       '${Config.baseUrl}/connector/api/invoice-template-designs';
   static const restaurantTablesUrl = '${Config.baseUrl}/connector/api/table';
+  static const modifierGroupsUrl =
+      '${Config.baseUrl}/connector/api/modifier-groups';
+  static String modifierGroupUrl(String id) => '$modifierGroupsUrl/$id';
+  static String productModifierGroupsUrl(String productId) =>
+      '$productWritesUrl/$productId/modifier-groups';
   static String invoiceLayoutPreviewUrl(String layoutId) =>
       '$invoiceLayoutsUrl/$layoutId/preview';
   static String invoiceLayoutOfflineConfigUrl(String layoutId) =>

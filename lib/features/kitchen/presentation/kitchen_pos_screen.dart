@@ -4,8 +4,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../apis/api.dart';
+import '../../../core/network/api_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
@@ -13,7 +14,80 @@ import '../../../shared/widgets/product_card_style_picker.dart';
 import '../../../shared/widgets/modifier_selection_dialog.dart';
 import '../../../shared/widgets/ui.dart' show ProductImage;
 import '../../store/app_store.dart';
+import '../../auth/auth_controller.dart';
+import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../../printers/application/printer_controller.dart';
 import 'kitchen_printing_controller.dart';
+
+typedef _RestaurantContext = ({
+  List<RestaurantTable> tables,
+  List<LookupOption> staff,
+  List<LookupOption> serviceTypes,
+});
+
+final kitchenRestaurantContextProvider = FutureProvider.autoDispose
+    .family<_RestaurantContext, String>((ref, locationId) async {
+      Future<_RestaurantContext> load(String token) async {
+        final api = ref.read(apiProvider);
+        final results = await Future.wait<Object>([
+          api.restaurantTables(token, locationId),
+          api.restaurantServiceStaff(token),
+          api.restaurantServiceTypes(token),
+        ]);
+        return (
+          tables: results[0] as List<RestaurantTable>,
+          staff: results[1] as List<LookupOption>,
+          serviceTypes: results[2] as List<LookupOption>,
+        );
+      }
+
+      var token = await ref.watch(authControllerProvider.future);
+      if (token == null || token.isEmpty || token == 'offline-local-session') {
+        throw const ApiException(
+          'Restaurant order details require an online session.',
+        );
+      }
+      try {
+        return await load(token);
+      } on ApiException catch (error) {
+        if (error.statusCode != 401) rethrow;
+        token = await ref
+            .read(authControllerProvider.notifier)
+            .refreshAccessToken();
+        return load(token);
+      }
+    });
+
+final kitchenOrdersProvider = FutureProvider.autoDispose
+    .family<List<Sale>, String>((ref, locationId) async {
+      Future<List<Sale>> load(String token) {
+        final store = ref.read(appStoreProvider);
+        return ref
+            .read(apiProvider)
+            .kitchenOrders(
+              accessToken: token,
+              products: store.products,
+              customers: store.customers,
+              locationId: locationId,
+            );
+      }
+
+      var token = await ref.watch(authControllerProvider.future);
+      if (token == null || token.isEmpty || token == 'offline-local-session') {
+        throw const ApiException(
+          'Recent kitchen orders require an online session.',
+        );
+      }
+      try {
+        return await load(token);
+      } on ApiException catch (error) {
+        if (error.statusCode != 401) rethrow;
+        token = await ref
+            .read(authControllerProvider.notifier)
+            .refreshAccessToken();
+        return load(token);
+      }
+    });
 
 /// A restaurant-focused order entry surface. Its draft is deliberately separate
 /// from the retail POS cart so switching modes cannot change an open sale.
@@ -27,25 +101,28 @@ class KitchenPosScreen extends ConsumerStatefulWidget {
 class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   static const _border = Color(0xFFDCE5E2);
   final _search = TextEditingController();
-  final _table = TextEditingController();
   final _focus = FocusNode();
   final Map<String, CartLine> _lines = {};
-  List<CartLine>? _held;
   String _category = '';
   String _service = 'Dine in';
+  String? _tableId;
+  String? _waiterId;
+  String? _serviceTypeId;
   String _note = '';
+  int _guests = 1;
+  int _grossDiscount = 0;
   int _addQuantity = 1;
   bool _showMobileOrder = false;
   bool _sending = false;
   String? _pendingClientTransactionId;
   String? _savedTransactionId;
+  Sale? _activeOrder;
 
   bool get _orderLocked => _pendingClientTransactionId != null;
 
   @override
   void dispose() {
     _search.dispose();
-    _table.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -96,29 +173,6 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     });
   }
 
-  void _hold() {
-    if (_lines.isEmpty || _orderLocked) return;
-    setState(() {
-      _held = List<CartLine>.unmodifiable(_lines.values);
-      _lines.clear();
-    });
-    _show('Order held on this screen. Use Restore held order to continue.');
-  }
-
-  void _restore() {
-    final held = _held;
-    if (held == null) return;
-    setState(() {
-      for (final line in held) {
-        final old = _lines[line.lineId];
-        _lines[line.lineId] = old == null
-            ? line
-            : old.copyWith(quantity: old.quantity + line.quantity);
-      }
-      _held = null;
-    });
-  }
-
   void _show(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -126,6 +180,417 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _sendToKitchen() => unawaited(_submitKitchenOrder());
+
+  String _composedSaleNote() => [
+    _service,
+    'Pax $_guests',
+    if (_note.trim().isNotEmpty) _note.trim(),
+  ].join(' · ');
+
+  Customer? _customer(AppState store) =>
+      store.customer ?? store.customers.firstOrNull;
+
+  String? _locationId(AppState store) {
+    final kitchen = ref.read(kitchenPrintingControllerProvider).asData?.value;
+    return kitchen?.locationId.isNotEmpty == true
+        ? kitchen!.locationId
+        : store.locations.firstOrNull?.id;
+  }
+
+  void _newOrder() {
+    if (_lines.isNotEmpty || _orderLocked || _savedTransactionId != null) {
+      _show('Save or clear the current order before starting another one.');
+      return;
+    }
+    _resetOrder();
+  }
+
+  void _resetOrder() {
+    setState(() {
+      _lines.clear();
+      _activeOrder = null;
+      _savedTransactionId = null;
+      _pendingClientTransactionId = null;
+      _tableId = null;
+      _waiterId = null;
+      _serviceTypeId = null;
+      _service = 'Dine in';
+      _guests = 1;
+      _note = '';
+      _grossDiscount = 0;
+      _showMobileOrder = false;
+    });
+  }
+
+  Sale? _currentSale(String transactionId, String paymentMethod) {
+    final store = ref.read(appStoreProvider);
+    final customer = _customer(store);
+    if (customer == null) return null;
+    final lines = _lines.values.toList(growable: false);
+    final total =
+        (lines.fold<int>(0, (sum, line) => sum + line.total) - _grossDiscount)
+            .clamp(0, 1 << 62);
+    return Sale(
+      localId: 'server-$transactionId',
+      serverId: transactionId,
+      invoiceNo: _activeOrder?.invoiceNo ?? '',
+      createdAt: _activeOrder?.createdAt ?? DateTime.now(),
+      updatedAt: DateTime.now(),
+      customer: customer,
+      items: lines,
+      paymentMethod: paymentMethod,
+      total: total,
+      tax: lines.fold<int>(0, (sum, line) => sum + line.tax),
+      discount: _grossDiscount,
+      syncStatus: SyncStatus.synced,
+      status: 'final',
+      paymentStatus: paymentMethod == 'due' ? 'due' : 'paid',
+      locationId: _locationId(store) ?? '',
+      tableId: _tableId ?? '',
+      waiterId: _waiterId ?? '',
+      serviceTypeId: _serviceTypeId ?? '',
+      saleNote: _composedSaleNote(),
+      isKitchenOrder: true,
+    );
+  }
+
+  Future<void> _printBill() async {
+    final transactionId = _savedTransactionId;
+    if (transactionId == null || transactionId.isEmpty) {
+      _show('Save or send the order before printing its bill.');
+      return;
+    }
+    final sale = _currentSale(
+      transactionId,
+      _activeOrder?.paymentMethod ?? 'due',
+    );
+    if (sale == null) return;
+    setState(() => _sending = true);
+    try {
+      final store = ref.read(appStoreProvider);
+      final printers = ref.read(printerControllerProvider);
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: sale,
+            businessName: store.business?.name ?? 'Eazy POS',
+            settings: printers.settings,
+            printers: printers.selectedPrinters,
+            arabic:
+                Localizations.localeOf(context).languageCode.toLowerCase() ==
+                'ar',
+          );
+      if (mounted) _show('Bill sent to the selected billing printer.');
+    } catch (error) {
+      if (mounted) _show('Unable to print this bill: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _billAndPay() async {
+    if (_sending || _lines.isEmpty) return;
+    final store = ref.read(appStoreProvider);
+    final methods = store.checkoutPaymentOptions
+        .where((option) => option.code.toLowerCase() != 'due')
+        .toList(growable: false);
+    if (methods.isEmpty) {
+      _show('No payment methods are configured for this location.');
+      return;
+    }
+    final method = await showDialog<PaymentOption>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Select payment method'),
+        children: [
+          for (final option in methods)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, option),
+              child: ListTile(
+                leading: const Icon(Icons.payments_outlined),
+                title: Text(option.label),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (method == null || !mounted) return;
+    final locationId = _locationId(store);
+    final customer = _customer(store);
+    if (locationId == null || locationId.isEmpty || customer == null) {
+      _show('Refresh customer and business location data before billing.');
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      var transactionId = _savedTransactionId;
+      if (transactionId == null) {
+        _pendingClientTransactionId ??= _newClientTransactionId();
+        transactionId = await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .createKitchenOrder(
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              clientTransactionId: _pendingClientTransactionId!,
+              saleNote: _composedSaleNote(),
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              grossDiscount: _grossDiscount,
+            );
+      }
+      await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .updateKitchenOrder(
+            transactionId: transactionId,
+            locationId: locationId,
+            customer: customer,
+            lines: _lines.values.toList(growable: false),
+            status: 'final',
+            tableId: _service == 'Dine in' ? _tableId : null,
+            serviceStaffId: _waiterId,
+            serviceTypeId: _serviceTypeId,
+            saleNote: _composedSaleNote(),
+            grossDiscount: _grossDiscount,
+            paymentMethod: method.code,
+          );
+      await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .processTransaction(transactionId, locationId: locationId);
+      if (!mounted) return;
+      setState(() => _savedTransactionId = transactionId);
+      await _printBill();
+      if (!mounted) return;
+      ref.invalidate(kitchenOrdersProvider(locationId));
+      _show('Order #$transactionId paid and completed.');
+      _resetOrder();
+    } catch (error) {
+      if (mounted) _show('Billing needs attention: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _editGrossDiscount() async {
+    var text = (_grossDiscount / 100).toStringAsFixed(2);
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Order discount'),
+        content: TextFormField(
+          initialValue: text,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Discount amount'),
+          onChanged: (value) => text = value,
+          onFieldSubmitted: (_) => Navigator.pop(
+            dialogContext,
+            ((double.tryParse(text) ?? 0) * 100).round(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              ((double.tryParse(text) ?? 0) * 100).round(),
+            ),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    final maximum = _lines.values.fold<int>(0, (sum, line) => sum + line.total);
+    if (amount != null && mounted) {
+      setState(() => _grossDiscount = amount.clamp(0, maximum));
+    }
+  }
+
+  Future<void> _editItemNote(CartLine line) async {
+    final controller = TextEditingController(text: line.itemNote);
+    final note = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Note: ${line.product.name}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Preparation instructions for this item',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (note != null && mounted) {
+      setState(() {
+        _lines[line.lineId] = line.copyWith(itemNote: note.trim());
+      });
+    }
+  }
+
+  Future<void> _showRecentOrders(String locationId) async {
+    if (_orderLocked) return;
+    setState(() => _sending = true);
+    try {
+      ref.invalidate(kitchenOrdersProvider(locationId));
+      final orders = await ref.read(kitchenOrdersProvider(locationId).future);
+      if (!mounted) return;
+      final selected = await showDialog<Sale>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Recent kitchen orders'),
+          content: SizedBox(
+            width: 620,
+            height: 520,
+            child: orders.isEmpty
+                ? const Center(child: Text('No kitchen orders found.'))
+                : ListView.separated(
+                    itemCount: orders.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final order = orders[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          child: Icon(
+                            order.status == 'draft'
+                                ? Icons.pause_outlined
+                                : Icons.receipt_long_outlined,
+                          ),
+                        ),
+                        title: Text(
+                          order.invoiceNo.isEmpty
+                              ? 'Order #${order.serverId}'
+                              : order.invoiceNo,
+                        ),
+                        subtitle: Text(
+                          '${order.customer.name} • ${order.items.length} items • '
+                          '${order.status == 'draft' ? 'Draft' : order.paymentStatus}',
+                        ),
+                        trailing: RiyalAmount(order.total),
+                        onTap: () => Navigator.pop(dialogContext, order),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+      if (selected != null && mounted) _loadOrder(selected);
+    } catch (error) {
+      if (mounted) _show('Unable to load recent kitchen orders: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _loadOrder(Sale order) {
+    final pax = RegExp(
+      r'(?:Pax|Guests?)\s+(\d+)',
+      caseSensitive: false,
+    ).firstMatch(order.saleNote);
+    final service = order.saleNote.split('·').first.trim();
+    setState(() {
+      _lines
+        ..clear()
+        ..addEntries(order.items.map((line) => MapEntry(line.lineId, line)));
+      _activeOrder = order;
+      _savedTransactionId = order.serverId;
+      _pendingClientTransactionId = null;
+      _tableId = order.tableId.isEmpty ? null : order.tableId;
+      _waiterId = order.waiterId.isEmpty ? null : order.waiterId;
+      _serviceTypeId = order.serviceTypeId.isEmpty ? null : order.serviceTypeId;
+      _service = const ['Dine in', 'Takeaway', 'Delivery'].contains(service)
+          ? service
+          : 'Dine in';
+      _guests = int.tryParse(pax?.group(1) ?? '') ?? 1;
+      _note = order.saleNote
+          .split('·')
+          .skip(2)
+          .map((part) => part.trim())
+          .where((part) => part.isNotEmpty)
+          .join(' · ');
+      _grossDiscount = order.discount;
+      _showMobileOrder = true;
+    });
+  }
+
+  Future<void> _saveDraft() async {
+    if (_sending || _orderLocked || _lines.isEmpty) return;
+    final store = ref.read(appStoreProvider);
+    final locationId = _locationId(store);
+    final customer = _customer(store);
+    if (locationId == null || locationId.isEmpty || customer == null) {
+      _show('Refresh customer and business location data before saving.');
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      var transactionId = _savedTransactionId;
+      if (transactionId == null) {
+        _pendingClientTransactionId ??= _newClientTransactionId();
+        transactionId = await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .createKitchenOrder(
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              clientTransactionId: _pendingClientTransactionId!,
+              saleNote: _composedSaleNote(),
+              status: 'draft',
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              suspended: true,
+              grossDiscount: _grossDiscount,
+            );
+      } else {
+        await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .updateKitchenOrder(
+              transactionId: transactionId,
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              status: 'draft',
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              saleNote: _composedSaleNote(),
+              grossDiscount: _grossDiscount,
+              suspended: true,
+            );
+      }
+      ref.invalidate(kitchenOrdersProvider(locationId));
+      if (!mounted) return;
+      _show('Order #$transactionId saved as draft.');
+      _resetOrder();
+    } catch (error) {
+      if (mounted) _show('Unable to save this draft: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   Future<void> _submitKitchenOrder() async {
     if (_sending) return;
@@ -153,12 +618,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       var transactionId = _savedTransactionId;
       if (transactionId == null) {
         _pendingClientTransactionId ??= _newClientTransactionId();
-        final note = [
-          _service,
-          if (_service == 'Dine in' && _table.text.trim().isNotEmpty)
-            'Table ${_table.text.trim()}',
-          if (_note.trim().isNotEmpty) _note.trim(),
-        ].join(' · ');
+        final note = _composedSaleNote();
         transactionId = await ref
             .read(kitchenPrintingControllerProvider.notifier)
             .createKitchenOrder(
@@ -167,26 +627,39 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               lines: _lines.values.toList(growable: false),
               clientTransactionId: _pendingClientTransactionId!,
               saleNote: note,
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              grossDiscount: _grossDiscount,
             );
         if (!mounted) return;
         setState(() => _savedTransactionId = transactionId);
+      } else if (_activeOrder != null) {
+        await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .updateKitchenOrder(
+              transactionId: transactionId,
+              locationId: locationId!,
+              customer: customer!,
+              lines: _lines.values.toList(growable: false),
+              status: 'final',
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              saleNote: _composedSaleNote(),
+              grossDiscount: _grossDiscount,
+            );
       }
       final summary = await ref
           .read(kitchenPrintingControllerProvider.notifier)
           .processTransaction(transactionId, locationId: locationId);
       if (!mounted) return;
-      setState(() {
-        _lines.clear();
-        _note = '';
-        _table.clear();
-        _pendingClientTransactionId = null;
-        _savedTransactionId = null;
-        _showMobileOrder = false;
-      });
+      ref.invalidate(kitchenOrdersProvider(locationId!));
       _show(
         'Kitchen order #$transactionId saved and ${summary.printedCount} '
         'ticket(s) sent to the paired printer(s).',
       );
+      _resetOrder();
     } catch (error) {
       if (!mounted) return;
       setState(() => _showMobileOrder = true);
@@ -219,22 +692,35 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final products = _visible(store);
     final width = MediaQuery.sizeOf(context).width;
     final desktop = width >= 960;
-    final total = _lines.values.fold<int>(
+    final subtotal = _lines.values.fold<int>(
       0,
       (sum, line) => sum + line.subtotal,
     );
+    final tax = _lines.values.fold<int>(0, (sum, line) => sum + line.tax);
+    final total =
+        (_lines.values.fold<int>(0, (sum, line) => sum + line.total) -
+                _grossDiscount)
+            .clamp(0, 1 << 62);
+    final kitchen = ref.watch(kitchenPrintingControllerProvider).asData?.value;
+    final locationId = kitchen?.locationId.isNotEmpty == true
+        ? kitchen!.locationId
+        : store.locations.firstOrNull?.id ?? '';
+    final restaurantContext = locationId.isEmpty
+        ? null
+        : ref.watch(kitchenRestaurantContextProvider(locationId)).asData?.value;
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.f6): _hold,
+        const SingleActivator(LogicalKeyboardKey.f6): () =>
+            unawaited(_saveDraft()),
         const SingleActivator(LogicalKeyboardKey.f8): () =>
-            _show('Print Bill is available after a kitchen order is saved.'),
+            unawaited(_printBill()),
         const SingleActivator(LogicalKeyboardKey.f9): _sendToKitchen,
       },
       child: Focus(
         autofocus: true,
         child: Column(
           children: [
-            _header(desktop),
+            _header(desktop, restaurantContext, locationId),
             Expanded(
               child: desktop
                   ? Row(
@@ -245,7 +731,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                         ),
                         SizedBox(
                           width: width >= 1300 ? 390 : 320,
-                          child: _order(total, desktop: true),
+                          child: _order(
+                            total,
+                            subtotal: subtotal,
+                            tax: tax,
+                            desktop: true,
+                          ),
                         ),
                       ],
                     )
@@ -256,7 +747,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                             child: SingleChildScrollView(
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 12),
-                                child: _order(total, desktop: false),
+                                child: _order(
+                                  total,
+                                  subtotal: subtotal,
+                                  tax: tax,
+                                  desktop: false,
+                                ),
                               ),
                             ),
                           )
@@ -311,12 +807,16 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Widget _header(bool desktop) {
-    final title = const Row(
+  Widget _header(
+    bool desktop,
+    _RestaurantContext? restaurant,
+    String locationId,
+  ) {
+    final title = Row(
       children: [
-        Icon(Icons.soup_kitchen_rounded, color: Colors.white, size: 25),
-        SizedBox(width: 8),
-        Expanded(
+        const Icon(Icons.soup_kitchen_rounded, color: Colors.white, size: 25),
+        const SizedBox(width: 8),
+        const Expanded(
           child: Text(
             'Kitchen POS',
             maxLines: 1,
@@ -328,30 +828,46 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ),
         ),
+        IconButton(
+          tooltip: 'New order',
+          onPressed: _newOrder,
+          icon: const Icon(Icons.add_circle_outline),
+          color: Colors.white,
+          visualDensity: VisualDensity.compact,
+        ),
+        IconButton(
+          tooltip: 'Recent orders',
+          onPressed: locationId.isEmpty
+              ? null
+              : () => _showRecentOrders(locationId),
+          icon: const Icon(Icons.receipt_long_outlined),
+          color: Colors.white,
+          visualDensity: VisualDensity.compact,
+        ),
       ],
     );
     final controls = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _serviceButton('Dine in', Icons.restaurant_outlined),
-          _serviceButton('Takeaway', Icons.shopping_bag_outlined),
-          _serviceButton('Delivery', Icons.local_shipping_outlined),
-          if (_service == 'Dine in') _tableCard(),
-          if (desktop) ...[
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/pos'),
-              icon: const Icon(Icons.swap_horiz, size: 16),
-              label: const Text('Normal POS'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white54),
-                minimumSize: const Size(0, 40),
-                padding: const EdgeInsets.symmetric(horizontal: 9),
-              ),
-            ),
-          ],
+          _serviceButton(
+            'Dine in',
+            Icons.restaurant_outlined,
+            restaurant?.serviceTypes ?? const [],
+          ),
+          _serviceButton(
+            'Takeaway',
+            Icons.shopping_bag_outlined,
+            restaurant?.serviceTypes ?? const [],
+          ),
+          _serviceButton(
+            'Delivery',
+            Icons.local_shipping_outlined,
+            restaurant?.serviceTypes ?? const [],
+          ),
+          if (_service == 'Dine in') _tableCard(restaurant?.tables ?? const []),
+          _guestCard(),
+          _waiterCard(restaurant?.staff ?? const []),
         ],
       ),
     );
@@ -373,43 +889,84 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: title),
-                    IconButton(
-                      tooltip: 'Switch to Normal POS',
-                      onPressed: () => context.go('/pos'),
-                      icon: const Icon(Icons.swap_horiz),
-                      color: Colors.white,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
+                Row(children: [Expanded(child: title)]),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Expanded(child: _mobileServiceButton('Dine in')),
+                    Expanded(
+                      child: _mobileServiceButton(
+                        'Dine in',
+                        restaurant?.serviceTypes ?? const [],
+                      ),
+                    ),
                     const SizedBox(width: 5),
-                    Expanded(child: _mobileServiceButton('Takeaway')),
+                    Expanded(
+                      child: _mobileServiceButton(
+                        'Takeaway',
+                        restaurant?.serviceTypes ?? const [],
+                      ),
+                    ),
                     const SizedBox(width: 5),
-                    Expanded(child: _mobileServiceButton('Delivery')),
+                    Expanded(
+                      child: _mobileServiceButton(
+                        'Delivery',
+                        restaurant?.serviceTypes ?? const [],
+                      ),
+                    ),
                   ],
                 ),
                 if (_service == 'Dine in') ...[
                   const SizedBox(height: 6),
-                  _tableCard(mobile: true),
+                  _tableCard(restaurant?.tables ?? const [], mobile: true),
                 ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(child: _guestCard(mobile: true)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 2,
+                      child: _waiterCard(
+                        restaurant?.staff ?? const [],
+                        mobile: true,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
     );
   }
 
-  Widget _serviceButton(String label, IconData icon) {
+  void _selectService(String label, List<LookupOption> serviceTypes) {
+    String? matchedId;
+    final lookup = label.toLowerCase().replaceAll(' ', '');
+    for (final option in serviceTypes) {
+      final name = option.name.toLowerCase().replaceAll(' ', '');
+      if (name.contains(lookup) || lookup.contains(name)) {
+        matchedId = option.id;
+        break;
+      }
+    }
+    setState(() {
+      _service = label;
+      _serviceTypeId = matchedId;
+      if (label != 'Dine in') _tableId = null;
+    });
+  }
+
+  Widget _serviceButton(
+    String label,
+    IconData icon,
+    List<LookupOption> serviceTypes,
+  ) {
     final selected = _service == label;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: OutlinedButton.icon(
-        onPressed: _orderLocked ? null : () => setState(() => _service = label),
+        onPressed: _orderLocked
+            ? null
+            : () => _selectService(label, serviceTypes),
         icon: Icon(icon, size: 16),
         label: Text(label),
         style: OutlinedButton.styleFrom(
@@ -426,10 +983,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Widget _mobileServiceButton(String label) {
+  Widget _mobileServiceButton(String label, List<LookupOption> serviceTypes) {
     final selected = _service == label;
     return OutlinedButton(
-      onPressed: _orderLocked ? null : () => setState(() => _service = label),
+      onPressed: _orderLocked
+          ? null
+          : () => _selectService(label, serviceTypes),
       style: OutlinedButton.styleFrom(
         backgroundColor: selected ? AppColors.primary : Colors.white,
         foregroundColor: selected ? Colors.white : AppColors.ink,
@@ -443,11 +1002,63 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Widget _tableCard({bool mobile = false}) => Container(
-    key: const ValueKey('kitchen-table-card'),
-    width: mobile ? double.infinity : 156,
+  Widget _tableCard(List<RestaurantTable> tables, {bool mobile = false}) =>
+      Container(
+        key: const ValueKey('kitchen-table-card'),
+        width: mobile ? double.infinity : 156,
+        height: mobile ? 44 : 40,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.table_restaurant_outlined,
+              size: 17,
+              color: AppColors.ink,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String?>(
+                  value: tables.any((table) => table.id == _tableId)
+                      ? _tableId
+                      : null,
+                  isExpanded: true,
+                  hint: const Text('Select table'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('No table'),
+                    ),
+                    for (final table in tables)
+                      DropdownMenuItem<String?>(
+                        value: table.id,
+                        child: Text(
+                          table.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: _orderLocked
+                      ? null
+                      : (value) => setState(() => _tableId = value),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _guestCard({bool mobile = false}) => Container(
+    width: mobile ? null : 112,
     height: mobile ? 44 : 40,
-    padding: const EdgeInsets.symmetric(horizontal: 10),
+    margin: EdgeInsets.only(right: mobile ? 0 : 6),
+    padding: const EdgeInsets.symmetric(horizontal: 4),
     decoration: BoxDecoration(
       color: Colors.white,
       border: Border.all(color: _border),
@@ -455,48 +1066,97 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     ),
     child: Row(
       children: [
-        const Icon(
-          Icons.table_restaurant_outlined,
-          size: 17,
-          color: AppColors.ink,
-        ),
-        const SizedBox(width: 7),
-        const Text(
-          'Table #',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.ink,
+        const Icon(Icons.groups_2_outlined, size: 17),
+        IconButton(
+          tooltip: 'Remove guest',
+          onPressed: _orderLocked || _guests <= 1
+              ? null
+              : () => setState(() => _guests--),
+          icon: const Icon(Icons.remove, size: 15),
+          constraints: const BoxConstraints.tightFor(width: 25, height: 34),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(25, 34),
+            maximumSize: const Size(25, 34),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
-        const SizedBox(width: 6),
         Expanded(
-          child: TextField(
-            controller: _table,
-            readOnly: _orderLocked,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          child: Text(
+            '$_guests',
             textAlign: TextAlign.center,
-            textAlignVertical: TextAlignVertical.center,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ink,
-            ),
-            decoration: const InputDecoration(
-              hintText: '—',
-              isDense: true,
-              filled: false,
-              contentPadding: EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Add guest',
+          onPressed: _orderLocked || _guests >= 99
+              ? null
+              : () => setState(() => _guests++),
+          icon: const Icon(Icons.add, size: 15),
+          constraints: const BoxConstraints.tightFor(width: 25, height: 34),
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          style: IconButton.styleFrom(
+            minimumSize: const Size(25, 34),
+            maximumSize: const Size(25, 34),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ],
     ),
   );
+
+  Widget _waiterCard(List<LookupOption> staff, {bool mobile = false}) =>
+      Container(
+        width: mobile ? null : 170,
+        height: mobile ? 44 : 40,
+        margin: EdgeInsets.only(right: mobile ? 0 : 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: _border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.badge_outlined, size: 17),
+            const SizedBox(width: 6),
+            Expanded(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String?>(
+                  value: staff.any((item) => item.id == _waiterId)
+                      ? _waiterId
+                      : null,
+                  isExpanded: true,
+                  hint: const Text('Waiter'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('No waiter'),
+                    ),
+                    for (final member in staff)
+                      DropdownMenuItem<String?>(
+                        value: member.id,
+                        child: Text(
+                          member.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: _orderLocked
+                      ? null
+                      : (value) => setState(() => _waiterId = value),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _catalog(
     AppState store,
@@ -813,7 +1473,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Widget _order(int total, {required bool desktop}) => Container(
+  Widget _order(
+    int total, {
+    required int subtotal,
+    required int tax,
+    required bool desktop,
+  }) => Container(
     margin: const EdgeInsets.fromLTRB(0, 12, 12, 12),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -836,7 +1501,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             TextButton(
               onPressed: _lines.isEmpty || _orderLocked
                   ? null
-                  : () => setState(_lines.clear),
+                  : () => setState(() {
+                      _lines.clear();
+                      _grossDiscount = 0;
+                    }),
               style: TextButton.styleFrom(foregroundColor: AppColors.danger),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
@@ -872,6 +1540,26 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
         ),
         const Divider(height: 24),
+        _amountRow('Subtotal', subtotal),
+        const SizedBox(height: 5),
+        _amountRow('Tax', tax),
+        const SizedBox(height: 5),
+        InkWell(
+          onTap: _lines.isEmpty || _orderLocked ? null : _editGrossDiscount,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(child: Text('Discount')),
+                RiyalAmount(-_grossDiscount),
+                const SizedBox(width: 4),
+                const Icon(Icons.edit_outlined, size: 15),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 18),
         Row(
           children: [
             const Expanded(
@@ -925,7 +1613,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: _lines.isEmpty || _orderLocked ? null : _hold,
+                onPressed: _lines.isEmpty || _orderLocked || _sending
+                    ? null
+                    : () => unawaited(_saveDraft()),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
@@ -948,9 +1638,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton(
-                onPressed: () => _show(
-                  'Print Bill is available after a kitchen order is saved.',
-                ),
+                onPressed: _savedTransactionId == null || _sending
+                    ? null
+                    : () => unawaited(_printBill()),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
@@ -972,14 +1662,38 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        if (_held != null)
-          TextButton.icon(
-            onPressed: _restore,
-            icon: const Icon(Icons.restore),
-            label: const Text('Restore held order'),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _lines.isEmpty || _orderLocked || _sending
+              ? null
+              : () => unawaited(_billAndPay()),
+          icon: const Icon(Icons.point_of_sale_outlined),
+          label: const Text('Bill & Pay'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+        ),
+        if (_activeOrder != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Editing ${_activeOrder!.invoiceNo.isEmpty ? 'order #${_activeOrder!.serverId}' : _activeOrder!.invoiceNo}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
           ),
+        ],
       ],
     ),
+  );
+
+  Widget _amountRow(String label, int amount) => Row(
+    children: [
+      Expanded(
+        child: Text(label, style: const TextStyle(color: AppColors.muted)),
+      ),
+      RiyalAmount(amount),
+    ],
   );
 
   Widget _orderItems() {
@@ -1021,6 +1735,24 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                           fontSize: 11,
                         ),
                       ),
+                    TextButton.icon(
+                      onPressed: _orderLocked
+                          ? null
+                          : () => unawaited(_editItemNote(line)),
+                      icon: const Icon(Icons.edit_note_outlined, size: 15),
+                      label: Text(
+                        line.itemNote.isEmpty ? 'Add item note' : line.itemNote,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        alignment: Alignment.centerLeft,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
                   ],
                 ),
               ),

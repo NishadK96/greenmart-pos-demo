@@ -1658,6 +1658,45 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<LookupOption>> restaurantServiceStaff(String accessToken) async {
+    final items = await _getDataList(
+      Uri.parse(
+        ApiEndPoints.usersUrl,
+      ).replace(queryParameters: const {'service_staff': '1'}),
+      accessToken,
+      'restaurant service staff',
+    );
+    return items
+        .map((item) {
+          final name = [item['surname'], item['first_name'], item['last_name']]
+              .where((value) => value?.toString().trim().isNotEmpty == true)
+              .join(' ');
+          return LookupOption(
+            id: item['id']?.toString() ?? '',
+            name: name.isEmpty ? item['username']?.toString() ?? 'Staff' : name,
+          );
+        })
+        .where((item) => item.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<List<LookupOption>> restaurantServiceTypes(String accessToken) async {
+    final items = await _getDataList(
+      Uri.parse(ApiEndPoints.serviceTypesUrl),
+      accessToken,
+      'restaurant service types',
+    );
+    return items
+        .map(
+          (item) => LookupOption(
+            id: item['id']?.toString() ?? '',
+            name: item['name']?.toString() ?? '',
+          ),
+        )
+        .where((item) => item.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
   Future<List<ModifierGroup>> modifierGroups(
     String accessToken, {
     bool activeOnly = false,
@@ -2121,6 +2160,28 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<List<Sale>> kitchenOrders({
+    required String accessToken,
+    required List<Product> products,
+    required List<Customer> customers,
+    required String locationId,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.salesUrl).replace(
+      queryParameters: {
+        'location_id': locationId,
+        'per_page': '100',
+        'order_by_date': 'desc',
+      },
+    );
+    final data = await _getDataList(uri, accessToken, 'kitchen orders');
+    final productById = {for (final item in products) item.id: item};
+    final customerById = {for (final item in customers) item.id: item};
+    return data
+        .where((item) => _bool(item['is_kitchen_order']))
+        .map((item) => _saleFromJson(item, productById, customerById))
+        .toList(growable: false);
+  }
+
   Future<List<SaleReturnRecord>> saleReturns(String accessToken) async {
     final uri = Uri.parse(
       ApiEndPoints.saleReturnsListUrl,
@@ -2174,6 +2235,11 @@ class Api {
     String? orderTaxId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
+    String status = 'final',
+    String? tableId,
+    String? serviceStaffId,
+    String? serviceTypeId,
+    bool isSuspended = false,
   }) async {
     final body = {
       'sells': [
@@ -2183,11 +2249,17 @@ class Api {
           if (cashRegisterId != null && cashRegisterId.isNotEmpty)
             'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
-          'status': 'final',
+          'status': status,
           'tax_rate_id': orderTaxId == null || orderTaxId.isEmpty
               ? null
               : int.parse(orderTaxId),
           'is_kitchen_order': isKitchenOrder ? 1 : 0,
+          if (isSuspended) 'is_suspend': 1,
+          if (tableId?.isNotEmpty == true) 'table_id': int.parse(tableId!),
+          if (serviceStaffId?.isNotEmpty == true)
+            'service_staff_id': int.parse(serviceStaffId!),
+          if (serviceTypeId?.isNotEmpty == true)
+            'types_of_service_id': int.parse(serviceTypeId!),
           if (saleNote?.trim().isNotEmpty == true)
             'sale_note': saleNote!.trim(),
           'discount_type': grossDiscountType,
@@ -2208,6 +2280,8 @@ class Api {
                 'unit_price': line.unitPriceExcludingTax / 100,
                 'discount_type': 'fixed',
                 'discount_amount': line.discount / 100,
+                if (line.itemNote.trim().isNotEmpty)
+                  'note': line.itemNote.trim(),
                 if (line.modifiers.isNotEmpty)
                   'modifiers': [
                     for (final modifier in line.modifiers)
@@ -2265,6 +2339,80 @@ class Api {
     }
     return result;
   }
+
+  Future<Map<String, dynamic>> updateKitchenOrder({
+    required String accessToken,
+    required String transactionId,
+    required String locationId,
+    required Customer customer,
+    required List<CartLine> lines,
+    required String status,
+    String? tableId,
+    String? serviceStaffId,
+    String? serviceTypeId,
+    String? saleNote,
+    int grossDiscount = 0,
+    String? paymentMethod,
+    bool suspended = false,
+  }) async {
+    final body = {
+      'location_id': int.parse(locationId),
+      'contact_id': int.parse(customer.id),
+      'status': status,
+      'is_kitchen_order': 1,
+      'is_suspend': suspended ? 1 : 0,
+      if (tableId?.isNotEmpty == true) 'table_id': int.parse(tableId!),
+      if (serviceStaffId?.isNotEmpty == true)
+        'service_staff_id': int.parse(serviceStaffId!),
+      if (serviceTypeId?.isNotEmpty == true)
+        'types_of_service_id': int.parse(serviceTypeId!),
+      if (saleNote?.trim().isNotEmpty == true) 'sale_note': saleNote!.trim(),
+      'discount_type': 'fixed',
+      'discount_amount': grossDiscount / 100,
+      'products': [for (final line in lines) _kitchenLinePayload(line)],
+      if (paymentMethod != null)
+        'payments': [
+          {
+            'amount':
+                (lines.fold<int>(0, (sum, line) => sum + line.total) -
+                    grossDiscount) /
+                100,
+            'method': paymentMethod,
+          },
+        ],
+    };
+    final response = await _client
+        .put(
+          Uri.parse(ApiEndPoints.saleUrl(transactionId)),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 30));
+    final decoded = _requireObject(response, 'kitchen order update');
+    return _map(decoded['data'] ?? decoded);
+  }
+
+  Map<String, dynamic> _kitchenLinePayload(CartLine line) => {
+    if (line.sellLineId?.isNotEmpty == true)
+      'sell_line_id': int.parse(line.sellLineId!),
+    'product_id': int.parse(line.product.id),
+    'variation_id': int.parse(line.product.variationId),
+    'quantity': line.quantity,
+    'unit_price': line.unitPriceExcludingTax / 100,
+    'discount_type': 'fixed',
+    'discount_amount': line.discount / 100,
+    if (line.itemNote.trim().isNotEmpty) 'note': line.itemNote.trim(),
+    if (line.modifiers.isNotEmpty)
+      'modifiers': [
+        for (final modifier in line.modifiers)
+          {
+            'modifier_group_id': int.parse(modifier.modifierGroupId),
+            'variation_id': int.parse(modifier.variationId),
+            'quantity': modifier.quantity,
+            'unit_price_inc_tax': modifier.unitPrice / 100,
+          },
+      ],
+  };
 
   Future<Map<String, dynamic>> createSaleReturn({
     required String accessToken,
@@ -3128,6 +3276,10 @@ class Api {
                 ? null
                 : _money(line['unit_price_inc_tax']),
             modifiers: _selectedModifiersFromJson(line['modifiers']),
+            itemNote:
+                line['note']?.toString() ??
+                line['sell_line_note']?.toString() ??
+                '',
           );
         })
         .whereType<CartLine>()
@@ -3158,6 +3310,17 @@ class Api {
       tax: _money(json['tax_amount']),
       discount: _money(json['discount_amount']),
       syncStatus: SyncStatus.synced,
+      status: json['status']?.toString() ?? 'final',
+      paymentStatus: json['payment_status']?.toString() ?? '',
+      locationId: json['location_id']?.toString() ?? '',
+      tableId: json['res_table_id']?.toString() ?? '',
+      waiterId: json['res_waiter_id']?.toString() ?? '',
+      serviceTypeId: json['types_of_service_id']?.toString() ?? '',
+      saleNote:
+          json['additional_notes']?.toString() ??
+          json['sale_note']?.toString() ??
+          '',
+      isKitchenOrder: _bool(json['is_kitchen_order']),
     );
   }
 

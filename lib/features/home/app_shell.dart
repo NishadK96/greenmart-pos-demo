@@ -13,6 +13,7 @@ import '../auth/account_menu.dart';
 import '../store/app_store.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../kitchen/presentation/kitchen_printing_controller.dart';
+import '../settings/application/pos_operating_mode_controller.dart';
 
 const destinations = [
   ('/pos', 'POS', Icons.point_of_sale_outlined),
@@ -80,6 +81,11 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStoreProvider);
+    final posMode = ref.watch(posOperatingModeProvider);
+    final shellDestinations = [
+      (posMode.route, posMode.label, Icons.point_of_sale_outlined),
+      ...destinations.skip(1),
+    ];
     // Keep the selected ERP layout manifest and its authenticated assets warm
     // while online so provisional receipts remain available without a network.
     ref.watch(invoiceLayoutControllerProvider);
@@ -107,10 +113,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         : 'Register ${register.id}';
     if (!desktop) {
       final mobile = [
-        destinations[0],
-        destinations[2],
-        destinations[7],
-        destinations[5],
+        shellDestinations[0],
+        shellDestinations[2],
+        shellDestinations[7],
+        shellDestinations[5],
         ('/settings', 'More', Icons.more_horiz),
       ];
       final phone = width < 700;
@@ -121,6 +127,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           currentPath: path,
           businessName: businessName,
           userName: userName,
+          destinations: shellDestinations,
           onAccountTap: () => showAccountMenu(context, ref),
           onSelected: (destination) {
             Navigator.pop(context);
@@ -281,7 +288,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                   StatusBadge(context.tr('Online')),
                   IconButton(
-                    onPressed: () => context.go('/pos'),
+                    onPressed: () => context.go(posMode.route),
                     icon: const Icon(Icons.add_shopping_cart),
                   ),
                 ],
@@ -387,11 +394,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       children: [
-                        for (int i = 0; i < destinations.length; i++)
+                        for (int i = 0; i < shellDestinations.length; i++)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 3),
                             child: Tooltip(
-                              message: destinations[i].$2,
+                              message: shellDestinations[i].$2,
                               child: Material(
                                 color: i == index(path)
                                     ? const Color(0xFF245148)
@@ -399,7 +406,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 borderRadius: BorderRadius.circular(11),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(11),
-                                  onTap: () => context.go(destinations[i].$1),
+                                  onTap: () =>
+                                      context.go(shellDestinations[i].$1),
                                   child: SizedBox(
                                     height: 46,
                                     child: Row(
@@ -408,7 +416,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           SizedBox(
                                             width: 58,
                                             child: Icon(
-                                              destinations[i].$3,
+                                              shellDestinations[i].$3,
                                               color: i == index(path)
                                                   ? Colors.white
                                                   : Colors.white54,
@@ -418,7 +426,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         else
                                           Expanded(
                                             child: Icon(
-                                              destinations[i].$3,
+                                              shellDestinations[i].$3,
                                               color: i == index(path)
                                                   ? Colors.white
                                                   : Colors.white54,
@@ -427,7 +435,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           ),
                                         if (expanded)
                                           Text(
-                                            context.tr(destinations[i].$2),
+                                            context.tr(shellDestinations[i].$2),
                                             style: TextStyle(
                                               color: i == index(path)
                                                   ? Colors.white
@@ -696,7 +704,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ],
                       const SizedBox(width: 14),
                       FilledButton.icon(
-                        onPressed: () => context.go('/pos'),
+                        onPressed: () => context.go(posMode.route),
                         icon: const Icon(Icons.add),
                         label: Text(context.tr('New sale')),
                       ),
@@ -731,6 +739,7 @@ class _MobileNavigationDrawer extends StatelessWidget {
     required this.currentPath,
     required this.businessName,
     required this.userName,
+    required this.destinations,
     required this.onSelected,
     required this.onAccountTap,
   });
@@ -738,6 +747,7 @@ class _MobileNavigationDrawer extends StatelessWidget {
   final String currentPath;
   final String businessName;
   final String userName;
+  final List<(String, String, IconData)> destinations;
   final ValueChanged<String> onSelected;
   final VoidCallback onAccountTap;
 

@@ -296,6 +296,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
             'item_tax': line.unitTax / 100,
             'line_discount_type': 'fixed',
             'line_discount_amount': line.discount / line.quantity / 100,
+            if (line.itemNote.trim().isNotEmpty) 'note': line.itemNote.trim(),
             if (line.product.taxId.isNotEmpty)
               'tax_id': int.tryParse(line.product.taxId),
             'cached_price': {

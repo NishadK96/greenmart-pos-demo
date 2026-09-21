@@ -437,6 +437,7 @@ class CartLine {
     this.quantityReturned = 0,
     this.saleUnitPriceIncTax,
     this.modifiers = const [],
+    this.itemNote = '',
   });
   final Product product;
   final int quantity, discount;
@@ -445,6 +446,7 @@ class CartLine {
   final int quantityReturned;
   final int? saleUnitPriceIncTax;
   final List<SelectedModifier> modifiers;
+  final String itemNote;
   String get lineId {
     if (modifiers.isEmpty) return product.id;
     final signature = modifiers.map((item) => item.signature).toList()..sort();
@@ -501,6 +503,7 @@ class CartLine {
     bool clearUnitPriceOverride = false,
     int? quantityReturned,
     List<SelectedModifier>? modifiers,
+    String? itemNote,
   }) => CartLine(
     product: product,
     quantity: quantity ?? this.quantity,
@@ -512,6 +515,7 @@ class CartLine {
     quantityReturned: quantityReturned ?? this.quantityReturned,
     saleUnitPriceIncTax: saleUnitPriceIncTax,
     modifiers: modifiers ?? this.modifiers,
+    itemNote: itemNote ?? this.itemNote,
   );
 }
 
@@ -548,6 +552,14 @@ class Sale {
     this.grossDiscountRate = 0,
     required this.syncStatus,
     this.zatcaStatus,
+    this.status = 'final',
+    this.paymentStatus = '',
+    this.locationId = '',
+    this.tableId = '',
+    this.waiterId = '',
+    this.serviceTypeId = '',
+    this.saleNote = '',
+    this.isKitchenOrder = false,
   });
   final String localId, invoiceNo;
   final String? serverId;
@@ -560,6 +572,9 @@ class Sale {
   final double grossDiscountRate;
   final SyncStatus syncStatus;
   final String? zatcaStatus;
+  final String status, paymentStatus, locationId, tableId, waiterId;
+  final String serviceTypeId, saleNote;
+  final bool isKitchenOrder;
 
   Sale copyWith({
     String? serverId,
@@ -567,6 +582,14 @@ class Sale {
     List<CartLine>? items,
     SyncStatus? syncStatus,
     String? zatcaStatus,
+    String? status,
+    String? paymentStatus,
+    String? locationId,
+    String? tableId,
+    String? waiterId,
+    String? serviceTypeId,
+    String? saleNote,
+    bool? isKitchenOrder,
   }) => Sale(
     localId: localId,
     serverId: serverId ?? this.serverId,
@@ -583,6 +606,14 @@ class Sale {
     grossDiscountRate: grossDiscountRate,
     syncStatus: syncStatus ?? this.syncStatus,
     zatcaStatus: zatcaStatus ?? this.zatcaStatus,
+    status: status ?? this.status,
+    paymentStatus: paymentStatus ?? this.paymentStatus,
+    locationId: locationId ?? this.locationId,
+    tableId: tableId ?? this.tableId,
+    waiterId: waiterId ?? this.waiterId,
+    serviceTypeId: serviceTypeId ?? this.serviceTypeId,
+    saleNote: saleNote ?? this.saleNote,
+    isKitchenOrder: isKitchenOrder ?? this.isKitchenOrder,
   );
 }
 

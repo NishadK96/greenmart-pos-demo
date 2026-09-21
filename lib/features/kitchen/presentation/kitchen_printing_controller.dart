@@ -234,6 +234,13 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     required List<CartLine> lines,
     required String clientTransactionId,
     String? saleNote,
+    String status = 'final',
+    String? tableId,
+    String? serviceStaffId,
+    String? serviceTypeId,
+    bool suspended = false,
+    String? paymentMethod,
+    int grossDiscount = 0,
   }) async {
     final response = await _authorized(
       (token) => ref
@@ -244,10 +251,16 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
             customer: customer,
             lines: lines,
             total: lines.fold<int>(0, (total, line) => total + line.subtotal),
-            grossDiscount: 0,
+            grossDiscount: grossDiscount,
             clientTransactionId: clientTransactionId,
             isKitchenOrder: true,
             saleNote: saleNote,
+            status: status,
+            tableId: tableId,
+            serviceStaffId: serviceStaffId,
+            serviceTypeId: serviceTypeId,
+            isSuspended: suspended,
+            paymentMethod: paymentMethod,
           ),
     );
     final transactionId =
@@ -263,6 +276,40 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     }
     return transactionId;
   }
+
+  Future<void> updateKitchenOrder({
+    required String transactionId,
+    required String locationId,
+    required Customer customer,
+    required List<CartLine> lines,
+    required String status,
+    String? tableId,
+    String? serviceStaffId,
+    String? serviceTypeId,
+    String? saleNote,
+    int grossDiscount = 0,
+    String? paymentMethod,
+    bool suspended = false,
+  }) => _authorized(
+    (token) => ref
+        .read(apiProvider)
+        .updateKitchenOrder(
+          accessToken: token,
+          transactionId: transactionId,
+          locationId: locationId,
+          customer: customer,
+          lines: lines,
+          status: status,
+          tableId: tableId,
+          serviceStaffId: serviceStaffId,
+          serviceTypeId: serviceTypeId,
+          saleNote: saleNote,
+          grossDiscount: grossDiscount,
+          paymentMethod: paymentMethod,
+          suspended: suspended,
+        )
+        .then((_) {}),
+  );
 
   Future<KitchenPrintSummary> processTransaction(
     String transactionId, {

@@ -25,6 +25,33 @@ void main() {
     expect(tables.single.description, isEmpty);
   });
 
+  test(
+    'restaurant staff and service types map order context options',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          if (request.url.path == '/connector/api/user') {
+            expect(request.url.queryParameters, {'service_staff': '1'});
+            return http.Response(
+              '{"data":[{"id":7,"first_name":"Amina","last_name":"Ali"}]}',
+              200,
+            );
+          }
+          expect(request.url.path, '/connector/api/types-of-service');
+          return http.Response('{"data":[{"id":4,"name":"Dine in"}]}', 200);
+        }),
+      );
+
+      final staff = await api.restaurantServiceStaff('token');
+      final types = await api.restaurantServiceTypes('token');
+
+      expect(staff.single.id, '7');
+      expect(staff.single.name, 'Amina Ali');
+      expect(types.single.id, '4');
+      expect(types.single.name, 'Dine in');
+    },
+  );
+
   for (final scenario in [
     (admin: true, permissions: <String>[], allowed: true),
     (admin: false, permissions: ['business_settings.access'], allowed: true),
@@ -60,12 +87,18 @@ void main() {
         expect(request.url.path, '/connector/api/sell');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         final sale = (body['sells'] as List).single as Map<String, dynamic>;
-        expect(sale['status'], 'final');
+        expect(sale['status'], 'draft');
         expect(sale['is_kitchen_order'], 1);
+        expect(sale['is_suspend'], 1);
+        expect(sale['table_id'], 8);
+        expect(sale['service_staff_id'], 7);
+        expect(sale['types_of_service_id'], 4);
         expect(sale['client_transaction_id'], isNotEmpty);
         expect(sale.containsKey('payments'), isFalse);
         expect(sale.containsKey('cash_register_id'), isFalse);
         expect(sale['sale_note'], 'Dine in · Table 1');
+        final line = (sale['products'] as List).single as Map<String, dynamic>;
+        expect(line['note'], 'Less sugar');
         return http.Response(
           jsonEncode({
             'data': {
@@ -92,14 +125,74 @@ void main() {
       accessToken: 'token',
       locationId: '3',
       customer: const Customer(id: '5', name: 'Walk-in Customer'),
-      lines: const [CartLine(product: product)],
+      lines: const [CartLine(product: product, itemNote: 'Less sugar')],
       total: 1000,
       grossDiscount: 0,
       clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a001',
       isKitchenOrder: true,
       saleNote: 'Dine in · Table 1',
+      status: 'draft',
+      tableId: '8',
+      serviceStaffId: '7',
+      serviceTypeId: '4',
+      isSuspended: true,
     );
     expect(result['transaction_id'], 145);
+  });
+
+  test('kitchen order update sends context, item note and payment', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/connector/api/sell/145');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['status'], 'final');
+        expect(body['is_kitchen_order'], 1);
+        expect(body['is_suspend'], 0);
+        expect(body['table_id'], 8);
+        expect(body['service_staff_id'], 7);
+        expect(body['types_of_service_id'], 4);
+        expect(body['sale_note'], 'Dine in · Pax 2');
+        expect(body['discount_amount'], 1.5);
+        expect((body['payments'] as List).single, {
+          'amount': 8.5,
+          'method': 'cash',
+        });
+        final line = (body['products'] as List).single as Map<String, dynamic>;
+        expect(line['sell_line_id'], 19);
+        expect(line['note'], 'No sugar');
+        return http.Response('{"data":{"id":145}}', 200);
+      }),
+    );
+    const product = Product(
+      id: '2',
+      name: 'Tea',
+      sku: 'TEA',
+      barcode: '123',
+      categoryId: '4',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '3',
+    );
+
+    await api.updateKitchenOrder(
+      accessToken: 'token',
+      transactionId: '145',
+      locationId: '3',
+      customer: const Customer(id: '5', name: 'Walk-in Customer'),
+      lines: const [
+        CartLine(product: product, sellLineId: '19', itemNote: 'No sugar'),
+      ],
+      status: 'final',
+      tableId: '8',
+      serviceStaffId: '7',
+      serviceTypeId: '4',
+      saleNote: 'Dine in · Pax 2',
+      grossDiscount: 150,
+      paymentMethod: 'cash',
+    );
   });
 
   test('Connector permissions are read from auth context', () async {

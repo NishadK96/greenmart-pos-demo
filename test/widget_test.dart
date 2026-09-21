@@ -814,7 +814,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Tax settings'));
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Tax settings'));
     await tester.pumpAndSettle();
     expect(find.text('Open POS'), findsOneWidget);

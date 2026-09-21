@@ -43,6 +43,7 @@ abstract final class ApiEndPoints {
   static const productSkuCheckUrl = '$productWritesUrl/check-sku';
   static const customersUrl = '${Config.baseUrl}/connector/api/contactapi';
   static const salesUrl = '${Config.baseUrl}/connector/api/sell';
+  static String saleUrl(String id) => '$salesUrl/$id';
   static const saleReturnsUrl = '${Config.baseUrl}/connector/api/sell-return';
   static const saleReturnsListUrl =
       '${Config.baseUrl}/connector/api/list-sell-return';
@@ -93,6 +94,8 @@ abstract final class ApiEndPoints {
   static const loggedInUserUrl =
       '${Config.baseUrl}/connector/api/user/loggedin';
   static const usersUrl = '${Config.baseUrl}/connector/api/user';
+  static const serviceTypesUrl =
+      '${Config.baseUrl}/connector/api/types-of-service';
   static const activeSubscriptionUrl =
       '${Config.baseUrl}/connector/api/active-subscription';
   static const profitLossUrl =

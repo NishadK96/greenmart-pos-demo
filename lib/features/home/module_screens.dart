@@ -24,6 +24,7 @@ import '../cash_register/presentation/cash_register_controller.dart';
 import '../offline_pos/presentation/offline_pos_controller.dart';
 import '../../core/network/api_provider.dart';
 import '../auth/auth_controller.dart';
+import '../settings/application/pos_operating_mode_controller.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
@@ -55,6 +56,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
+    final posMode = ref.watch(posOperatingModeProvider);
     final now = DateTime.now();
     final today = state.sales
         .where((sale) => _sameDay(sale.createdAt, now))
@@ -69,7 +71,7 @@ class DashboardScreen extends ConsumerWidget {
     return PagePad(
       child: ListView(
         children: [
-          _DashboardHero(state: state),
+          _DashboardHero(state: state, posRoute: posMode.route),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) => GridView.count(
@@ -225,8 +227,9 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardHero extends StatelessWidget {
-  const _DashboardHero({required this.state});
+  const _DashboardHero({required this.state, required this.posRoute});
   final AppState state;
+  final String posRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -279,7 +282,7 @@ class _DashboardHero extends StatelessWidget {
                 label: 'New sale',
                 icon: Icons.point_of_sale_outlined,
                 strong: true,
-                onTap: () => context.go('/pos'),
+                onTap: () => context.go(posRoute),
               ),
               const SizedBox(width: 10),
               _HeroAction(
@@ -309,7 +312,7 @@ class _DashboardHero extends StatelessWidget {
                         icon: Icons.point_of_sale_outlined,
                         strong: true,
                         compact: true,
-                        onTap: () => context.go('/pos'),
+                        onTap: () => context.go(posRoute),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -6444,6 +6447,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
+    final posMode = ref.watch(posOperatingModeProvider);
     final business = state.business;
     final user = state.user;
     final locationNames = state.locations.map((item) => item.name).join(', ');
@@ -6496,6 +6500,28 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Configure your business and connected services.',
           ),
           const SizedBox(height: 18),
+          _PosOperatingModeSettings(
+            mode: posMode,
+            onChanged: (mode) async {
+              await ref.read(posOperatingModeProvider.notifier).setMode(mode);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${context.tr(mode.label)} ${context.tr('is now the default POS for this device.')}',
+                      ),
+                      action: SnackBarAction(
+                        label: context.tr('Open POS'),
+                        onPressed: () => context.go(mode.route),
+                      ),
+                    ),
+                  );
+              }
+            },
+          ),
+          const SizedBox(height: 10),
           _BusinessSaleSettings(
             allowOverselling: state.allowOverselling,
             onChanged: (value) async {
@@ -6549,6 +6575,158 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _PosOperatingModeSettings extends StatelessWidget {
+  const _PosOperatingModeSettings({
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final PosOperatingMode mode;
+  final Future<void> Function(PosOperatingMode mode) onChanged;
+
+  @override
+  Widget build(BuildContext context) => Surface(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const CircleAvatar(child: Icon(Icons.devices_outlined)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('POS operating mode'),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    context.tr(
+                      'Choose which sales workspace this device opens from POS and New sale actions.',
+                    ),
+                    style: const TextStyle(color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 560;
+            final options = [
+              _PosModeOption(
+                mode: PosOperatingMode.retail,
+                selected: mode == PosOperatingMode.retail,
+                icon: Icons.point_of_sale_outlined,
+                title: 'Retail POS',
+                subtitle: 'Products, cart, payment and customer checkout',
+                onTap: onChanged,
+              ),
+              _PosModeOption(
+                mode: PosOperatingMode.kitchen,
+                selected: mode == PosOperatingMode.kitchen,
+                icon: Icons.soup_kitchen_outlined,
+                title: 'Kitchen POS',
+                subtitle: 'Tables, guests, modifiers, KOT and kitchen routing',
+                onTap: onChanged,
+              ),
+            ];
+            if (compact) {
+              return Column(
+                children: [
+                  options.first,
+                  const SizedBox(height: 8),
+                  options.last,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: options.first),
+                const SizedBox(width: 10),
+                Expanded(child: options.last),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+class _PosModeOption extends StatelessWidget {
+  const _PosModeOption({
+    required this.mode,
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final PosOperatingMode mode;
+  final bool selected;
+  final IconData icon;
+  final String title, subtitle;
+  final Future<void> Function(PosOperatingMode mode) onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: selected ? const Color(0xFFE1F1EC) : Colors.white,
+    shape: RoundedRectangleBorder(
+      side: BorderSide(
+        color: selected ? AppColors.primary : const Color(0xFFDCE5E2),
+        width: selected ? 1.5 : 1,
+      ),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: selected ? null : () => onTap(mode),
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.primary),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr(title),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    context.tr(subtitle),
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
+              color: selected ? AppColors.primary : AppColors.muted,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class TaxSettingsScreen extends ConsumerStatefulWidget {
@@ -6820,7 +6998,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
             ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () => context.go('/pos'),
+            onPressed: () =>
+                context.go(ref.read(posOperatingModeProvider).route),
             icon: const Icon(Icons.point_of_sale),
             label: const Text('Open POS'),
           ),

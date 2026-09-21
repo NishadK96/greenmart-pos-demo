@@ -908,6 +908,17 @@ const Map<String, String> _ar = {
   'Invoice settings': 'إعدادات الفاتورة',
   'Restaurant': 'المطعم',
   'Open Kitchen POS': 'فتح نقطة بيع المطبخ',
+  'Kitchen POS': 'نقطة بيع المطبخ',
+  'Retail POS': 'نقطة بيع التجزئة',
+  'POS operating mode': 'وضع تشغيل نقطة البيع',
+  'Choose which sales workspace this device opens from POS and New sale actions.':
+      'اختر مساحة المبيعات التي يفتحها هذا الجهاز من إجراءات نقطة البيع والبيع الجديد.',
+  'Products, cart, payment and customer checkout':
+      'المنتجات والسلة والدفع وإتمام بيع العميل',
+  'Tables, guests, modifiers, KOT and kitchen routing':
+      'الطاولات والضيوف والإضافات وتذكرة المطبخ وتوجيه الطباعة',
+  'is now the default POS for this device.':
+      'هي الآن نقطة البيع الافتراضية لهذا الجهاز.',
   'Tables': 'الطاولات',
   'Kitchen printing': 'طباعة المطبخ',
   'Create kitchen orders, browse ERP tables and manage kitchen printing.':

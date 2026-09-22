@@ -391,119 +391,212 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
   );
 }
 
-class _InvoiceDesignsPanel extends ConsumerWidget {
+class _InvoiceDesignsPanel extends ConsumerStatefulWidget {
   const _InvoiceDesignsPanel();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_InvoiceDesignsPanel> createState() =>
+      _InvoiceDesignsPanelState();
+}
+
+class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final designs = ref.watch(invoiceDesignsProvider);
     final layouts = ref.watch(invoiceLayoutControllerProvider);
     final controller = ref.read(invoiceLayoutControllerProvider.notifier);
+    final selectedLayout = layouts.asData?.value?.selectedLayout;
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 14, 16, _expanded ? 16 : 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Built-in invoice designs',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
+            InkWell(
+              key: const ValueKey('invoice-designs-toggle'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE9F5F1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.dashboard_customize_outlined,
+                        color: AppColors.primary,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Built-in invoice designs',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Preview samples or change the default design.',
+                            style: TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!_expanded && selectedLayout != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 260),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE9F5F1),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          'Default: ${selectedLayout.name}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 8),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.muted,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () => ref.invalidate(invoiceDesignsProvider),
-                  tooltip: context.tr('Reload ERP layouts'),
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
+              ),
             ),
-            const Text(
-              'Preview a watermarked sample, or use a design for this business location.',
-            ),
-            const SizedBox(height: 12),
-            designs.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (_expanded) ...[
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  Text(error.toString()),
-                  TextButton(
+                  const Expanded(
+                    child: Text(
+                      'Select a design below. Preview opens a watermarked sample.',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
+                  ),
+                  IconButton(
                     onPressed: () => ref.invalidate(invoiceDesignsProvider),
-                    child: const Text('Retry'),
+                    tooltip: context.tr('Reload ERP layouts'),
+                    icon: const Icon(Icons.refresh),
                   ),
                 ],
               ),
-              data: (items) => items.isEmpty
-                  ? const Text('No built-in invoice designs are available.')
-                  : LayoutBuilder(
-                      builder: (_, constraints) {
-                        final columns = constraints.maxWidth >= 980
-                            ? 3
-                            : constraints.maxWidth >= 640
-                            ? 2
-                            : 1;
-                        final width =
-                            (constraints.maxWidth - (columns - 1) * 12) /
-                            columns;
-                        return Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: items.map((design) {
-                            final selected =
-                                layouts.asData?.value?.selectedLayout?.design ==
-                                design.key;
-                            final layout = ErpInvoiceLayout(
-                              id: design.key,
-                              name: design.name,
-                              design: design.key,
-                              designName: '',
-                              isSelected: selected,
-                              previewUrl: '',
-                            );
-                            return SizedBox(
-                              width: width,
-                              child: AbsorbPointer(
-                                absorbing: layouts.isLoading,
-                                child: _ErpLayoutCard(
-                                  layout: layout,
-                                  selected: selected,
-                                  showOfflineStatus: false,
-                                  onPreview: () => _showErpInvoicePreview(
-                                    context,
-                                    layout: layout,
-                                    load: () =>
-                                        controller.previewDesign(design.key),
-                                  ),
-                                  onAssign: () async {
-                                    try {
-                                      await controller.assign(
-                                        null,
-                                        design: design.key,
-                                      );
-                                      if (context.mounted)
-                                        PrinterSettingsScreen._message(
-                                          context,
-                                          '${design.name} is now the default ERP invoice layout.',
-                                        );
-                                    } catch (error) {
-                                      if (context.mounted)
-                                        PrinterSettingsScreen._message(
-                                          context,
-                                          error.toString(),
-                                        );
-                                    }
-                                  },
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        );
-                      },
+              const SizedBox(height: 4),
+              designs.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (error, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(error.toString()),
+                    TextButton(
+                      onPressed: () => ref.invalidate(invoiceDesignsProvider),
+                      child: const Text('Retry'),
                     ),
-            ),
+                  ],
+                ),
+                data: (items) => items.isEmpty
+                    ? const Text('No built-in invoice designs are available.')
+                    : LayoutBuilder(
+                        builder: (_, constraints) {
+                          final columns = constraints.maxWidth >= 980
+                              ? 3
+                              : constraints.maxWidth >= 640
+                              ? 2
+                              : 1;
+                          final width =
+                              (constraints.maxWidth - (columns - 1) * 12) /
+                              columns;
+                          return Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: items.map((design) {
+                              final selected =
+                                  selectedLayout?.design == design.key;
+                              final layout = ErpInvoiceLayout(
+                                id: design.key,
+                                name: design.name,
+                                design: design.key,
+                                designName: '',
+                                isSelected: selected,
+                                previewUrl: '',
+                              );
+                              return SizedBox(
+                                width: width,
+                                child: AbsorbPointer(
+                                  absorbing: layouts.isLoading,
+                                  child: _ErpLayoutCard(
+                                    layout: layout,
+                                    selected: selected,
+                                    showOfflineStatus: false,
+                                    onPreview: () => _showErpInvoicePreview(
+                                      context,
+                                      layout: layout,
+                                      load: () =>
+                                          controller.previewDesign(design.key),
+                                    ),
+                                    onAssign: () async {
+                                      try {
+                                        await controller.assign(
+                                          null,
+                                          design: design.key,
+                                        );
+                                        if (context.mounted) {
+                                          PrinterSettingsScreen._message(
+                                            context,
+                                            '${design.name} is now the default ERP invoice layout.',
+                                          );
+                                        }
+                                      } catch (error) {
+                                        if (context.mounted) {
+                                          PrinterSettingsScreen._message(
+                                            context,
+                                            error.toString(),
+                                          );
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ],
         ),
       ),

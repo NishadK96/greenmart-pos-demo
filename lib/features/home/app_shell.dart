@@ -102,6 +102,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       sidebarInitialized = true;
     }
     final path = GoRouterState.of(context).uri.path;
+    final navExpanded = path != '/kitchen-pos' && expanded;
     final AsyncValue<CashRegister?> registerState = path == '/pos'
         ? ref.watch(cashRegisterControllerProvider)
         : const AsyncData(null);
@@ -318,7 +319,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
-            width: expanded ? 244 : 82,
+            width: navExpanded ? 244 : (path == '/kitchen-pos' ? 64 : 82),
             color: AppColors.navy,
             child: SafeArea(
               child: Column(
@@ -328,7 +329,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     child: Row(
                       children: [
                         const _EazyPosIcon(size: 42, radius: 13),
-                        if (expanded) ...[
+                        if (navExpanded) ...[
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -353,7 +354,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                           ),
                         ],
-                        if (expanded)
+                        if (navExpanded)
                           IconButton(
                             onPressed: () => _setExpanded(false),
                             icon: const Icon(
@@ -366,7 +367,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ],
                     ),
                   ),
-                  if (!expanded)
+                  if (!navExpanded && path != '/kitchen-pos')
                     IconButton(
                       onPressed: () => _setExpanded(true),
                       icon: const Icon(
@@ -374,7 +375,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         color: Colors.white54,
                       ),
                     ),
-                  if (expanded)
+                  if (navExpanded)
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
                       child: Align(
@@ -412,7 +413,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     height: 46,
                                     child: Row(
                                       children: [
-                                        if (expanded)
+                                        if (navExpanded)
                                           SizedBox(
                                             width: 58,
                                             child: Icon(
@@ -433,7 +434,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                               size: 21,
                                             ),
                                           ),
-                                        if (expanded)
+                                        if (navExpanded)
                                           Text(
                                             context.tr(shellDestinations[i].$2),
                                             style: TextStyle(
@@ -487,7 +488,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 ),
                               ),
                             ),
-                            if (expanded) ...[
+                            if (navExpanded) ...[
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(

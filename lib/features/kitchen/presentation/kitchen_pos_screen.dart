@@ -60,19 +60,24 @@ final kitchenRestaurantContextProvider = FutureProvider.autoDispose
 
 final kitchenOrdersProvider = FutureProvider.autoDispose
     .family<List<Sale>, String>((ref, locationId) async {
+      // Capture provider dependencies before the first async gap. This provider
+      // is refreshed explicitly, so its Ref can be disposed while an older
+      // request is still completing.
+      final api = ref.read(apiProvider);
+      final store = ref.read(appStoreProvider);
+      final auth = ref.read(authControllerProvider.notifier);
+      final authFuture = ref.watch(authControllerProvider.future);
+
       Future<List<Sale>> load(String token) {
-        final store = ref.read(appStoreProvider);
-        return ref
-            .read(apiProvider)
-            .kitchenOrders(
-              accessToken: token,
-              products: store.products,
-              customers: store.customers,
-              locationId: locationId,
-            );
+        return api.kitchenOrders(
+          accessToken: token,
+          products: store.products,
+          customers: store.customers,
+          locationId: locationId,
+        );
       }
 
-      var token = await ref.watch(authControllerProvider.future);
+      var token = await authFuture;
       if (token == null || token.isEmpty || token == 'offline-local-session') {
         throw const ApiException(
           'Recent kitchen orders require an online session.',
@@ -82,9 +87,7 @@ final kitchenOrdersProvider = FutureProvider.autoDispose
         return await load(token);
       } on ApiException catch (error) {
         if (error.statusCode != 401) rethrow;
-        token = await ref
-            .read(authControllerProvider.notifier)
-            .refreshAccessToken();
+        token = await auth.refreshAccessToken();
         return load(token);
       }
     });
@@ -136,7 +139,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   final _focus = FocusNode();
   final Map<String, CartLine> _lines = {};
   String _category = '';
-  String _service = 'Dine in';
+  String _service = 'Takeaway';
   String? _tableId;
   String? _waiterId;
   String? _serviceTypeId;
@@ -144,6 +147,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   int _guests = 1;
   int _grossDiscount = 0;
   int _addQuantity = 1;
+  String? _selectedLineId;
+  String _keypadInput = '';
+  String _keypadMode = 'qty';
   bool _showMobileOrder = false;
   bool _sending = false;
   String? _pendingClientTransactionId;
@@ -205,6 +211,69 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     });
   }
 
+  void _selectLine(CartLine line) => setState(() {
+    _selectedLineId = line.lineId;
+    _keypadInput = '';
+  });
+
+  void _keypadPress(String value) {
+    if (_orderLocked || _lines.isEmpty) return;
+    if (value == 'clear') {
+      setState(() => _keypadInput = '');
+      return;
+    }
+    if (value == 'backspace') {
+      setState(() {
+        if (_keypadInput.isNotEmpty) {
+          _keypadInput = _keypadInput.substring(0, _keypadInput.length - 1);
+        }
+      });
+      return;
+    }
+    final line = _lines[_selectedLineId] ?? _lines.values.last;
+    if (value == '+' || value == '-') {
+      _changeQuantity(line, value == '+' ? 1 : -1);
+      return;
+    }
+    if (value == 'enter') {
+      final enteredAmount = double.tryParse(_keypadInput);
+      final enteredQuantity = int.tryParse(_keypadInput);
+      if (_keypadMode == 'discount' &&
+          enteredAmount != null &&
+          enteredAmount >= 0) {
+        setState(() {
+          final maximum = _lines.values.fold<int>(
+            0,
+            (sum, item) => sum + _kitchenLineTotal(item),
+          );
+          _grossDiscount = min((enteredAmount * 100).round(), maximum);
+          _keypadInput = '';
+        });
+      } else if (enteredQuantity != null &&
+          enteredQuantity > 0 &&
+          enteredQuantity <= 999) {
+        setState(() {
+          _lines[line.lineId] = line.copyWith(quantity: enteredQuantity);
+          _keypadInput = '';
+          _selectedLineId = line.lineId;
+        });
+      }
+      return;
+    }
+    if (value == '.') {
+      if (_keypadMode == 'discount' && !_keypadInput.contains('.')) {
+        setState(
+          () => _keypadInput = _keypadInput.isEmpty ? '0.' : '$_keypadInput.',
+        );
+      }
+      return;
+    }
+    final maximumLength = _keypadMode == 'discount' ? 8 : 3;
+    if (_keypadInput.length < maximumLength) {
+      setState(() => _keypadInput += value);
+    }
+  }
+
   void _show(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -252,10 +321,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _tableId = null;
       _waiterId = null;
       _serviceTypeId = null;
-      _service = 'Dine in';
+      _service = 'Takeaway';
       _guests = 1;
       _note = '';
       _grossDiscount = 0;
+      _selectedLineId = null;
+      _keypadInput = '';
+      _keypadMode = 'qty';
       _showMobileOrder = false;
     });
   }
@@ -444,7 +516,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         ],
       ),
     );
-    final maximum = _lines.values.fold<int>(0, (sum, line) => sum + line.total);
+    final maximum = _lines.values.fold<int>(
+      0,
+      (sum, line) => sum + _kitchenLineTotal(line),
+    );
     if (amount != null && mounted) {
       setState(() => _grossDiscount = amount.clamp(0, maximum));
     }
@@ -488,57 +563,299 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (_orderLocked) return;
     setState(() => _sending = true);
     try {
-      ref.invalidate(kitchenOrdersProvider(locationId));
-      final orders = await ref.read(kitchenOrdersProvider(locationId).future);
+      final loadedOrders = await ref.refresh(
+        kitchenOrdersProvider(locationId).future,
+      );
+      final orders = [...loadedOrders]
+        ..sort((a, b) {
+          if (a.status == b.status) return 0;
+          return a.status == 'draft' ? -1 : 1;
+        });
       if (!mounted) return;
+      final heldCount = orders.where((order) => order.status == 'draft').length;
       final selected = await showDialog<Sale>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Recent kitchen orders'),
-          content: SizedBox(
-            width: 620,
-            height: 520,
-            child: orders.isEmpty
-                ? const Center(child: Text('No kitchen orders found.'))
-                : ListView.separated(
-                    itemCount: orders.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, index) {
-                      final order = orders[index];
-                      return ListTile(
-                        leading: CircleAvatar(
+        builder: (dialogContext) {
+          final theme = Theme.of(dialogContext);
+          final colors = theme.colorScheme;
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 700, maxHeight: 640),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: colors.primaryContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           child: Icon(
-                            order.status == 'draft'
-                                ? Icons.pause_outlined
-                                : Icons.receipt_long_outlined,
+                            Icons.history_rounded,
+                            color: colors.onPrimaryContainer,
                           ),
                         ),
-                        title: Text(
-                          order.invoiceNo.isEmpty
-                              ? 'Order #${order.serverId}'
-                              : order.invoiceNo,
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Held & recent orders',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Resume held tickets or review recent kitchen orders.',
+                                style: TextStyle(color: Color(0xFF64726F)),
+                              ),
+                            ],
+                          ),
                         ),
-                        subtitle: Text(
-                          '${order.customer.name} • ${order.items.length} items • '
-                          '${order.status == 'draft' ? 'Draft' : order.paymentStatus}',
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close_rounded),
                         ),
-                        trailing: RiyalAmount(order.total),
-                        onTap: () => Navigator.pop(dialogContext, order),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Close'),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _OrderSummaryChip(
+                          icon: Icons.pause_circle_outline_rounded,
+                          label: '$heldCount held',
+                          emphasized: heldCount > 0,
+                        ),
+                        _OrderSummaryChip(
+                          icon: Icons.receipt_long_outlined,
+                          label: '${orders.length} total',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (orders.isEmpty)
+                      Container(
+                        height: 190,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceContainerLowest,
+                          border: Border.all(color: colors.outlineVariant),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long_outlined, size: 38),
+                            SizedBox(height: 10),
+                            Text(
+                              'No kitchen orders found',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            SizedBox(height: 4),
+                            Text('Held orders will appear here.'),
+                          ],
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: orders.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (_, index) {
+                            final order = orders[index];
+                            final isHeld = order.status == 'draft';
+                            final orderNumber = order.invoiceNo.isEmpty
+                                ? 'Order #${order.serverId}'
+                                : order.invoiceNo;
+                            return Material(
+                              color: isHeld
+                                  ? const Color(0xFFF2FAF7)
+                                  : colors.surfaceContainerLowest,
+                              shape: RoundedRectangleBorder(
+                                side: BorderSide(
+                                  color: isHeld
+                                      ? const Color(0xFFB9E3D6)
+                                      : colors.outlineVariant,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () =>
+                                    Navigator.pop(dialogContext, order),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final compact =
+                                          constraints.maxWidth < 500;
+                                      final details = Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Flexible(
+                                                child: Text(
+                                                  orderNumber,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 17,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 9,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: isHeld
+                                                      ? const Color(0xFFD5F3E9)
+                                                      : colors
+                                                            .secondaryContainer,
+                                                  borderRadius:
+                                                      BorderRadius.circular(99),
+                                                ),
+                                                child: Text(
+                                                  isHeld
+                                                      ? 'Held'
+                                                      : order.paymentStatus,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            order.customer.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFF56635F),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Text(
+                                            '${order.items.length} items  •  ${money(order.total)}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                      final action = FilledButton.icon(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext, order),
+                                        icon: Icon(
+                                          isHeld
+                                              ? Icons.play_arrow_rounded
+                                              : Icons.visibility_outlined,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          isHeld
+                                              ? 'Resume order'
+                                              : 'View order',
+                                        ),
+                                      );
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: isHeld
+                                                  ? const Color(0xFFD5F3E9)
+                                                  : colors.secondaryContainer,
+                                              borderRadius:
+                                                  BorderRadius.circular(13),
+                                            ),
+                                            child: Icon(
+                                              isHeld
+                                                  ? Icons.pause_rounded
+                                                  : Icons.receipt_long_outlined,
+                                              color: isHeld
+                                                  ? const Color(0xFF08745D)
+                                                  : colors.onSecondaryContainer,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 13),
+                                          Expanded(
+                                            child: compact
+                                                ? Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .stretch,
+                                                    children: [
+                                                      details,
+                                                      const SizedBox(
+                                                        height: 12,
+                                                      ),
+                                                      action,
+                                                    ],
+                                                  )
+                                                : Row(
+                                                    children: [
+                                                      Expanded(child: details),
+                                                      const SizedBox(width: 16),
+                                                      action,
+                                                    ],
+                                                  ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       );
       if (selected != null && mounted) _loadOrder(selected);
-    } catch (error) {
-      if (mounted) _show('Unable to load recent kitchen orders: $error');
+    } catch (error, stackTrace) {
+      debugPrint('Unable to load recent kitchen orders: $error\n$stackTrace');
+      if (mounted) {
+        _show(
+          'Unable to load held orders. Check the connection and try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -562,7 +879,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _serviceTypeId = order.serviceTypeId.isEmpty ? null : order.serviceTypeId;
       _service = const ['Dine in', 'Takeaway', 'Delivery'].contains(service)
           ? service
-          : 'Dine in';
+          : 'Takeaway';
       _guests = int.tryParse(pax?.group(1) ?? '') ?? 1;
       _note = order.saleNote
           .split('·')
@@ -771,7 +1088,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                           child: _catalog(store, products, desktop: true),
                         ),
                         SizedBox(
-                          width: width >= 1300 ? 390 : 320,
+                          width: width >= 1500 ? 360 : 330,
                           child: _order(
                             total,
                             subtotal: subtotal,
@@ -876,14 +1193,21 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           color: Colors.white,
           visualDensity: VisualDensity.compact,
         ),
-        IconButton(
-          tooltip: 'Recent orders',
+        OutlinedButton.icon(
+          key: const ValueKey('kitchen-held-orders'),
           onPressed: locationId.isEmpty
               ? null
               : () => _showRecentOrders(locationId),
-          icon: const Icon(Icons.receipt_long_outlined),
-          color: Colors.white,
-          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.pause_circle_outline_rounded, size: 17),
+          label: const Text('Held orders'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: const BorderSide(color: Colors.white54),
+            minimumSize: const Size(0, 34),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
         ),
       ],
     );
@@ -913,8 +1237,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       ),
     );
     return Container(
-      margin: EdgeInsets.fromLTRB(desktop ? 12 : 8, 7, desktop ? 12 : 8, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: EdgeInsets.fromLTRB(desktop ? 8 : 8, 5, desktop ? 8 : 8, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(8),
@@ -922,8 +1246,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       child: desktop
           ? Row(
               children: [
-                SizedBox(width: 190, child: title),
-                const SizedBox(width: 16),
+                SizedBox(width: 275, child: title),
+                const SizedBox(width: 8),
                 Expanded(child: controls),
               ],
             )
@@ -1014,7 +1338,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           backgroundColor: selected ? AppColors.primary : Colors.white,
           foregroundColor: selected ? Colors.white : AppColors.ink,
           side: BorderSide(color: selected ? Colors.white : _border),
-          minimumSize: const Size(0, 40),
+          minimumSize: const Size(0, 36),
           visualDensity: VisualDensity.standard,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1047,7 +1371,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       Container(
         key: const ValueKey('kitchen-table-card'),
         width: mobile ? double.infinity : 156,
-        height: mobile ? 44 : 40,
+        height: mobile ? 44 : 36,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1097,7 +1421,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
 
   Widget _guestCard({bool mobile = false}) => Container(
     width: mobile ? null : 112,
-    height: mobile ? 44 : 40,
+    height: mobile ? 44 : 36,
     margin: EdgeInsets.only(right: mobile ? 0 : 6),
     padding: const EdgeInsets.symmetric(horizontal: 4),
     decoration: BoxDecoration(
@@ -1154,7 +1478,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   Widget _waiterCard(List<LookupOption> staff, {bool mobile = false}) =>
       Container(
         width: mobile ? null : 170,
-        height: mobile ? 44 : 40,
+        height: mobile ? 44 : 36,
         margin: EdgeInsets.only(right: mobile ? 0 : 6),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
@@ -1207,16 +1531,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final categories = store.categories.where((item) => item.active).toList();
     final arabic = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
       color: const Color(0xFFFAFCFB),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: desktop ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          const Align(
-            alignment: Alignment.centerRight,
-            child: ProductCardStylePicker(mode: 'kitchen'),
-          ),
           Row(
             children: [
               Expanded(
@@ -1257,6 +1577,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                   onPressed: _focus.requestFocus,
                   icon: const Icon(Icons.qr_code_scanner_outlined),
                 ),
+                const SizedBox(width: 6),
+                const ProductCardStylePicker(mode: 'kitchen'),
                 const SizedBox(width: 6),
               ],
               if (MediaQuery.sizeOf(context).width < 600) ...[
@@ -1312,7 +1634,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           if (desktop)
             Expanded(child: _categoryProductArea(products, categories, arabic))
           else
@@ -1336,12 +1658,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       children: [
         SizedBox(
           key: const ValueKey('kitchen-category-panel'),
-          width: mobile ? 112 : 200,
+          width: mobile ? 112 : 148,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.only(bottom: 6),
                 child: Text(
                   'Categories',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -1367,7 +1689,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(child: _productGrid(products, categories)),
       ],
     );
@@ -1383,7 +1705,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         ? AppColors.primary
         : _categoryBorders[colorIndex];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: OutlinedButton(
         key: ValueKey(
           id.isEmpty ? 'kitchen-category-all' : 'kitchen-category-$id',
@@ -1393,14 +1715,14 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           backgroundColor: selected ? AppColors.primary : background,
           foregroundColor: selected ? Colors.white : AppColors.ink,
           side: BorderSide(color: selected ? AppColors.primary : border),
-          minimumSize: const Size(double.infinity, 64),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          minimumSize: const Size(double.infinity, 46),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
         ),
         child: Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -1446,11 +1768,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1050
+        final columns = constraints.maxWidth >= 1120
+            ? 8
+            : constraints.maxWidth >= 800
+            ? 6
+            : constraints.maxWidth >= 620
+            ? 5
+            : constraints.maxWidth >= 440
             ? 4
-            : constraints.maxWidth >= 520
-            ? 3
-            : constraints.maxWidth >= 210
+            : constraints.maxWidth >= 220
             ? 2
             : 1;
         return GridView.builder(
@@ -1459,12 +1785,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             crossAxisCount: columns,
             mainAxisExtent:
                 ref.watch(productCardImagesProvider)['kitchen'] == true
-                ? 176
-                : constraints.maxWidth < 440
-                ? 92
-                : 104,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
+                ? 142
+                : 82,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
           ),
           itemBuilder: (_, index) {
             final product = products[index];
@@ -1478,15 +1802,18 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             return Material(
               color: _productBackgrounds[paletteIndex],
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(7),
                 side: BorderSide(color: _productBorders[paletteIndex]),
               ),
               child: InkWell(
                 key: ValueKey('kitchen-product-${product.id}'),
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(7),
                 onTap: _orderLocked ? null : () => _add(product),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 6,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -1510,14 +1837,16 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.ink,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 7),
+                      const SizedBox(height: 3),
                       RiyalAmount(
                         product.sellingPrice,
                         style: const TextStyle(
                           color: AppColors.primary,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -1538,8 +1867,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     required int tax,
     required bool desktop,
   }) => Container(
-    margin: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-    padding: const EdgeInsets.all(16),
+    margin: EdgeInsets.fromLTRB(
+      0,
+      MediaQuery.sizeOf(context).height < 720 ? 4 : 8,
+      8,
+      MediaQuery.sizeOf(context).height < 720 ? 4 : 8,
+    ),
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).height < 720 ? 7 : 10),
     decoration: BoxDecoration(
       color: Colors.white,
       border: Border.all(color: _border),
@@ -1554,8 +1888,21 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             const Expanded(
               child: Text(
                 'Current Order',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
               ),
+            ),
+            Text(
+              '${_lines.length} items',
+              style: const TextStyle(fontSize: 11, color: AppColors.muted),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: _note.isEmpty ? 'Add order note' : 'Edit order note',
+              onPressed: _orderLocked ? null : _editNote,
+              icon: const Icon(Icons.note_add_outlined, size: 17),
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              padding: EdgeInsets.zero,
             ),
             TextButton(
               onPressed: _lines.isEmpty || _orderLocked
@@ -1564,7 +1911,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                       _lines.clear();
                       _grossDiscount = 0;
                     }),
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1576,49 +1929,76 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        const Divider(),
+        const Divider(height: 10),
         if (desktop)
           Expanded(child: _orderItems())
         else
           SizedBox(height: 220, child: _orderItems()),
-        OutlinedButton.icon(
-          onPressed: _orderLocked ? null : _editNote,
-          icon: const Icon(Icons.note_add_outlined, size: 19),
-          label: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              _note.isEmpty ? 'Add order note…' : _note,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+        if (!desktop || _note.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: _orderLocked ? null : _editNote,
+            icon: const Icon(Icons.note_add_outlined, size: 17),
+            label: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _note.isEmpty ? 'Add order note…' : _note,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              minimumSize: const Size(0, 34),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: AppColors.muted,
             ),
           ),
-          style: OutlinedButton.styleFrom(
-            alignment: Alignment.centerLeft,
-            minimumSize: const Size(0, 46),
-            foregroundColor: AppColors.muted,
-          ),
-        ),
-        const Divider(height: 24),
-        _amountRow('Subtotal', subtotal),
-        const SizedBox(height: 5),
-        _amountRow('Tax', tax),
-        const SizedBox(height: 5),
-        InkWell(
-          onTap: _lines.isEmpty || _orderLocked ? null : _editGrossDiscount,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                const Expanded(child: Text('Discount')),
-                RiyalAmount(-_grossDiscount),
-                const SizedBox(width: 4),
-                const Icon(Icons.edit_outlined, size: 15),
-              ],
+        const Divider(height: 12),
+        if (desktop && MediaQuery.sizeOf(context).height < 720)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Sub ${moneyAmount(subtotal)}',
+                style: const TextStyle(fontSize: 11),
+              ),
+              Text(
+                'Tax ${moneyAmount(tax)}',
+                style: const TextStyle(fontSize: 11),
+              ),
+              InkWell(
+                onTap: _lines.isEmpty || _orderLocked
+                    ? null
+                    : _editGrossDiscount,
+                child: Text(
+                  'Disc ${moneyAmount(_grossDiscount)}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          )
+        else ...[
+          _amountRow('Subtotal', subtotal),
+          const SizedBox(height: 5),
+          _amountRow('Tax', tax),
+          const SizedBox(height: 5),
+          InkWell(
+            onTap: _lines.isEmpty || _orderLocked ? null : _editGrossDiscount,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('Discount')),
+                  RiyalAmount(-_grossDiscount),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.edit_outlined, size: 15),
+                ],
+              ),
             ),
           ),
-        ),
-        const Divider(height: 18),
+        ],
+        const Divider(height: 12),
         Row(
           children: [
             const Expanded(
@@ -1638,37 +2018,16 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          _savedTransactionId != null
-              ? 'Order #$_savedTransactionId is saved. Retry kitchen printing; do not create the sale again.'
-              : _orderLocked
-              ? 'Submission was not confirmed. Retry this same order to avoid a duplicate sale.'
-              : 'This finalizes an unpaid kitchen sale and prints routed kitchen tickets.',
-          style: const TextStyle(color: AppColors.muted, fontSize: 11),
-        ),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          key: const ValueKey('send-to-kitchen'),
-          onPressed: _sending ? null : _sendToKitchen,
-          icon: const Icon(Icons.soup_kitchen_rounded),
-          label: Text(
-            _sending
-                ? 'Saving and printing…'
-                : _savedTransactionId != null
-                ? 'Retry kitchen printing (F9)'
-                : _orderLocked
-                ? 'Retry kitchen submission (F9)'
-                : 'Send to Kitchen (F9)',
+        const SizedBox(height: 6),
+        if (_savedTransactionId != null || _orderLocked) ...[
+          Text(
+            _savedTransactionId != null
+                ? 'Order #$_savedTransactionId is saved. Retry kitchen printing; do not create the sale again.'
+                : 'Submission was not confirmed. Retry this same order to avoid a duplicate sale.',
+            style: const TextStyle(color: AppColors.muted, fontSize: 11),
           ),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 6),
+        ],
         Row(
           children: [
             Expanded(
@@ -1678,6 +2037,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     : () => unawaited(_saveDraft()),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 38),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1686,7 +2047,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     SizedBox(width: 5),
                     Expanded(
                       child: Text(
-                        'Hold (F6)',
+                        'Hold',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1703,6 +2064,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     : () => unawaited(_printBill()),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 38),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1711,7 +2074,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     SizedBox(width: 5),
                     Expanded(
                       child: Text(
-                        'Print Bill (F8)',
+                        'Print',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1720,17 +2083,35 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                key: const ValueKey('send-to-kitchen'),
+                onPressed: _sending ? null : _sendToKitchen,
+                icon: const Icon(Icons.soup_kitchen_rounded, size: 17),
+                label: Text(_sending ? 'Sending…' : 'Kitchen'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 38),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
+        const SizedBox(height: 6),
+        FilledButton.icon(
           onPressed: _lines.isEmpty || _orderLocked || _sending
               ? null
               : () => unawaited(_billAndPay()),
           icon: const Icon(Icons.point_of_sale_outlined),
           label: const Text('Bill & Pay'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 40),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
         ),
+        if (desktop) ...[const SizedBox(height: 6), _numericKeypad()],
         if (_activeOrder != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -1746,6 +2127,134 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       ],
     ),
   );
+
+  Widget _numericKeypad() {
+    Widget keypadKey(String label, {String? value, Color? color}) => Expanded(
+      child: OutlinedButton(
+        onPressed: _orderLocked ? null : () => _keypadPress(value ?? label),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 27),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+          foregroundColor: color ?? AppColors.ink,
+          side: const BorderSide(color: _border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        child: Text(label),
+      ),
+    );
+
+    Widget keypadRow(List<Widget> children) => Row(
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          children[index],
+          if (index != children.length - 1) const SizedBox(width: 4),
+        ],
+      ],
+    );
+
+    ButtonStyle modeStyle(bool selected) => OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 26),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      backgroundColor: selected ? AppColors.primary : Colors.white,
+      foregroundColor: selected ? Colors.white : AppColors.ink,
+      side: BorderSide(color: selected ? AppColors.primary : _border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+    );
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  _keypadMode = 'qty';
+                  _keypadInput = '';
+                }),
+                style: modeStyle(_keypadMode == 'qty'),
+                child: Text(
+                  _keypadMode == 'qty' && _keypadInput.isNotEmpty
+                      ? 'Qty $_keypadInput'
+                      : 'Qty',
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: null,
+                style: modeStyle(false),
+                child: const Text('Price'),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  _keypadMode = 'discount';
+                  _keypadInput = '';
+                }),
+                style: modeStyle(_keypadMode == 'discount'),
+                child: Text(
+                  _keypadMode == 'discount' && _keypadInput.isNotEmpty
+                      ? 'Disc $_keypadInput'
+                      : 'Disc',
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            keypadKey('Clear', value: 'clear', color: AppColors.danger),
+          ],
+        ),
+        const SizedBox(height: 4),
+        keypadRow([
+          keypadKey('7'),
+          keypadKey('8'),
+          keypadKey('9'),
+          keypadKey('+'),
+        ]),
+        const SizedBox(height: 4),
+        keypadRow([
+          keypadKey('4'),
+          keypadKey('5'),
+          keypadKey('6'),
+          keypadKey('−', value: '-'),
+        ]),
+        const SizedBox(height: 4),
+        keypadRow([
+          keypadKey('1'),
+          keypadKey('2'),
+          keypadKey('3'),
+          keypadKey('⌫', value: 'backspace'),
+        ]),
+        const SizedBox(height: 4),
+        keypadRow([
+          keypadKey('0'),
+          keypadKey('.'),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: _orderLocked ? null : () => _keypadPress('enter'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 27),
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+              child: const Text('Enter'),
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
 
   Widget _amountRow(String label, int amount) => Row(
     children: [
@@ -1766,88 +2275,192 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       separatorBuilder: (_, __) => const Divider(height: 1),
       itemBuilder: (_, index) {
         final line = lines[index];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      line.product.displayName(
-                        Localizations.localeOf(context).languageCode == 'ar',
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    RiyalAmount(line.subtotal),
-                    if (line.modifiers.isNotEmpty)
-                      Text(
-                        line.modifiers
-                            .map((modifier) => modifier.name)
-                            .join(' • '),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 11,
+        final selected = (_selectedLineId ?? lines.last.lineId) == line.lineId;
+        return InkWell(
+          onTap: () => _selectLine(line),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFFF0F8F5) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        key: ValueKey('kitchen-cart-modifiers-${line.lineId}'),
+                        onTap:
+                            line.product.modifierGroups.any(
+                                  (group) => group.isActive,
+                                ) &&
+                                !_orderLocked
+                            ? () => unawaited(_add(line.product))
+                            : null,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  line.product.displayName(
+                                    Localizations.localeOf(
+                                          context,
+                                        ).languageCode ==
+                                        'ar',
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    TextButton.icon(
-                      onPressed: _orderLocked
-                          ? null
-                          : () => unawaited(_editItemNote(line)),
-                      icon: const Icon(Icons.edit_note_outlined, size: 15),
-                      label: Text(
-                        line.itemNote.isEmpty ? 'Add item note' : line.itemNote,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 28),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        alignment: Alignment.centerLeft,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ],
+                      RiyalAmount(line.subtotal),
+                      if (line.product.modifierGroups.any(
+                        (group) => group.isActive,
+                      ))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: OutlinedButton.icon(
+                            key: ValueKey(
+                              'kitchen-cart-add-modifiers-${line.lineId}',
+                            ),
+                            onPressed: _orderLocked
+                                ? null
+                                : () => unawaited(_add(line.product)),
+                            icon: const Icon(Icons.tune_rounded, size: 15),
+                            label: const Text('Add modifiers'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              backgroundColor: const Color(0xFFEAF6F2),
+                              side: const BorderSide(color: Color(0xFF9FCFC2)),
+                              minimumSize: const Size(0, 32),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              textStyle: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (line.modifiers.isNotEmpty)
+                        Text(
+                          line.modifiers
+                              .map((modifier) => modifier.name)
+                              .join(' • '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      if (line.itemNote.isNotEmpty)
+                        Text(
+                          line.itemNote,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton.outlined(
-                tooltip: 'Decrease quantity',
-                onPressed: () => _changeQuantity(line, -1),
-                icon: const Icon(Icons.remove, size: 18),
-                constraints: const BoxConstraints.tightFor(
-                  width: 33,
-                  height: 33,
+                IconButton.outlined(
+                  tooltip: 'Decrease quantity',
+                  onPressed: () => _changeQuantity(line, -1),
+                  icon: const Icon(Icons.remove, size: 16),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 30,
+                    height: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size.square(30),
+                    maximumSize: const Size.square(30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    side: const BorderSide(color: Color(0xFF98A6A1)),
+                  ),
                 ),
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 8),
-              Text('${line.quantity}'),
-              const SizedBox(width: 8),
-              IconButton.outlined(
-                tooltip: 'Increase quantity',
-                onPressed: () => _changeQuantity(line, 1),
-                icon: const Icon(Icons.add, size: 18),
-                constraints: const BoxConstraints.tightFor(
-                  width: 33,
-                  height: 33,
+                const SizedBox(width: 4),
+                Text('${line.quantity}'),
+                const SizedBox(width: 4),
+                IconButton.outlined(
+                  tooltip: 'Increase quantity',
+                  onPressed: () => _changeQuantity(line, 1),
+                  icon: const Icon(Icons.add, size: 16),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 30,
+                    height: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size.square(30),
+                    maximumSize: const Size.square(30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    side: const BorderSide(color: Color(0xFF98A6A1)),
+                  ),
                 ),
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 3),
-              IconButton(
-                tooltip: 'Remove item',
-                onPressed: () => setState(() => _lines.remove(line.lineId)),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                color: AppColors.danger,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+                IconButton(
+                  tooltip: line.itemNote.isEmpty
+                      ? 'Add item note'
+                      : 'Edit item note',
+                  onPressed: _orderLocked
+                      ? null
+                      : () => unawaited(_editItemNote(line)),
+                  icon: const Icon(Icons.edit_note_outlined, size: 17),
+                  color: AppColors.primary,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(28, 30),
+                    maximumSize: const Size(28, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Remove item',
+                  onPressed: () => setState(() => _lines.remove(line.lineId)),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  color: AppColors.danger,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(28, 30),
+                    maximumSize: const Size(28, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1882,5 +2495,53 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
     if (note != null && mounted) setState(() => _note = note.trim());
     controller.dispose();
+  }
+}
+
+class _OrderSummaryChip extends StatelessWidget {
+  const _OrderSummaryChip({
+    required this.icon,
+    required this.label,
+    this.emphasized = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: emphasized
+            ? const Color(0xFFDDF5ED)
+            : colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 17,
+            color: emphasized
+                ? const Color(0xFF08745D)
+                : colors.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: emphasized
+                  ? const Color(0xFF075E4D)
+                  : colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

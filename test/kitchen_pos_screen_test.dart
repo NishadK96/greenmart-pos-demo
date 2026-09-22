@@ -24,6 +24,7 @@ void main() {
     const Size(320, 700),
     const Size(390, 760),
     const Size(960, 760),
+    const Size(1168, 660),
     const Size(1280, 850),
   ]) {
     testWidgets('kitchen order draft stays usable at ${size.width}px', (
@@ -51,6 +52,9 @@ void main() {
       expect(find.text('Kitchen POS'), findsOneWidget);
       expect(find.text('Tea'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('kitchen-table-card')), findsNothing);
+      await tester.tap(find.text('Dine in'));
+      await tester.pumpAndSettle();
       if (size.width >= 960) {
         final serviceRect = tester.getRect(
           find.widgetWithText(OutlinedButton, 'Dine in'),
@@ -133,6 +137,47 @@ void main() {
     await tester.tap(find.text('Set quantity'));
     await tester.pumpAndSettle();
     expect(find.text('x3'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop keypad applies a decimal order discount', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1168, 660);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container
+        .read(appStoreProvider.notifier)
+        .replaceCatalog(
+          const [_tea],
+          [const Category(id: 'drinks', name: 'Beverages', icon: 'drink')],
+        );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: KitchenPosScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('kitchen-product-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Disc'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '2'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '.'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '5'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Enter'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<RiyalAmount>(
+            find.byKey(const ValueKey('kitchen-order-total')),
+          )
+          .minorUnits,
+      750,
+    );
     expect(tester.takeException(), isNull);
   });
 }

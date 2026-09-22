@@ -1,3 +1,4 @@
+import 'package:eazy_pos/core/utils/money.dart';
 import 'package:eazy_pos/features/kitchen/presentation/kitchen_pos_screen.dart';
 import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
@@ -89,6 +90,14 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Current Order'), findsOneWidget);
       }
+      expect(
+        tester
+            .widget<RiyalAmount>(
+              find.byKey(const ValueKey('kitchen-order-total')),
+            )
+            .minorUnits,
+        1000,
+      );
       expect(find.text('Tap an item to start an order.'), findsNothing);
       expect(container.read(appStoreProvider).cart, isEmpty);
 

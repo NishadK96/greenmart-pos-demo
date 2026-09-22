@@ -100,6 +100,38 @@ class KitchenPosScreen extends ConsumerStatefulWidget {
 
 class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   static const _border = Color(0xFFDCE5E2);
+  static const _categoryBackgrounds = <Color>[
+    Color(0xFFE8F7ED),
+    Color(0xFFE9F3FF),
+    Color(0xFFFFF1E7),
+    Color(0xFFF2ECFF),
+    Color(0xFFFFEAF1),
+    Color(0xFFE8FAF7),
+  ];
+  static const _categoryBorders = <Color>[
+    Color(0xFFBDE4C9),
+    Color(0xFFBEDAF7),
+    Color(0xFFF4CBAE),
+    Color(0xFFD8C8F3),
+    Color(0xFFF1BED0),
+    Color(0xFFB8E8E0),
+  ];
+  static const _productBackgrounds = <Color>[
+    Color(0xFFFFF8E3),
+    Color(0xFFEAF6FF),
+    Color(0xFFFFEDF3),
+    Color(0xFFEBF8ED),
+    Color(0xFFFFF0E6),
+    Color(0xFFF2EDFF),
+  ];
+  static const _productBorders = <Color>[
+    Color(0xFFF1D797),
+    Color(0xFFB9DDF3),
+    Color(0xFFF2C2D2),
+    Color(0xFFBFE1C5),
+    Color(0xFFF0C8AD),
+    Color(0xFFD6C8F0),
+  ];
   final _search = TextEditingController();
   final _focus = FocusNode();
   final Map<String, CartLine> _lines = {};
@@ -187,6 +219,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (_note.trim().isNotEmpty) _note.trim(),
   ].join(' · ');
 
+  // Kitchen lines do not support per-item discounts. Build the payable amount
+  // from the visible line subtotal so stale/legacy discount values cannot make
+  // a newly entered kitchen order appear as zero.
+  int _kitchenLineTotal(CartLine line) =>
+      line.subtotal + (line.product.sellingPriceIncludesTax ? 0 : line.tax);
+
   Customer? _customer(AppState store) =>
       store.customer ?? store.customers.firstOrNull;
 
@@ -227,9 +265,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final customer = _customer(store);
     if (customer == null) return null;
     final lines = _lines.values.toList(growable: false);
-    final total =
-        (lines.fold<int>(0, (sum, line) => sum + line.total) - _grossDiscount)
-            .clamp(0, 1 << 62);
+    final total = max(
+      0,
+      lines.fold<int>(0, (sum, line) => sum + _kitchenLineTotal(line)) -
+          _grossDiscount,
+    );
     return Sale(
       localId: 'server-$transactionId',
       serverId: transactionId,
@@ -697,10 +737,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       (sum, line) => sum + line.subtotal,
     );
     final tax = _lines.values.fold<int>(0, (sum, line) => sum + line.tax);
-    final total =
-        (_lines.values.fold<int>(0, (sum, line) => sum + line.total) -
-                _grossDiscount)
-            .clamp(0, 1 << 62);
+    final total = max(
+      0,
+      _lines.values.fold<int>(0, (sum, line) => sum + _kitchenLineTotal(line)) -
+          _grossDiscount,
+    );
     final kitchen = ref.watch(kitchenPrintingControllerProvider).asData?.value;
     final locationId = kitchen?.locationId.isNotEmpty == true
         ? kitchen!.locationId
@@ -1167,7 +1208,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final arabic = Localizations.localeOf(context).languageCode == 'ar';
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      color: AppColors.canvas,
+      color: const Color(0xFFFAFCFB),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: desktop ? MainAxisSize.max : MainAxisSize.min,
@@ -1295,7 +1336,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       children: [
         SizedBox(
           key: const ValueKey('kitchen-category-panel'),
-          width: mobile ? 100 : 180,
+          width: mobile ? 112 : 200,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1310,14 +1351,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 child: ListView(
                   children: [
                     _categoryChip('', 'All'),
-                    for (final category in categories)
+                    for (var index = 0; index < categories.length; index++)
                       _categoryChip(
-                        category.id,
-                        arabic && category.nameAr.trim().isNotEmpty
-                            ? category.nameAr
-                            : category.nameEn.trim().isNotEmpty
-                            ? category.nameEn
-                            : category.name,
+                        categories[index].id,
+                        arabic && categories[index].nameAr.trim().isNotEmpty
+                            ? categories[index].nameAr
+                            : categories[index].nameEn.trim().isNotEmpty
+                            ? categories[index].nameEn
+                            : categories[index].name,
+                        paletteIndex: index,
                       ),
                   ],
                 ),
@@ -1326,21 +1368,31 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: _productGrid(products)),
+        Expanded(child: _productGrid(products, categories)),
       ],
     );
   }
 
-  Widget _categoryChip(String id, String label) {
+  Widget _categoryChip(String id, String label, {int? paletteIndex}) {
     final selected = _category == id;
+    final colorIndex = (paletteIndex ?? 0) % _categoryBackgrounds.length;
+    final background = id.isEmpty
+        ? AppColors.primary
+        : _categoryBackgrounds[colorIndex];
+    final border = id.isEmpty
+        ? AppColors.primary
+        : _categoryBorders[colorIndex];
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton(
+        key: ValueKey(
+          id.isEmpty ? 'kitchen-category-all' : 'kitchen-category-$id',
+        ),
         onPressed: () => setState(() => _category = id),
         style: OutlinedButton.styleFrom(
-          backgroundColor: selected ? AppColors.primary : Colors.white,
+          backgroundColor: selected ? AppColors.primary : background,
           foregroundColor: selected ? Colors.white : AppColors.ink,
-          side: BorderSide(color: selected ? AppColors.primary : _border),
+          side: BorderSide(color: selected ? AppColors.primary : border),
           minimumSize: const Size(double.infinity, 64),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1388,17 +1440,17 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
   }
 
-  Widget _productGrid(List<Product> products) {
+  Widget _productGrid(List<Product> products, List<Category> categories) {
     if (products.isEmpty) {
       return const Center(child: Text('No items match this filter.'));
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 720
+        final columns = constraints.maxWidth >= 1050
             ? 4
-            : constraints.maxWidth >= 440
+            : constraints.maxWidth >= 520
             ? 3
-            : constraints.maxWidth >= 260
+            : constraints.maxWidth >= 210
             ? 2
             : 1;
         return GridView.builder(
@@ -1416,11 +1468,18 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
           itemBuilder: (_, index) {
             final product = products[index];
+            final categoryIndex = categories.indexWhere(
+              (category) => category.id == product.categoryId,
+            );
+            final paletteIndex = categoryIndex >= 0
+                ? categoryIndex % _productBackgrounds.length
+                : product.categoryId.hashCode.abs() %
+                      _productBackgrounds.length;
             return Material(
-              color: Colors.white,
+              color: _productBackgrounds[paletteIndex],
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(9),
-                side: const BorderSide(color: _border),
+                side: BorderSide(color: _productBorders[paletteIndex]),
               ),
               child: InkWell(
                 key: ValueKey('kitchen-product-${product.id}'),
@@ -1570,6 +1629,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
             RiyalAmount(
               total,
+              key: const ValueKey('kitchen-order-total'),
               style: const TextStyle(
                 color: AppColors.primary,
                 fontSize: 19,

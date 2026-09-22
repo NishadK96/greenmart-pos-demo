@@ -793,7 +793,7 @@ Future<void> _previewTemplate(
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Kitchen template preview'),
         content: SizedBox(
           width: 560,
@@ -801,7 +801,7 @@ Future<void> _previewTemplate(
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Close'),
           ),
         ],

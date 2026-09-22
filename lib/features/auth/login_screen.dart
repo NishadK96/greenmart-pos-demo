@@ -134,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final loading =
         ref.watch(authControllerProvider).isLoading || resettingDevice;
     final size = MediaQuery.sizeOf(context);
-    final showFeaturePanel = size.width >= 900;
+    final showFeaturePanel = size.width >= 1200;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9F8),
@@ -142,7 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compactHeight = constraints.maxHeight < 760;
-            final panelHeight = compactHeight ? 620.0 : 778.0;
+            const panelHeight = 778.0;
             return SingleChildScrollView(
               padding: EdgeInsets.symmetric(
                 horizontal: size.width < 600 ? 18 : 40,
@@ -172,10 +172,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const Expanded(flex: 47, child: _FeaturePanel()),
+                              const Expanded(
+                                flex: 47,
+                                child: SingleChildScrollView(
+                                  child: _FeaturePanel(),
+                                ),
+                              ),
                               Expanded(
                                 flex: 53,
-                                child: _buildLoginForm(loading),
+                                child: SingleChildScrollView(
+                                  child: _buildLoginForm(loading),
+                                ),
                               ),
                             ],
                           )
@@ -261,7 +268,7 @@ class _FeaturePanel extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(flex: 2),
+          const SizedBox(height: 48),
           Text(
             context.tr('Run every sale\nwith confidence.'),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -305,7 +312,7 @@ class _FeaturePanel extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 32),
           Container(
             width: 435,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -414,7 +421,7 @@ class _LoginForm extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final wide = MediaQuery.sizeOf(context).width >= 900;
+    final wide = MediaQuery.sizeOf(context).width >= 1200;
     final compact = MediaQuery.sizeOf(context).width < 480;
     final veryNarrow = MediaQuery.sizeOf(context).width < 360;
     final brand = Text(
@@ -661,7 +668,7 @@ class _LoginForm extends ConsumerWidget {
             ),
           ),
           if (wide) ...[
-            const Spacer(),
+            const SizedBox(height: 32),
             const Row(
               children: [
                 Expanded(child: Divider()),

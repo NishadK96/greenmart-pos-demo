@@ -60,47 +60,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('business mismatch can reset the saved device and retry login', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
-      overrides: [
-        authControllerProvider.overrideWith(
-          _BusinessMismatchAuthController.new,
-        ),
-      ],
+  for (final scale in [1.0, 1.25]) {
+    testWidgets(
+      'business mismatch can reset the saved device and retry login at $scale scale',
+      (tester) async {
+        // A Windows laptop at 125% scaling must keep recovery actions reachable.
+        tester.view.physicalSize = const Size(1366, 768);
+        tester.view.devicePixelRatio = scale;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final container = ProviderContainer(
+          overrides: [
+            authControllerProvider.overrideWith(
+              _BusinessMismatchAuthController.new,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const EazyPosApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField).at(0), 'other-business');
+        await tester.enterText(find.byType(TextField).at(1), 'password');
+        await tester.ensureVisible(find.text('Continue to Eazy POS'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue to Eazy POS'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Remove saved accounts and sign in'), findsOneWidget);
+        await tester.ensureVisible(
+          find.text('Remove saved accounts and sign in'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove saved accounts and sign in'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Use this device for another business?'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Remove accounts and continue'));
+        await tester.pumpAndSettle();
+
+        final controller =
+            container.read(authControllerProvider.notifier)
+                as _BusinessMismatchAuthController;
+        expect(controller.deviceReset, isTrue);
+        expect(controller.loginAttempts, 2);
+        expect(tester.takeException(), isNull);
+      },
     );
-    addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const EazyPosApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField).at(0), 'other-business');
-    await tester.enterText(find.byType(TextField).at(1), 'password');
-    await tester.tap(find.text('Continue to Eazy POS'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Remove saved accounts and sign in'), findsOneWidget);
-    await tester.ensureVisible(find.text('Remove saved accounts and sign in'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Remove saved accounts and sign in'));
-    await tester.pumpAndSettle();
-    expect(find.text('Use this device for another business?'), findsOneWidget);
-
-    await tester.tap(find.text('Remove accounts and continue'));
-    await tester.pumpAndSettle();
-
-    final controller =
-        container.read(authControllerProvider.notifier)
-            as _BusinessMismatchAuthController;
-    expect(controller.deviceReset, isTrue);
-    expect(controller.loginAttempts, 2);
-    expect(tester.takeException(), isNull);
-  });
+  }
 
   testWidgets('mobile account menu confirms and completes logout', (
     tester,

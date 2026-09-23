@@ -2296,7 +2296,10 @@ class Api {
                   ],
               },
           ],
-          if (!isCreditSale && !isKitchenOrder)
+          // Kitchen orders sent without a payment method stay due and do not
+          // require a register. Bill & Pay supplies a method and register, so
+          // its payment must be recorded just like a normal POS sale.
+          if (!isCreditSale && (!isKitchenOrder || paymentMethod != null))
             'payments': [
               {'amount': total / 100, 'method': paymentMethod ?? 'cash'},
             ],

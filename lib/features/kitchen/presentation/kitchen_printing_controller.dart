@@ -230,6 +230,7 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
 
   Future<String> createKitchenOrder({
     required String locationId,
+    String? cashRegisterId,
     required Customer customer,
     required List<CartLine> lines,
     required String clientTransactionId,
@@ -248,6 +249,7 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
           .createSale(
             accessToken: token,
             locationId: locationId,
+            cashRegisterId: cashRegisterId,
             customer: customer,
             lines: lines,
             total: lines.fold<int>(0, (total, line) => total + line.subtotal),

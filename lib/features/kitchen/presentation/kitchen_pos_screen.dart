@@ -15,6 +15,9 @@ import '../../../shared/widgets/modifier_selection_dialog.dart';
 import '../../../shared/widgets/ui.dart' show ProductImage;
 import '../../store/app_store.dart';
 import '../../auth/auth_controller.dart';
+import '../../cash_register/domain/cash_register_entities.dart';
+import '../../cash_register/presentation/cash_register_controller.dart';
+import '../../cash_register/presentation/cash_register_dialog.dart';
 import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../printers/application/printer_controller.dart';
 import 'kitchen_printing_controller.dart';
@@ -403,6 +406,14 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   Future<void> _billAndPay() async {
     if (_sending || _lines.isEmpty) return;
     final store = ref.read(appStoreProvider);
+    final locationId = _locationId(store);
+    final customer = _customer(store);
+    if (locationId == null || locationId.isEmpty || customer == null) {
+      _show('Refresh customer and business location data before billing.');
+      return;
+    }
+    final register = await _requireOpenRegister(locationId);
+    if (register == null || !mounted) return;
     final methods = store.checkoutPaymentOptions
         .where((option) => option.code.toLowerCase() != 'due')
         .toList(growable: false);
@@ -427,21 +438,17 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       ),
     );
     if (method == null || !mounted) return;
-    final locationId = _locationId(store);
-    final customer = _customer(store);
-    if (locationId == null || locationId.isEmpty || customer == null) {
-      _show('Refresh customer and business location data before billing.');
-      return;
-    }
     setState(() => _sending = true);
     try {
       var transactionId = _savedTransactionId;
+      final creatingSale = transactionId == null;
       if (transactionId == null) {
         _pendingClientTransactionId ??= _newClientTransactionId();
         transactionId = await ref
             .read(kitchenPrintingControllerProvider.notifier)
             .createKitchenOrder(
               locationId: locationId,
+              cashRegisterId: register.id,
               customer: customer,
               lines: _lines.values.toList(growable: false),
               clientTransactionId: _pendingClientTransactionId!,
@@ -450,23 +457,26 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               serviceStaffId: _waiterId,
               serviceTypeId: _serviceTypeId,
               grossDiscount: _grossDiscount,
+              paymentMethod: method.code,
             );
       }
-      await ref
-          .read(kitchenPrintingControllerProvider.notifier)
-          .updateKitchenOrder(
-            transactionId: transactionId,
-            locationId: locationId,
-            customer: customer,
-            lines: _lines.values.toList(growable: false),
-            status: 'final',
-            tableId: _service == 'Dine in' ? _tableId : null,
-            serviceStaffId: _waiterId,
-            serviceTypeId: _serviceTypeId,
-            saleNote: _composedSaleNote(),
-            grossDiscount: _grossDiscount,
-            paymentMethod: method.code,
-          );
+      if (!creatingSale) {
+        await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .updateKitchenOrder(
+              transactionId: transactionId,
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              status: 'final',
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              saleNote: _composedSaleNote(),
+              grossDiscount: _grossDiscount,
+              paymentMethod: method.code,
+            );
+      }
       await ref
           .read(kitchenPrintingControllerProvider.notifier)
           .processTransaction(transactionId, locationId: locationId);
@@ -477,11 +487,72 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       ref.invalidate(kitchenOrdersProvider(locationId));
       _show('Order #$transactionId paid and completed.');
       _resetOrder();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      if (error.statusCode == 403 && _savedTransactionId != null) {
+        _show(
+          'This account cannot settle an existing kitchen order. Ask an administrator to enable the Sell Update permission.',
+        );
+      } else if (error.statusCode == 403) {
+        _show(
+          'This account cannot create a sale. Ask an administrator to enable Sell Create or Direct Sell Access.',
+        );
+      } else {
+        _show('Billing needs attention: ${error.message}');
+      }
     } catch (error) {
       if (mounted) _show('Billing needs attention: $error');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  Future<CashRegister?> _requireOpenRegister(String locationId) async {
+    CashRegister? register;
+    try {
+      register = await ref.read(cashRegisterControllerProvider.future);
+    } catch (error) {
+      debugPrint('Unable to load cash register: $error');
+    }
+    if (!mounted) return null;
+    if (register == null) {
+      final openRegister = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.point_of_sale_rounded),
+          title: const Text('Open cash register'),
+          content: const Text(
+            'A cashier shift must be open before Bill & Pay can complete this order. The current order is safe and will not be created again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Not now'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.lock_open_rounded),
+              label: const Text('Open register'),
+            ),
+          ],
+        ),
+      );
+      if (openRegister != true || !mounted) return null;
+      await showCashRegisterDialog(context, ref);
+      if (!mounted) return null;
+      register = ref.read(cashRegisterControllerProvider).asData?.value;
+      if (register == null) {
+        _show('Open the cash register to continue with Bill & Pay.');
+        return null;
+      }
+    }
+    if (register.locationId != locationId) {
+      _show(
+        'The open cash register belongs to another location. Close it and open a register for this store.',
+      );
+      return null;
+    }
+    return register;
   }
 
   Future<void> _editGrossDiscount() async {
@@ -2101,7 +2172,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         ),
         const SizedBox(height: 6),
         FilledButton.icon(
-          onPressed: _lines.isEmpty || _orderLocked || _sending
+          onPressed: _lines.isEmpty || _sending
               ? null
               : () => unawaited(_billAndPay()),
           icon: const Icon(Icons.point_of_sale_outlined),

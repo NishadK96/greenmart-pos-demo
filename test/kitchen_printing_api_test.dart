@@ -140,6 +140,48 @@ void main() {
     expect(result['transaction_id'], 145);
   });
 
+  test('paid kitchen sale includes register and selected payment', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final sale = (body['sells'] as List).single as Map<String, dynamic>;
+        expect(sale['is_kitchen_order'], 1);
+        expect(sale['cash_register_id'], 12);
+        expect((sale['payments'] as List).single, {
+          'amount': 10.0,
+          'method': 'card',
+        });
+        return http.Response('[{"transaction_id":146}]', 200);
+      }),
+    );
+    const product = Product(
+      id: '2',
+      name: 'Tea',
+      sku: 'TEA',
+      barcode: '123',
+      categoryId: '4',
+      purchasePrice: 500,
+      sellingPrice: 1000,
+      stock: 10,
+      minimumStock: 0,
+      variationId: '3',
+    );
+
+    final result = await api.createSale(
+      accessToken: 'token',
+      locationId: '3',
+      cashRegisterId: '12',
+      customer: const Customer(id: '5', name: 'Walk-in Customer'),
+      lines: const [CartLine(product: product)],
+      paymentMethod: 'card',
+      total: 1000,
+      grossDiscount: 0,
+      clientTransactionId: '20d8317e-e2ad-48ba-a79a-e39b1621a223',
+      isKitchenOrder: true,
+    );
+    expect(result['transaction_id'], 146);
+  });
+
   test('kitchen order update sends context, item note and payment', () async {
     final api = Api(
       client: MockClient((request) async {

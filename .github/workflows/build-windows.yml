@@ -9,9 +9,10 @@ on:
         default: https://eazyerp.co
   push:
     branches: [main]
+    tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: windows-build-${{ github.ref }}
@@ -36,18 +37,51 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Resolve application version
+        id: version
+        shell: pwsh
+        run: |
+          $pubspecVersion = (Select-String -Path "pubspec.yaml" -Pattern '^version:\s*([^+\s]+)').Matches.Groups[1].Value
+          if (-not $pubspecVersion) { throw "Unable to read version from pubspec.yaml" }
+          "name=$pubspecVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "installer=$pubspecVersion.${{ github.run_number }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Build Windows application
         shell: pwsh
-        run: flutter build windows --release --dart-define="EAZYERP_BASE_URL=$env:API_BASE_URL" --dart-define=use_arabic=true
+        run: flutter build windows --release --build-name="${{ steps.version.outputs.name }}" --build-number="${{ github.run_number }}" --dart-define="EAZYERP_BASE_URL=$env:API_BASE_URL" --dart-define=use_arabic=true
 
-      - name: Package Windows application
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ steps.version.outputs.installer }}" "windows\installer\eazy_pos.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package portable Windows application
         shell: pwsh
         run: Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath "Eazy-POS-Windows.zip"
 
-      - name: Upload Windows application
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eazy-POS-Installer-${{ steps.version.outputs.installer }}
+          path: dist/Eazy-POS-Setup-${{ steps.version.outputs.installer }}.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload portable Windows application
         uses: actions/upload-artifact@v4
         with:
           name: Eazy-POS-Windows
           path: Eazy-POS-Windows.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish installer for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Eazy-POS-Setup-${{ steps.version.outputs.installer }}.exe

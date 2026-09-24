@@ -10,13 +10,30 @@ import '../../printers/application/printer_document_service.dart';
 import '../domain/kitchen_entities.dart';
 import 'kitchen_printing_controller.dart';
 
-class KitchenSettingsPanel extends ConsumerWidget {
+class KitchenSettingsPanel extends ConsumerStatefulWidget {
   const KitchenSettingsPanel({required this.locations, super.key});
 
   final List<BusinessLocation> locations;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KitchenSettingsPanel> createState() =>
+      _KitchenSettingsPanelState();
+}
+
+class _KitchenSettingsPanelState extends ConsumerState<KitchenSettingsPanel> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .clearTransientMessage();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncState = ref.watch(kitchenPrintingControllerProvider);
     final controller = ref.read(kitchenPrintingControllerProvider.notifier);
     return Card(
@@ -32,8 +49,10 @@ class KitchenSettingsPanel extends ConsumerWidget {
             message: error.toString(),
             onRetry: controller.refresh,
           ),
-          data: (state) =>
-              _KitchenSettingsContent(state: state, locations: locations),
+          data: (state) => _KitchenSettingsContent(
+            state: state,
+            locations: widget.locations,
+          ),
         ),
       ),
     );
@@ -92,6 +111,14 @@ class _KitchenSettingsContent extends ConsumerWidget {
           const _Notice(
             message:
                 'You can view kitchen configuration, but this account cannot change templates, receipt settings, or printer routes. Business Settings permission is required.',
+          ),
+        ],
+        if (!state.hasActiveRoutes) ...[
+          const SizedBox(height: 12),
+          const _Notice(
+            warning: true,
+            message:
+                'No active kitchen printer route is configured. Add a category route below and pair its ERP printer with this device before sending another kitchen order.',
           ),
         ],
         const SizedBox(height: 20),
@@ -829,14 +856,18 @@ void _snack(BuildContext context, String message) => ScaffoldMessenger.of(
 ).showSnackBar(SnackBar(content: Text(message)));
 
 class _Notice extends StatelessWidget {
-  const _Notice({required this.message});
+  const _Notice({required this.message, this.warning = false});
   final String message;
+  final bool warning;
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.errorContainer,
+      color: warning
+          ? const Color(0xFFFFF3D8)
+          : Theme.of(context).colorScheme.errorContainer,
+      border: warning ? Border.all(color: const Color(0xFFE6C36A)) : null,
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(message),

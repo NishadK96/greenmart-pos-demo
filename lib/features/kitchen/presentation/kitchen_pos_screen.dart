@@ -395,7 +395,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Future<void> _printBill() async {
+  Future<void> _printBill({String? paymentMethod}) async {
     final transactionId = _savedTransactionId;
     if (transactionId == null || transactionId.isEmpty) {
       _show('Save or send the order before printing its bill.');
@@ -403,7 +403,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
     final sale = _currentSale(
       transactionId,
-      _activeOrder?.paymentMethod ?? 'due',
+      paymentMethod ?? _activeOrder?.paymentMethod ?? 'due',
     );
     if (sale == null) return;
     setState(() => _sending = true);
@@ -485,6 +485,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               grossDiscount: _grossDiscount,
               paymentMethod: method.code,
             );
+        if (!mounted) return;
+        setState(() => _savedTransactionId = transactionId);
       }
       if (!creatingSale) {
         await ref
@@ -503,16 +505,26 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               paymentMethod: method.code,
             );
       }
-      await ref
-          .read(kitchenPrintingControllerProvider.notifier)
-          .processTransaction(transactionId, locationId: locationId);
+      String? kitchenPrintingWarning;
+      try {
+        await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .processTransaction(transactionId, locationId: locationId);
+      } catch (error) {
+        kitchenPrintingWarning =
+            'No kitchen ticket was printed. Configure an active category printer route in Printer settings, then retry printing from Kitchen orders.';
+        debugPrint('Kitchen printing needs attention: $error');
+      }
       if (!mounted) return;
-      setState(() => _savedTransactionId = transactionId);
-      await _printBill();
+      await _printBill(paymentMethod: method.code);
       if (!mounted) return;
       ref.invalidate(kitchenOrdersProvider(locationId));
-      _show('Order #$transactionId paid and completed.');
       _resetOrder();
+      _show(
+        kitchenPrintingWarning == null
+            ? 'Order #$transactionId paid, completed and sent to the kitchen printer.'
+            : 'Order #$transactionId is paid and saved. $kitchenPrintingWarning',
+      );
     } on ApiException catch (error) {
       if (!mounted) return;
       if (error.statusCode == 403 && _savedTransactionId != null) {
@@ -710,7 +722,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Held & recent orders',
+                                'Kitchen orders',
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
@@ -1295,8 +1307,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           onPressed: locationId.isEmpty
               ? null
               : () => _showRecentOrders(locationId),
-          icon: const Icon(Icons.pause_circle_outline_rounded, size: 17),
-          label: const Text('Held orders'),
+          icon: const Icon(Icons.receipt_long_outlined, size: 17),
+          label: const Text('Orders'),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.white,
             side: const BorderSide(color: Colors.white54),

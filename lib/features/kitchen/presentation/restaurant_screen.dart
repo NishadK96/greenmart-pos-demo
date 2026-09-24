@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../core/network/api_provider.dart';
+import '../../../core/utils/money.dart';
 import '../../../apis/api.dart' show ApiException;
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/localized_text.dart';
 import '../../auth/auth_controller.dart';
 import '../../home/module_screens.dart' show PagePad;
 import '../../store/app_store.dart';
+import 'kitchen_pos_screen.dart' show kitchenOrdersProvider;
 import 'kitchen_settings_panel.dart';
 
 final restaurantTablesProvider = FutureProvider.autoDispose
@@ -68,7 +71,7 @@ final restaurantModifierAccessProvider = FutureProvider.autoDispose((
   }
 });
 
-enum _RestaurantView { tables, modifiers, printing }
+enum _RestaurantView { orders, tables, modifiers, printing }
 
 class RestaurantScreen extends ConsumerStatefulWidget {
   const RestaurantScreen({super.key});
@@ -78,7 +81,7 @@ class RestaurantScreen extends ConsumerStatefulWidget {
 
 class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
   String? _location;
-  _RestaurantView _view = _RestaurantView.tables;
+  _RestaurantView _view = _RestaurantView.orders;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +108,15 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
                 onPressed: () => context.go('/kitchen-pos'),
                 icon: const Icon(Icons.restaurant),
                 label: const Text('Open Kitchen POS'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => setState(() => _view = _RestaurantView.orders),
+                icon: Icon(
+                  _view == _RestaurantView.orders
+                      ? Icons.check
+                      : Icons.receipt_long_outlined,
+                ),
+                label: const Text('Kitchen orders'),
               ),
               OutlinedButton.icon(
                 onPressed: () => setState(() => _view = _RestaurantView.tables),
@@ -144,6 +156,8 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
             _modifierGroups()
           else if (location == null)
             const Text('No business locations are available.')
+          else if (_view == _RestaurantView.orders)
+            _kitchenOrders(location, locations)
           else ...[
             DropdownButtonFormField<String>(
               key: ValueKey(location),
@@ -217,6 +231,176 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _kitchenOrders(String location, List<BusinessLocation> locations) {
+    final orders = ref.watch(kitchenOrdersProvider(location));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('kitchen-orders-$location'),
+                initialValue: location,
+                decoration: InputDecoration(
+                  labelText: context.tr('Business location'),
+                ),
+                items: locations
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text(item.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _location = value),
+              ),
+            ),
+            const SizedBox(width: 10),
+            IconButton.filledTonal(
+              tooltip: context.tr('Refresh'),
+              onPressed: () => ref.invalidate(kitchenOrdersProvider(location)),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        orders.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (error, _) => Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Icon(Icons.cloud_off_outlined, size: 36),
+                  const SizedBox(height: 8),
+                  const Text('Unable to load kitchen orders.'),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        ref.invalidate(kitchenOrdersProvider(location)),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          data: (items) {
+            final sorted = [...items]
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            if (sorted.isEmpty) {
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.receipt_long_outlined, size: 42),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No kitchen orders yet',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Orders sent from Kitchen POS will appear here.',
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${sorted.length} kitchen order${sorted.length == 1 ? '' : 's'}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                for (final order in sorted)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: order.status == 'draft'
+                                ? const Color(0xFFFFE9B8)
+                                : const Color(0xFFDDF3EC),
+                            foregroundColor: order.status == 'draft'
+                                ? const Color(0xFF8A5A00)
+                                : const Color(0xFF08745D),
+                            child: Icon(
+                              order.status == 'draft'
+                                  ? Icons.pause_rounded
+                                  : Icons.restaurant_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  order.invoiceNo.isEmpty
+                                      ? 'Order #${order.serverId ?? order.localId}'
+                                      : order.invoiceNo,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${order.customer.name} • ${order.items.length} item${order.items.length == 1 ? '' : 's'} • ${DateFormat('dd MMM yyyy, hh:mm a').format(order.createdAt.toLocal())}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              RiyalAmount(
+                                order.total,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                order.status == 'draft' ? 'Held' : 'Sent',
+                                style: TextStyle(
+                                  color: order.status == 'draft'
+                                      ? const Color(0xFF8A5A00)
+                                      : const Color(0xFF08745D),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 

@@ -109,6 +109,12 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     state = await AsyncValue.guard(() => _load(locationId));
   }
 
+  void clearTransientMessage() {
+    final current = state.asData?.value;
+    if (current == null || current.message == null) return;
+    _set(current.copyWith(clearMessage: true));
+  }
+
   Future<void> updateSettings(Map<String, dynamic> changes) async {
     final current = _current;
     _set(current.copyWith(busy: true, clearMessage: true));

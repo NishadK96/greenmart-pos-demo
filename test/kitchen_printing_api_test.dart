@@ -407,6 +407,8 @@ void main() {
                     'transaction_id': 145,
                     'location_id': 3,
                     'template': 'thermal',
+                    'pdf_url':
+                        'https://eazyerp.co/connector/api/kitchen-print-jobs/101/pdf',
                     'attempts': 0,
                     'printer': {'id': 5, 'name': 'Hot kitchen'},
                     'items': [
@@ -436,6 +438,10 @@ void main() {
       );
 
       expect(result.jobs.single.printer.id, '5');
+      expect(
+        result.jobs.single.pdfUrl,
+        'https://eazyerp.co/connector/api/kitchen-print-jobs/101/pdf',
+      );
       expect(result.jobs.single.items.single.note, 'No onions');
       expect(
         result.jobs.single.items.single.modifiers.single.productName,

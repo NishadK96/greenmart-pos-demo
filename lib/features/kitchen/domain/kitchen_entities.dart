@@ -229,6 +229,7 @@ class KitchenPrintJob {
     required this.attempts,
     this.jobKey,
     this.htmlContent = '',
+    this.pdfUrl = '',
     this.lastError,
     this.createdAt,
     this.printedAt,
@@ -244,6 +245,7 @@ class KitchenPrintJob {
   final int attempts;
   final String? jobKey;
   final String htmlContent;
+  final String pdfUrl;
   final String? lastError;
   final DateTime? createdAt;
   final DateTime? printedAt;
@@ -262,6 +264,7 @@ class KitchenPrintJob {
         attempts: int.tryParse(json['attempts']?.toString() ?? '') ?? 0,
         jobKey: json['job_key']?.toString(),
         htmlContent: json['html_content']?.toString() ?? '',
+        pdfUrl: json['pdf_url']?.toString() ?? '',
         lastError: json['last_error']?.toString(),
         createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
         printedAt: DateTime.tryParse(json['printed_at']?.toString() ?? ''),

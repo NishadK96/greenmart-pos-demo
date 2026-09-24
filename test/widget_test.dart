@@ -56,7 +56,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Start your shift'), findsNothing);
-    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.byType(DashboardScreen), findsOneWidget);
   });
 
   testWidgets('login remains compact without overflow at 320px', (

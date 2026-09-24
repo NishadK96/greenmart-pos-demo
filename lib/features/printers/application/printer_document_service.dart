@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:image/image.dart' as image_lib;
 import '../../../core/utils/desktop_pdf_preview.dart';
+import '../../../core/utils/kitchen_html_renderer.dart';
 import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
@@ -1120,6 +1122,25 @@ class PrinterDocumentService {
   /// available through the app's embedded PDF font.
   static Future<Uint8List> kitchenTicket(KitchenPrintJob job) async {
     final format = kitchenFormat(job.template);
+    if (job.htmlContent.trim().isNotEmpty) {
+      try {
+        final pixelWidth = job.template == 'a4' ? 1240.0 : 576.0;
+        final rendered = await KitchenHtmlRenderer.render(
+          job.htmlContent,
+          width: pixelWidth,
+        );
+        if (rendered != null) {
+          return _rasterTicketPdf(rendered, format.width);
+        }
+      } catch (error) {
+        debugPrint('Unable to render ERP kitchen HTML: $error');
+        if (_usesExternalWindowsPreview) {
+          throw StateError(
+            'Unable to render the ERP kitchen ticket. Check that Microsoft Edge WebView2 is installed, then retry. ($error)',
+          );
+        }
+      }
+    }
     final theme = await PdfFonts.arabicTheme();
     final document = pw.Document();
     final isLarge = job.template == 'large_text';
@@ -1248,6 +1269,32 @@ class PrinterDocumentService {
             style: pw.TextStyle(fontSize: baseSize - 2),
           ),
         ],
+      ),
+    );
+    return document.save();
+  }
+
+  static Future<Uint8List> _rasterTicketPdf(
+    Uint8List png,
+    double paperWidth,
+  ) async {
+    final decoded = image_lib.decodeImage(png);
+    if (decoded == null || decoded.width <= 0 || decoded.height <= 0) {
+      throw const FormatException('The rendered kitchen ticket is invalid.');
+    }
+    final pageHeight = paperWidth * decoded.height / decoded.width;
+    final document = pw.Document();
+    final receipt = pw.MemoryImage(png);
+    document.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(paperWidth, pageHeight),
+        margin: pw.EdgeInsets.zero,
+        build: (_) => pw.Image(
+          receipt,
+          width: paperWidth,
+          height: pageHeight,
+          fit: pw.BoxFit.fill,
+        ),
       ),
     );
     return document.save();

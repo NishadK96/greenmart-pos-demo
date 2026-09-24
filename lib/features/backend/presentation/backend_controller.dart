@@ -605,6 +605,38 @@ class BackendController extends AsyncNotifier<void> {
     }
   }
 
+  Future<BusinessSettings> updateBusinessSettings({
+    required String name,
+    String? taxNumber,
+  }) async {
+    var token = await _token();
+    try {
+      final settings = await ref
+          .read(apiProvider)
+          .updateBusinessSettings(
+            accessToken: token,
+            name: name,
+            taxNumber: taxNumber,
+          );
+      ref.read(appStoreProvider.notifier).updateBusinessSettings(settings);
+      return settings;
+    } on ApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      token = await ref
+          .read(authControllerProvider.notifier)
+          .refreshAccessToken();
+      final settings = await ref
+          .read(apiProvider)
+          .updateBusinessSettings(
+            accessToken: token,
+            name: name,
+            taxNumber: taxNumber,
+          );
+      ref.read(appStoreProvider.notifier).updateBusinessSettings(settings);
+      return settings;
+    }
+  }
+
   Future<String> _token() async {
     var token = await ref.read(authControllerProvider.future);
     if (token == 'offline-local-session') {

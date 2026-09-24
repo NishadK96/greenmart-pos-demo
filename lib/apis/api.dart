@@ -1417,6 +1417,7 @@ class Api {
       currencySymbol: currency['symbol']?.toString() ?? '',
       timeZone: json['time_zone']?.toString() ?? '',
       taxLabel: json['tax_label_1']?.toString() ?? '',
+      taxNumber: json['tax_number_1']?.toString() ?? '',
       allowOverselling:
           overselling == true ||
           overselling == 1 ||
@@ -1434,6 +1435,44 @@ class Api {
     final sales = _map(json['sales']);
     final value = sales['allow_overselling'];
     return value == true || value == 1 || value?.toString() == '1';
+  }
+
+  Future<BusinessSettings> businessSettings(String accessToken) async {
+    final json = await _getDataObject(
+      Uri.parse(ApiEndPoints.businessSettingsUrl),
+      accessToken,
+      'business settings',
+    );
+    final company = _map(json['company']);
+    return BusinessSettings(
+      name: company['name']?.toString() ?? '',
+      taxNumber: company['tax_number_1']?.toString() ?? '',
+    );
+  }
+
+  Future<BusinessSettings> updateBusinessSettings({
+    required String accessToken,
+    required String name,
+    String? taxNumber,
+  }) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.businessSettingsUrl),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'name': name,
+            'tax_number_1': taxNumber?.trim().isEmpty == true
+                ? null
+                : taxNumber?.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'business settings update');
+    final company = _map(_map(root['data'])['company']);
+    return BusinessSettings(
+      name: company['name']?.toString() ?? name,
+      taxNumber: company['tax_number_1']?.toString() ?? '',
+    );
   }
 
   Future<bool> updateFlutterPosOverselling(

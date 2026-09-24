@@ -370,6 +370,24 @@ class AppStore extends Notifier<AppState> {
   void setAllowOverselling(bool enabled) =>
       state = state.copyWith(allowOverselling: enabled);
 
+  void updateBusinessSettings(BusinessSettings settings) {
+    final current = state.business;
+    if (current == null) return;
+    state = state.copyWith(
+      business: BusinessProfile(
+        name: settings.name,
+        nameEn: current.nameEn,
+        nameAr: current.nameAr,
+        currencyCode: current.currencyCode,
+        currencySymbol: current.currencySymbol,
+        timeZone: current.timeZone,
+        taxLabel: current.taxLabel,
+        taxNumber: settings.taxNumber,
+        allowOverselling: current.allowOverselling,
+      ),
+    );
+  }
+
   void restoreOfflineCatalog({
     required List<Product> products,
     required List<Category> categories,

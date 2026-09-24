@@ -317,9 +317,10 @@ class BusinessProfile {
     this.allowOverselling = false,
     this.nameEn = '',
     this.nameAr = '',
+    this.taxNumber = '',
   });
   final String name, currencyCode, currencySymbol, timeZone, taxLabel;
-  final String nameEn, nameAr;
+  final String nameEn, nameAr, taxNumber;
   final bool allowOverselling;
 
   String displayName(bool arabic) {
@@ -327,6 +328,12 @@ class BusinessProfile {
     if (!arabic && nameEn.trim().isNotEmpty) return nameEn.trim();
     return name;
   }
+}
+
+class BusinessSettings {
+  const BusinessSettings({required this.name, required this.taxNumber});
+
+  final String name, taxNumber;
 }
 
 class UserProfile {

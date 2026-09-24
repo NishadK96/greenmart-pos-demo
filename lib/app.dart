@@ -131,6 +131,11 @@ final _router = GoRouter(
               _instantPage(state, const TaxSettingsScreen()),
         ),
         GoRoute(
+          path: '/settings/business',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const BusinessSettingsScreen()),
+        ),
+        GoRoute(
           path: '/settings/subscription',
           pageBuilder: (_, state) =>
               _instantPage(state, const SubscriptionScreen()),

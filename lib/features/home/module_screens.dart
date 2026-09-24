@@ -6456,7 +6456,7 @@ class SettingsScreen extends ConsumerWidget {
         'Business profile',
         '${business?.name ?? ''} • ${business?.currencyCode ?? ''} • ${business?.timeZone ?? ''}',
         Icons.store_outlined,
-        null,
+        '/settings/business',
       ),
       (
         'Tax settings',
@@ -6725,6 +6725,240 @@ class _PosModeOption extends StatelessWidget {
           ],
         ),
       ),
+    ),
+  );
+}
+
+class BusinessSettingsScreen extends ConsumerStatefulWidget {
+  const BusinessSettingsScreen({super.key});
+
+  @override
+  ConsumerState<BusinessSettingsScreen> createState() =>
+      _BusinessSettingsScreenState();
+}
+
+class _BusinessSettingsScreenState
+    extends ConsumerState<BusinessSettingsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _taxNumber = TextEditingController();
+  ConnectorAccess? _access;
+  bool _loading = true;
+  bool _saving = false;
+  Object? _error;
+
+  bool get _canEdit => _access?.allows('business_settings.access') == true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_load);
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _taxNumber.dispose();
+    super.dispose();
+  }
+
+  Future<T> _authorized<T>(
+    Future<T> Function(Api api, String token) request,
+  ) async {
+    var token = await ref.read(authControllerProvider.future);
+    if (token == null || token.isEmpty || token == 'offline-local-session') {
+      throw const ApiException('Business settings require an online session.');
+    }
+    final api = ref.read(apiProvider);
+    try {
+      return await request(api, token);
+    } on ApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      token = await ref
+          .read(authControllerProvider.notifier)
+          .refreshAccessToken();
+      return request(api, token);
+    }
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final results = await _authorized(
+        (api, token) => Future.wait<Object>([
+          api.businessSettings(token),
+          api.connectorAccess(token),
+        ]),
+      );
+      if (!mounted) return;
+      final settings = results[0] as BusinessSettings;
+      _access = results[1] as ConnectorAccess;
+      _name.text = settings.name;
+      _taxNumber.text = settings.taxNumber;
+    } catch (error) {
+      if (mounted) _error = error;
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_canEdit || _saving || !_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _saving = true);
+    try {
+      final settings = await ref
+          .read(backendControllerProvider.notifier)
+          .updateBusinessSettings(
+            name: _name.text.trim(),
+            taxNumber: _taxNumber.text.trim(),
+          );
+      if (!mounted) return;
+      _name.text = settings.name;
+      _taxNumber.text = settings.taxNumber;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Business settings updated.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PagePad(
+    child: ListView(
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => context.go('/settings'),
+              tooltip: context.tr('Settings'),
+              icon: const Icon(Icons.arrow_back),
+            ),
+            const Expanded(
+              child: PageTitle(
+                'Business settings',
+                subtitle: 'Update the company details shown on documents.',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else if (_error != null)
+          Surface(
+            child: Column(
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 38),
+                const SizedBox(height: 10),
+                Text(_error.toString(), textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          if (!_canEdit) ...[
+            Surface(
+              child: const Row(
+                children: [
+                  Icon(Icons.lock_outline, color: Color(0xFF9A5B00)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'You can view these details, but Business Settings permission is required to change them.',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Surface(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Company information',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'These values are stored in EazyERP and may appear on invoices and receipts.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 18),
+                  TextFormField(
+                    controller: _name,
+                    enabled: _canEdit && !_saving,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Company name',
+                      prefixIcon: Icon(Icons.store_outlined),
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Company name is required.'
+                        : null,
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _taxNumber,
+                    enabled: _canEdit && !_saving,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _save(),
+                    decoration: const InputDecoration(
+                      labelText: 'Tax number',
+                      hintText: 'Leave empty to remove it',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'The tax number is validated using the business country configured in EazyERP.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                  if (_canEdit) ...[
+                    const SizedBox(height: 20),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        icon: _saving
+                            ? const SizedBox.square(
+                                dimension: 17,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(_saving ? 'Saving…' : 'Save changes'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
     ),
   );
 }

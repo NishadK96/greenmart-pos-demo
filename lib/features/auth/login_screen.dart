@@ -131,8 +131,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loading =
-        ref.watch(authControllerProvider).isLoading || resettingDevice;
+    final auth = ref.watch(authControllerProvider);
+    final restoredToken = auth.asData?.value;
+    if (restoredToken != null && restoredToken.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/dashboard');
+      });
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F9F8),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final loading = auth.isLoading || resettingDevice;
     final size = MediaQuery.sizeOf(context);
     final showFeaturePanel = size.width >= 1200;
 

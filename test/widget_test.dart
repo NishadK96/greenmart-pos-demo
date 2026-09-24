@@ -10,6 +10,7 @@ import 'package:eazy_pos/core/localization/app_localizations.dart';
 import 'package:eazy_pos/core/theme/app_theme.dart';
 import 'package:eazy_pos/features/auth/auth_controller.dart';
 import 'package:eazy_pos/features/auth/account_menu.dart';
+import 'package:eazy_pos/features/backend/presentation/backend_controller.dart';
 import 'package:eazy_pos/features/cash_register/presentation/cash_register_controller.dart';
 import 'package:eazy_pos/features/home/module_screens.dart';
 import 'package:eazy_pos/features/pos/pos_screen.dart';
@@ -38,6 +39,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Start your shift'), findsOneWidget);
     expect(find.text('Continue to Eazy POS'), findsOneWidget);
+  });
+
+  testWidgets('a restored native session skips the login screen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_SignedInAuthController.new),
+          backendControllerProvider.overrideWith(_ReadyBackendController.new),
+        ],
+        child: const EazyPosApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Start your shift'), findsNothing);
+    expect(find.text('Dashboard'), findsWidgets);
   });
 
   testWidgets('login remains compact without overflow at 320px', (
@@ -901,6 +920,11 @@ class _SignedInAuthController extends AuthController {
     loggedOut = true;
     state = const AsyncData(null);
   }
+}
+
+class _ReadyBackendController extends BackendController {
+  @override
+  Future<void> build() async {}
 }
 
 class _NoRegisterController extends CashRegisterController {

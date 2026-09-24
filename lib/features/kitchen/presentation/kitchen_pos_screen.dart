@@ -202,6 +202,32 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     _focus.requestFocus();
   }
 
+  Future<void> _editModifiers(CartLine line) async {
+    if (_orderLocked) return;
+    final modifiers = await selectProductModifiers(
+      context,
+      line.product,
+      initialModifiers: line.modifiers,
+      confirmLabel: 'Update item',
+    );
+    if (modifiers == null || !mounted || _orderLocked) return;
+    final updated = line.copyWith(modifiers: modifiers);
+    setState(() {
+      _lines.remove(line.lineId);
+      final existing = _lines[updated.lineId];
+      _lines[updated.lineId] = existing == null
+          ? updated
+          : existing.copyWith(
+              quantity: existing.quantity + updated.quantity,
+              discount: existing.discount + updated.discount,
+              itemNote: existing.itemNote.isEmpty
+                  ? updated.itemNote
+                  : existing.itemNote,
+            );
+      _selectedLineId = updated.lineId;
+    });
+  }
+
   void _changeQuantity(CartLine line, int delta) {
     if (_orderLocked) return;
     setState(() {
@@ -2200,7 +2226,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   );
 
   Widget _numericKeypad() {
-    Widget keypadKey(String label, {String? value, Color? color}) => Expanded(
+    Widget keypadKey(
+      String label, {
+      String? value,
+      Color foregroundColor = AppColors.ink,
+      Color backgroundColor = const Color(0xFFE7F1F8),
+      Color borderColor = const Color(0xFFB8D2E3),
+    }) => Expanded(
       child: OutlinedButton(
         onPressed: _orderLocked ? null : () => _keypadPress(value ?? label),
         style: OutlinedButton.styleFrom(
@@ -2208,9 +2240,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
-          foregroundColor: color ?? AppColors.ink,
-          side: const BorderSide(color: _border),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          foregroundColor: foregroundColor,
+          backgroundColor: backgroundColor,
+          disabledForegroundColor: AppColors.muted,
+          disabledBackgroundColor: const Color(0xFFF2F4F3),
+          side: BorderSide(color: borderColor),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
         child: Text(label),
@@ -2231,10 +2266,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       padding: EdgeInsets.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
-      backgroundColor: selected ? AppColors.primary : Colors.white,
-      foregroundColor: selected ? Colors.white : AppColors.ink,
-      side: BorderSide(color: selected ? AppColors.primary : _border),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      backgroundColor: selected ? AppColors.primary : const Color(0xFFEAF4F1),
+      foregroundColor: selected ? Colors.white : AppColors.primary,
+      disabledBackgroundColor: const Color(0xFFF1F3F2),
+      disabledForegroundColor: const Color(0xFF9AA5A2),
+      side: BorderSide(
+        color: selected ? AppColors.primary : const Color(0xFFB9D5CE),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      textStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
     return Column(
       children: [
@@ -2278,7 +2318,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            keypadKey('Clear', value: 'clear', color: AppColors.danger),
+            keypadKey(
+              'Clear',
+              value: 'clear',
+              foregroundColor: AppColors.danger,
+              backgroundColor: const Color(0xFFFFEEEE),
+              borderColor: const Color(0xFFF0B8B8),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -2286,21 +2332,38 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           keypadKey('7'),
           keypadKey('8'),
           keypadKey('9'),
-          keypadKey('+'),
+          keypadKey(
+            '+',
+            foregroundColor: AppColors.primary,
+            backgroundColor: const Color(0xFFE4F2EE),
+            borderColor: const Color(0xFFACD2C8),
+          ),
         ]),
         const SizedBox(height: 4),
         keypadRow([
           keypadKey('4'),
           keypadKey('5'),
           keypadKey('6'),
-          keypadKey('−', value: '-'),
+          keypadKey(
+            '−',
+            value: '-',
+            foregroundColor: AppColors.primary,
+            backgroundColor: const Color(0xFFE4F2EE),
+            borderColor: const Color(0xFFACD2C8),
+          ),
         ]),
         const SizedBox(height: 4),
         keypadRow([
           keypadKey('1'),
           keypadKey('2'),
           keypadKey('3'),
-          keypadKey('⌫', value: 'backspace'),
+          keypadKey(
+            '⌫',
+            value: 'backspace',
+            foregroundColor: const Color(0xFF8A5A18),
+            backgroundColor: const Color(0xFFFFF3DA),
+            borderColor: const Color(0xFFE8CA8C),
+          ),
         ]),
         const SizedBox(height: 4),
         keypadRow([
@@ -2316,8 +2379,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(7),
                 ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
               ),
               child: const Text('Enter'),
             ),
@@ -2369,7 +2433,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                                   (group) => group.isActive,
                                 ) &&
                                 !_orderLocked
-                            ? () => unawaited(_add(line.product))
+                            ? () => unawaited(_editModifiers(line))
                             : null,
                         borderRadius: BorderRadius.circular(4),
                         child: Padding(
@@ -2407,9 +2471,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                             ),
                             onPressed: _orderLocked
                                 ? null
-                                : () => unawaited(_add(line.product)),
+                                : () => unawaited(_editModifiers(line)),
                             icon: const Icon(Icons.tune_rounded, size: 15),
-                            label: const Text('Add modifiers'),
+                            label: Text(
+                              line.modifiers.isEmpty
+                                  ? 'Add modifiers'
+                                  : 'Edit modifiers',
+                            ),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primary,
                               backgroundColor: const Color(0xFFEAF6F2),

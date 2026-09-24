@@ -7,23 +7,37 @@ import 'localized_text.dart';
 
 Future<List<SelectedModifier>?> selectProductModifiers(
   BuildContext context,
-  Product product,
-) {
+  Product product, {
+  List<SelectedModifier> initialModifiers = const [],
+  String confirmLabel = 'Add to order',
+}) {
   final groups = product.modifierGroups
       .where((group) => group.isActive)
       .toList(growable: false);
   if (groups.isEmpty) return Future.value(const <SelectedModifier>[]);
   return showDialog<List<SelectedModifier>>(
     context: context,
-    builder: (_) => _ModifierSelectionDialog(product: product, groups: groups),
+    builder: (_) => _ModifierSelectionDialog(
+      product: product,
+      groups: groups,
+      initialModifiers: initialModifiers,
+      confirmLabel: confirmLabel,
+    ),
   );
 }
 
 class _ModifierSelectionDialog extends StatefulWidget {
-  const _ModifierSelectionDialog({required this.product, required this.groups});
+  const _ModifierSelectionDialog({
+    required this.product,
+    required this.groups,
+    required this.initialModifiers,
+    required this.confirmLabel,
+  });
 
   final Product product;
   final List<ModifierGroup> groups;
+  final List<SelectedModifier> initialModifiers;
+  final String confirmLabel;
 
   @override
   State<_ModifierSelectionDialog> createState() =>
@@ -32,6 +46,16 @@ class _ModifierSelectionDialog extends StatefulWidget {
 
 class _ModifierSelectionDialogState extends State<_ModifierSelectionDialog> {
   final Map<String, Set<String>> _selected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final modifier in widget.initialModifiers) {
+      _selected
+          .putIfAbsent(modifier.modifierGroupId, () => <String>{})
+          .add(modifier.variationId);
+    }
+  }
 
   int _minimum(ModifierGroup group) => group.isRequired
       ? group.minSelections.clamp(1, 999999)
@@ -130,7 +154,7 @@ class _ModifierSelectionDialogState extends State<_ModifierSelectionDialog> {
       FilledButton.icon(
         onPressed: _valid ? _confirm : null,
         icon: const Icon(Icons.add_shopping_cart_rounded),
-        label: const Text('Add to order'),
+        label: Text(widget.confirmLabel),
       ),
     ],
   );

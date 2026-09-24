@@ -441,10 +441,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final register = await _requireOpenRegister(locationId);
     if (register == null || !mounted) return;
     final methods = store.checkoutPaymentOptions
-        .where((option) => option.code.toLowerCase() != 'due')
+        .where((option) {
+          final code = option.code.toLowerCase().trim();
+          return code == 'cash' || code == 'card' || code == 'card_payment';
+        })
         .toList(growable: false);
     if (methods.isEmpty) {
-      _show('No payment methods are configured for this location.');
+      _show('Cash or card payment is not configured for this location.');
       return;
     }
     final method = await showDialog<PaymentOption>(

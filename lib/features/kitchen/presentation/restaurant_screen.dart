@@ -9,8 +9,11 @@ import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/localized_text.dart';
 import '../../auth/auth_controller.dart';
 import '../../home/module_screens.dart' show PagePad;
+import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../../printers/application/printer_controller.dart';
 import '../../store/app_store.dart';
 import 'kitchen_pos_screen.dart' show kitchenOrdersProvider;
+import 'kitchen_printing_controller.dart';
 import 'kitchen_settings_panel.dart';
 
 final restaurantTablesProvider = FutureProvider.autoDispose
@@ -329,70 +332,76 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
                 for (final order in sorted)
                   Card(
                     margin: const EdgeInsets.only(bottom: 10),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: order.status == 'draft'
-                                ? const Color(0xFFFFE9B8)
-                                : const Color(0xFFDDF3EC),
-                            foregroundColor: order.status == 'draft'
-                                ? const Color(0xFF8A5A00)
-                                : const Color(0xFF08745D),
-                            child: Icon(
-                              order.status == 'draft'
-                                  ? Icons.pause_rounded
-                                  : Icons.restaurant_rounded,
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _showKitchenOrderDetails(order),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: order.status == 'draft'
+                                  ? const Color(0xFFFFE9B8)
+                                  : const Color(0xFFDDF3EC),
+                              foregroundColor: order.status == 'draft'
+                                  ? const Color(0xFF8A5A00)
+                                  : const Color(0xFF08745D),
+                              child: Icon(
+                                order.status == 'draft'
+                                    ? Icons.pause_rounded
+                                    : Icons.restaurant_rounded,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    order.invoiceNo.isEmpty
+                                        ? 'Order #${order.serverId ?? order.localId}'
+                                        : order.invoiceNo,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${order.customer.name} • ${order.items.length} item${order.items.length == 1 ? '' : 's'} • ${DateFormat('dd MMM yyyy, hh:mm a').format(order.createdAt.toLocal())}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  order.invoiceNo.isEmpty
-                                      ? 'Order #${order.serverId ?? order.localId}'
-                                      : order.invoiceNo,
+                                RiyalAmount(
+                                  order.total,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 16,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 5),
                                 Text(
-                                  '${order.customer.name} • ${order.items.length} item${order.items.length == 1 ? '' : 's'} • ${DateFormat('dd MMM yyyy, hh:mm a').format(order.createdAt.toLocal())}',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  order.status == 'draft' ? 'Held' : 'Sent',
+                                  style: TextStyle(
+                                    color: order.status == 'draft'
+                                        ? const Color(0xFF8A5A00)
+                                        : const Color(0xFF08745D),
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              RiyalAmount(
-                                order.total,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                order.status == 'draft' ? 'Held' : 'Sent',
-                                style: TextStyle(
-                                  color: order.status == 'draft'
-                                      ? const Color(0xFF8A5A00)
-                                      : const Color(0xFF08745D),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right_rounded),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -403,6 +412,265 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
       ],
     );
   }
+
+  Future<void> _showKitchenOrderDetails(Sale order) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 760),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 12, 14),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long_rounded),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.invoiceNo.isEmpty
+                              ? 'Kitchen order #${order.serverId ?? order.localId}'
+                              : 'Kitchen order ${order.invoiceNo}',
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          DateFormat(
+                            'dd MMM yyyy, hh:mm a',
+                          ).format(order.createdAt.toLocal()),
+                          style: const TextStyle(color: Color(0xFF64726F)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(dialogContext),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView(
+                padding: const EdgeInsets.all(22),
+                children: [
+                  Wrap(
+                    spacing: 20,
+                    runSpacing: 8,
+                    children: [
+                      _OrderFact(label: 'Customer', value: order.customer.name),
+                      _OrderFact(
+                        label: 'Status',
+                        value: order.status == 'draft' ? 'Held' : 'Sent',
+                      ),
+                      if (order.paymentStatus.isNotEmpty)
+                        _OrderFact(
+                          label: 'Payment',
+                          value: order.paymentStatus,
+                        ),
+                      if (order.tableId.isNotEmpty)
+                        _OrderFact(label: 'Table', value: order.tableId),
+                    ],
+                  ),
+                  if (order.saleNote.trim().isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F7F6),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(order.saleNote),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Items',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final line in order.items)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFDCE5E2)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3F3EE),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${line.quantity}×',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  line.product.displayName(context.isArabic),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                for (final modifier in line.modifiers)
+                                  Text(
+                                    '${modifier.modifierGroupName}: ${modifier.name}${modifier.quantity > 1 ? ' ×${modifier.quantity}' : ''}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF08745D),
+                                    ),
+                                  ),
+                                if (line.itemNote.trim().isNotEmpty)
+                                  Text(
+                                    'Note: ${line.itemNote}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF64726F),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          RiyalAmount(
+                            line.total,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const Divider(height: 26),
+                  _OrderTotalRow(
+                    label: 'Subtotal',
+                    amount: order.total - order.tax + order.discount,
+                  ),
+                  _OrderTotalRow(label: 'Tax', amount: order.tax),
+                  if (order.discount > 0)
+                    _OrderTotalRow(label: 'Discount', amount: -order.discount),
+                  const SizedBox(height: 5),
+                  _OrderTotalRow(
+                    label: 'Total',
+                    amount: order.total,
+                    strong: true,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _previewKitchenOrderBill(order),
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('Preview bill'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _printKitchenOrderBill(order),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text('Print bill'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: order.serverId == null
+                        ? null
+                        : () => _retryKitchenTicket(order),
+                    icon: const Icon(Icons.restaurant_rounded),
+                    label: const Text('Print kitchen ticket'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _previewKitchenOrderBill(Sale order) async {
+    try {
+      final store = ref.read(appStoreProvider);
+      final printers = ref.read(printerControllerProvider);
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .previewSale(
+            sale: order,
+            businessName:
+                store.business?.displayName(context.isArabic) ?? 'Eazy POS',
+            settings: printers.settings,
+            arabic: context.isArabic,
+          );
+    } catch (error) {
+      if (mounted) _snack('Bill preview failed: $error');
+    }
+  }
+
+  Future<void> _printKitchenOrderBill(Sale order) async {
+    try {
+      final store = ref.read(appStoreProvider);
+      final printers = ref.read(printerControllerProvider);
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: order,
+            businessName:
+                store.business?.displayName(context.isArabic) ?? 'Eazy POS',
+            settings: printers.settings,
+            printers: printers.selectedPrinters,
+            arabic: context.isArabic,
+          );
+      if (mounted) _snack('Bill sent to the selected billing printer.');
+    } catch (error) {
+      if (mounted) _snack('Bill printing failed: $error');
+    }
+  }
+
+  Future<void> _retryKitchenTicket(Sale order) async {
+    final transactionId = order.serverId;
+    if (transactionId == null || transactionId.isEmpty) return;
+    try {
+      final summary = await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .processTransaction(
+            transactionId,
+            locationId: order.locationId.isEmpty ? _location : order.locationId,
+          );
+      if (mounted) {
+        _snack('${summary.printedCount} kitchen ticket(s) printed.');
+      }
+    } catch (error) {
+      if (mounted) _snack('Kitchen ticket printing failed: $error');
+    }
+  }
+
+  void _snack(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   Widget _modifierGroups() => ref
       .watch(restaurantModifierGroupsProvider)
@@ -639,6 +907,63 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
       }
     }
   }
+}
+
+class _OrderFact extends StatelessWidget {
+  const _OrderFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 180,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Color(0xFF64726F))),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ],
+    ),
+  );
+}
+
+class _OrderTotalRow extends StatelessWidget {
+  const _OrderTotalRow({
+    required this.label,
+    required this.amount,
+    this.strong = false,
+  });
+
+  final String label;
+  final int amount;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: strong ? 17 : 14,
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+            ),
+          ),
+        ),
+        RiyalAmount(
+          amount,
+          style: TextStyle(
+            fontSize: strong ? 18 : 14,
+            fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ModifierGroupDraft {

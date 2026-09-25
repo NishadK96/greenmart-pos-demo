@@ -276,6 +276,8 @@ void main() {
                   },
                   'kitchen': {
                     'selected_template': 'food_preparation',
+                    'print_name_override': 'Downtown Kitchen',
+                    'effective_print_name': 'Downtown Kitchen',
                     'templates': [
                       {'key': 'thermal', 'name': 'Thermal 80mm'},
                       {
@@ -309,6 +311,7 @@ void main() {
                 'templates': [
                   {'key': 'thermal', 'name': 'Thermal 80mm'},
                 ],
+                'routing_scopes': ['category', 'all_categories'],
               },
             }),
             200,
@@ -328,10 +331,29 @@ void main() {
       expect(settings.selectedTemplate, 'food_preparation');
       expect(settings.printReceiptOnInvoice, isTrue);
       expect(settings.receiptPrinterId, '5');
+      expect(settings.printNameOverride, 'Downtown Kitchen');
+      expect(settings.effectivePrintName, 'Downtown Kitchen');
       expect(options.printers.single.name, 'Hot kitchen');
       expect(options.categories.single.subCategories.single.name, 'Grill');
+      expect(options.supportsAllCategories, isTrue);
     },
   );
+
+  test('all-category route maps without category objects', () {
+    final route = KitchenPrinterRoute.fromJson({
+      'id': 22,
+      'scope': 'all_categories',
+      'category': null,
+      'sub_category': null,
+      'printer': {'id': 5, 'name': 'Main kitchen'},
+      'priority': 0,
+      'is_active': true,
+    });
+
+    expect(route.isAllCategories, isTrue);
+    expect(route.category, isNull);
+    expect(route.printer.name, 'Main kitchen');
+  });
 
   test('route save sends the complete routing contract', () async {
     final api = Api(

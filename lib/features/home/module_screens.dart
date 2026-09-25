@@ -6742,6 +6742,22 @@ class _BusinessSettingsScreenState
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _taxNumber = TextEditingController();
+  final _crn = TextEditingController();
+  final _defaultPhone = TextEditingController();
+  final _defaultAddressEn = TextEditingController();
+  final _defaultAddressAr = TextEditingController();
+  final _locationPhone = TextEditingController();
+  final _locationAddressEn = TextEditingController();
+  final _locationAddressAr = TextEditingController();
+  bool _identityEnabled = false;
+  bool _showBusinessName = true;
+  bool _showVat = true;
+  bool _showCrn = true;
+  bool _showPhone = true;
+  bool _showAddress = true;
+  String? _locationId;
+  LocationInvoiceIdentity? _locationIdentity;
+  bool _loadingLocation = false;
   ConnectorAccess? _access;
   bool _loading = true;
   bool _saving = false;
@@ -6759,6 +6775,13 @@ class _BusinessSettingsScreenState
   void dispose() {
     _name.dispose();
     _taxNumber.dispose();
+    _crn.dispose();
+    _defaultPhone.dispose();
+    _defaultAddressEn.dispose();
+    _defaultAddressAr.dispose();
+    _locationPhone.dispose();
+    _locationAddressEn.dispose();
+    _locationAddressAr.dispose();
     super.dispose();
   }
 
@@ -6800,6 +6823,20 @@ class _BusinessSettingsScreenState
       _access = results[1] as ConnectorAccess;
       _name.text = settings.name;
       _taxNumber.text = settings.taxNumber;
+      final identity = settings.invoiceIdentity;
+      _identityEnabled = identity.enabled;
+      _crn.text = identity.commercialRegistrationNumber;
+      _defaultPhone.text = identity.defaultPhone;
+      _defaultAddressEn.text = identity.defaultAddressEn;
+      _defaultAddressAr.text = identity.defaultAddressAr;
+      _showBusinessName = identity.showBusinessName;
+      _showVat = identity.showVatNumber;
+      _showCrn = identity.showCrn;
+      _showPhone = identity.showPhone;
+      _showAddress = identity.showAddress;
+      final locations = ref.read(appStoreProvider).locations;
+      _locationId ??= locations.firstOrNull?.id;
+      if (_locationId != null) await _loadLocation(_locationId!);
     } catch (error) {
       if (mounted) _error = error;
     } finally {
@@ -6817,12 +6854,81 @@ class _BusinessSettingsScreenState
           .updateBusinessSettings(
             name: _name.text.trim(),
             taxNumber: _taxNumber.text.trim(),
+            invoiceIdentity: InvoiceIdentitySettings(
+              enabled: _identityEnabled,
+              commercialRegistrationNumber: _crn.text.trim(),
+              defaultPhone: _defaultPhone.text.trim(),
+              defaultAddressEn: _defaultAddressEn.text.trim(),
+              defaultAddressAr: _defaultAddressAr.text.trim(),
+              showBusinessName: _showBusinessName,
+              showVatNumber: _showVat,
+              showCrn: _showCrn,
+              showPhone: _showPhone,
+              showAddress: _showAddress,
+            ),
           );
       if (!mounted) return;
       _name.text = settings.name;
       _taxNumber.text = settings.taxNumber;
+      final identity = settings.invoiceIdentity;
+      _identityEnabled = identity.enabled;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Business settings updated.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _loadLocation(String locationId) async {
+    if (mounted) setState(() => _loadingLocation = true);
+    try {
+      final identity = await _authorized(
+        (api, token) => api.locationInvoiceIdentity(
+          accessToken: token,
+          locationId: locationId,
+        ),
+      );
+      if (!mounted || _locationId != locationId) return;
+      _locationIdentity = identity;
+      _locationPhone.text = identity.phoneOverride;
+      _locationAddressEn.text = identity.addressEnOverride;
+      _locationAddressAr.text = identity.addressArOverride;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLocation = false);
+    }
+  }
+
+  Future<void> _saveLocation() async {
+    final locationId = _locationId;
+    if (!_canEdit || _saving || locationId == null) return;
+    setState(() => _saving = true);
+    try {
+      final identity = await _authorized(
+        (api, token) => api.updateLocationInvoiceIdentity(
+          accessToken: token,
+          locationId: locationId,
+          phone: _locationPhone.text,
+          addressEn: _locationAddressEn.text,
+          addressAr: _locationAddressAr.text,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _locationIdentity = identity);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location invoice identity updated.')),
       );
     } catch (error) {
       if (mounted) {
@@ -6935,6 +7041,112 @@ class _BusinessSettingsScreenState
                     'The tax number is validated using the business country configured in EazyERP.',
                     style: TextStyle(color: AppColors.muted, fontSize: 12),
                   ),
+                  const SizedBox(height: 22),
+                  const Divider(),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Use shared invoice identity'),
+                    subtitle: const Text(
+                      'When enabled, these details and visibility settings override identity fields in invoice layouts.',
+                    ),
+                    value: _identityEnabled,
+                    onChanged: _canEdit && !_saving
+                        ? (value) => setState(() => _identityEnabled = value)
+                        : null,
+                  ),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 14,
+                    children: [
+                      SizedBox(
+                        width: 330,
+                        child: TextFormField(
+                          controller: _crn,
+                          enabled: _canEdit && !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Commercial registration number',
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 330,
+                        child: TextFormField(
+                          controller: _defaultPhone,
+                          enabled: _canEdit && !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Default phone',
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 430,
+                        child: TextFormField(
+                          controller: _defaultAddressEn,
+                          enabled: _canEdit && !_saving,
+                          decoration: const InputDecoration(
+                            labelText: 'Default address (English)',
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 430,
+                        child: TextFormField(
+                          controller: _defaultAddressAr,
+                          enabled: _canEdit && !_saving,
+                          textDirection: TextDirection.rtl,
+                          decoration: const InputDecoration(
+                            labelText: 'Default address (Arabic)',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Fields shown on invoices',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilterChip(
+                        label: const Text('Business name'),
+                        selected: _showBusinessName,
+                        onSelected: _canEdit && !_saving
+                            ? (value) =>
+                                  setState(() => _showBusinessName = value)
+                            : null,
+                      ),
+                      FilterChip(
+                        label: const Text('VAT number'),
+                        selected: _showVat,
+                        onSelected: _canEdit && !_saving
+                            ? (value) => setState(() => _showVat = value)
+                            : null,
+                      ),
+                      FilterChip(
+                        label: const Text('CRN'),
+                        selected: _showCrn,
+                        onSelected: _canEdit && !_saving
+                            ? (value) => setState(() => _showCrn = value)
+                            : null,
+                      ),
+                      FilterChip(
+                        label: const Text('Phone'),
+                        selected: _showPhone,
+                        onSelected: _canEdit && !_saving
+                            ? (value) => setState(() => _showPhone = value)
+                            : null,
+                      ),
+                      FilterChip(
+                        label: const Text('Address'),
+                        selected: _showAddress,
+                        onSelected: _canEdit && !_saving
+                            ? (value) => setState(() => _showAddress = value)
+                            : null,
+                      ),
+                    ],
+                  ),
                   if (_canEdit) ...[
                     const SizedBox(height: 20),
                     Align(
@@ -6955,6 +7167,104 @@ class _BusinessSettingsScreenState
                   ],
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Surface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Location invoice identity',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Optional phone and address overrides for one business location. Empty values use the shared defaults.',
+                  style: TextStyle(color: AppColors.muted),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  key: ValueKey(_locationId),
+                  initialValue: _locationId,
+                  decoration: const InputDecoration(
+                    labelText: 'Business location',
+                  ),
+                  items: ref
+                      .watch(appStoreProvider)
+                      .locations
+                      .map(
+                        (location) => DropdownMenuItem(
+                          value: location.id,
+                          child: Text(location.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _loadingLocation
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          setState(() => _locationId = value);
+                          _loadLocation(value);
+                        },
+                ),
+                const SizedBox(height: 14),
+                if (_loadingLocation)
+                  const LinearProgressIndicator()
+                else ...[
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 14,
+                    children: [
+                      SizedBox(
+                        width: 330,
+                        child: TextFormField(
+                          controller: _locationPhone,
+                          enabled: _canEdit && !_saving,
+                          decoration: InputDecoration(
+                            labelText: 'Phone override',
+                            hintText: _locationIdentity?.effectivePhone,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 430,
+                        child: TextFormField(
+                          controller: _locationAddressEn,
+                          enabled: _canEdit && !_saving,
+                          decoration: InputDecoration(
+                            labelText: 'Address override (English)',
+                            hintText: _locationIdentity?.effectiveAddressEn,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 430,
+                        child: TextFormField(
+                          controller: _locationAddressAr,
+                          enabled: _canEdit && !_saving,
+                          textDirection: TextDirection.rtl,
+                          decoration: InputDecoration(
+                            labelText: 'Address override (Arabic)',
+                            hintText: _locationIdentity?.effectiveAddressAr,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_canEdit) ...[
+                    const SizedBox(height: 18),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: FilledButton.icon(
+                        onPressed: _saving ? null : _saveLocation,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Save location override'),
+                      ),
+                    ),
+                  ],
+                ],
+              ],
             ),
           ),
         ],

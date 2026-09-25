@@ -138,7 +138,7 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
 
   Future<void> saveRoute({
     String? routeId,
-    required String categoryId,
+    required String? categoryId,
     String? subCategoryId,
     required String printerId,
     String? templateKey,
@@ -156,7 +156,9 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
               locationId: current.locationId,
               routeId: routeId,
               values: {
-                'category_id': int.tryParse(categoryId) ?? categoryId,
+                'category_id': categoryId == null
+                    ? null
+                    : int.tryParse(categoryId) ?? categoryId,
                 'sub_category_id': subCategoryId == null
                     ? null
                     : int.tryParse(subCategoryId) ?? subCategoryId,

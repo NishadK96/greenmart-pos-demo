@@ -625,6 +625,9 @@ class PrinterDocumentService {
     final business = _map(manifest['business']);
     final location = _map(manifest['location']);
     final visible = _map(manifest['visible_fields']);
+    final invoiceIdentity = _map(manifest['invoice_identity']);
+    final identityEnabled = invoiceIdentity['enabled'] == true;
+    final identityVisible = _map(invoiceIdentity['visible_fields']);
     final money = _map(manifest['money']);
     final header = _map(manifest['header']);
     final footer = _map(manifest['footer']);
@@ -653,11 +656,20 @@ class PrinterDocumentService {
 
     final nameAr = business['name_ar']?.toString().trim() ?? '';
     final nameEn = business['name_en']?.toString().trim() ?? '';
-    final businessName = arabic && nameAr.isNotEmpty
+    final layoutBusinessName = arabic && nameAr.isNotEmpty
         ? nameAr
         : nameEn.isNotEmpty
         ? nameEn
         : business['name']?.toString() ?? '';
+    final identityBusinessName = arabic
+        ? invoiceIdentity['business_name_ar']?.toString().trim() ?? ''
+        : invoiceIdentity['business_name_en']?.toString().trim() ?? '';
+    final businessName = identityEnabled
+        ? identityBusinessName.isNotEmpty
+              ? identityBusinessName
+              : invoiceIdentity['business_name']?.toString() ??
+                    layoutBusinessName
+        : layoutBusinessName;
     final address = _map(location['address']);
     final addressText = arabic
         ? address['override_ar']?.toString() ?? ''
@@ -669,6 +681,11 @@ class PrinterDocumentService {
       address['zip_code'],
       address['country'],
     ].where((value) => value?.toString().trim().isNotEmpty == true).join(', ');
+    final identityAddress = arabic
+        ? invoiceIdentity['address_ar']?.toString() ?? ''
+        : invoiceIdentity['address_en']?.toString() ?? '';
+    bool showIdentity(String field) =>
+        !identityEnabled || identityVisible[field] != false;
     final logo = bundle.assets['logo'];
     final document = pw.Document();
     final theme = await PdfFonts.arabicTheme();
@@ -692,7 +709,8 @@ class PrinterDocumentService {
                 fit: pw.BoxFit.contain,
               ),
             ),
-          if (visible['business_name'] != false)
+          if (visible['business_name'] != false &&
+              showIdentity('business_name'))
             PdfFonts.text(
               businessName,
               textAlign: pw.TextAlign.center,
@@ -703,9 +721,41 @@ class PrinterDocumentService {
               location['name']?.toString() ?? '',
               textAlign: pw.TextAlign.center,
             ),
-          if ((addressText.isNotEmpty || fallbackAddress.isNotEmpty))
+          if (identityEnabled &&
+              showIdentity('vat_number') &&
+              invoiceIdentity['vat_number']?.toString().trim().isNotEmpty ==
+                  true)
             PdfFonts.text(
-              addressText.isNotEmpty ? addressText : fallbackAddress,
+              '${label('vat_number', 'VAT')}: ${invoiceIdentity['vat_number']}',
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          if (identityEnabled &&
+              showIdentity('crn') &&
+              invoiceIdentity['crn']?.toString().trim().isNotEmpty == true)
+            PdfFonts.text(
+              '${label('commercial_registration_number', 'CRN')}: ${invoiceIdentity['crn']}',
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          if (identityEnabled &&
+              showIdentity('phone') &&
+              invoiceIdentity['phone']?.toString().trim().isNotEmpty == true)
+            PdfFonts.text(
+              '${label('phone', 'Phone')}: ${invoiceIdentity['phone']}',
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          if (showIdentity('address') &&
+              (identityAddress.isNotEmpty ||
+                  addressText.isNotEmpty ||
+                  fallbackAddress.isNotEmpty))
+            PdfFonts.text(
+              identityAddress.isNotEmpty
+                  ? identityAddress
+                  : addressText.isNotEmpty
+                  ? addressText
+                  : fallbackAddress,
               textAlign: pw.TextAlign.center,
               style: const pw.TextStyle(fontSize: 9),
             ),

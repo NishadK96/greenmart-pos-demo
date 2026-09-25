@@ -331,9 +331,62 @@ class BusinessProfile {
 }
 
 class BusinessSettings {
-  const BusinessSettings({required this.name, required this.taxNumber});
+  const BusinessSettings({
+    required this.name,
+    required this.taxNumber,
+    this.invoiceIdentity = const InvoiceIdentitySettings(),
+  });
 
   final String name, taxNumber;
+  final InvoiceIdentitySettings invoiceIdentity;
+}
+
+class InvoiceIdentitySettings {
+  const InvoiceIdentitySettings({
+    this.enabled = false,
+    this.commercialRegistrationNumber = '',
+    this.defaultPhone = '',
+    this.defaultAddressEn = '',
+    this.defaultAddressAr = '',
+    this.showBusinessName = true,
+    this.showVatNumber = true,
+    this.showCrn = true,
+    this.showPhone = true,
+    this.showAddress = true,
+  });
+
+  final bool enabled;
+  final String commercialRegistrationNumber;
+  final String defaultPhone;
+  final String defaultAddressEn;
+  final String defaultAddressAr;
+  final bool showBusinessName;
+  final bool showVatNumber;
+  final bool showCrn;
+  final bool showPhone;
+  final bool showAddress;
+}
+
+class LocationInvoiceIdentity {
+  const LocationInvoiceIdentity({
+    required this.locationId,
+    this.phoneOverride = '',
+    this.addressEnOverride = '',
+    this.addressArOverride = '',
+    this.effectivePhone = '',
+    this.effectiveAddress = '',
+    this.effectiveAddressEn = '',
+    this.effectiveAddressAr = '',
+  });
+
+  final String locationId;
+  final String phoneOverride;
+  final String addressEnOverride;
+  final String addressArOverride;
+  final String effectivePhone;
+  final String effectiveAddress;
+  final String effectiveAddressEn;
+  final String effectiveAddressAr;
 }
 
 class UserProfile {

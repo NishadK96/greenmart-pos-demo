@@ -88,6 +88,8 @@ class RestaurantSettings {
     this.receiptPrinterId,
     this.invoiceLayoutId,
     this.invoiceSchemeId,
+    this.printNameOverride,
+    this.effectivePrintName = '',
   });
 
   final String locationId;
@@ -98,6 +100,8 @@ class RestaurantSettings {
   final String? receiptPrinterId;
   final String? invoiceLayoutId;
   final String? invoiceSchemeId;
+  final String? printNameOverride;
+  final String effectivePrintName;
 
   factory RestaurantSettings.fromJson(Map<String, dynamic> json) {
     final receipt = _object(json['receipt']);
@@ -115,6 +119,8 @@ class RestaurantSettings {
       receiptPrinterId: receipt['printer_id']?.toString(),
       invoiceLayoutId: invoice['invoice_layout_id']?.toString(),
       invoiceSchemeId: invoice['invoice_scheme_id']?.toString(),
+      printNameOverride: kitchen['print_name_override']?.toString(),
+      effectivePrintName: kitchen['effective_print_name']?.toString() ?? '',
     );
   }
 }
@@ -125,12 +131,16 @@ class KitchenPrinterOptions {
     required this.printers,
     required this.categories,
     required this.templates,
+    this.routingScopes = const {'category'},
   });
 
   final String locationId;
   final List<KitchenErpPrinter> printers;
   final List<KitchenCategoryOption> categories;
   final List<KitchenTemplate> templates;
+  final Set<String> routingScopes;
+
+  bool get supportsAllCategories => routingScopes.contains('all_categories');
 
   factory KitchenPrinterOptions.fromJson(Map<String, dynamic> json) =>
       KitchenPrinterOptions(
@@ -144,13 +154,15 @@ class KitchenPrinterOptions {
         templates: _objectList(
           json['templates'],
         ).map(KitchenTemplate.fromJson).toList(growable: false),
+        routingScopes: _routingScopes(json['routing_scopes']),
       );
 }
 
 class KitchenPrinterRoute {
   const KitchenPrinterRoute({
     required this.id,
-    required this.category,
+    required this.scope,
+    this.category,
     required this.printer,
     required this.priority,
     required this.isActive,
@@ -159,17 +171,25 @@ class KitchenPrinterRoute {
   });
 
   final String id;
-  final KitchenCategoryOption category;
+  final String scope;
+  final KitchenCategoryOption? category;
   final KitchenCategoryOption? subCategory;
   final KitchenErpPrinter printer;
   final KitchenTemplate? template;
   final int priority;
   final bool isActive;
 
+  bool get isAllCategories => scope == 'all_categories' || category == null;
+
   factory KitchenPrinterRoute.fromJson(Map<String, dynamic> json) =>
       KitchenPrinterRoute(
         id: json['id']?.toString() ?? '',
-        category: KitchenCategoryOption.fromJson(_object(json['category'])),
+        scope:
+            json['scope']?.toString() ??
+            (json['category'] == null ? 'all_categories' : 'category'),
+        category: json['category'] is Map
+            ? KitchenCategoryOption.fromJson(_object(json['category']))
+            : null,
         subCategory: json['sub_category'] is Map
             ? KitchenCategoryOption.fromJson(_object(json['sub_category']))
             : null,
@@ -304,3 +324,17 @@ List<Map<String, dynamic>> _objectList(dynamic value) => value is List
 bool _bool(dynamic value, {bool fallback = false}) => value == null
     ? fallback
     : value == true || value == 1 || value.toString() == '1';
+
+Set<String> _routingScopes(dynamic value) {
+  if (value is! List) return const {'category'};
+  final scopes = value
+      .map((item) {
+        if (item is Map) {
+          return (item['key'] ?? item['value'] ?? item['scope'])?.toString();
+        }
+        return item?.toString();
+      })
+      .whereType<String>()
+      .toSet();
+  return scopes.isEmpty ? const {'category'} : scopes;
+}

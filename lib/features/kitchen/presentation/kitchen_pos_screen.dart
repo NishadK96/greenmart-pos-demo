@@ -429,6 +429,67 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
   }
 
+  Future<void> _previewSavedOrderBill(Sale order) async {
+    try {
+      final store = ref.read(appStoreProvider);
+      final printers = ref.read(printerControllerProvider);
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .previewSale(
+            sale: order,
+            businessName: store.business?.name ?? 'Eazy POS',
+            settings: printers.settings,
+            arabic:
+                Localizations.localeOf(context).languageCode.toLowerCase() ==
+                'ar',
+          );
+    } catch (error) {
+      if (mounted) _show('Unable to preview this bill: $error');
+    }
+  }
+
+  Future<void> _printSavedOrderBill(Sale order) async {
+    try {
+      final store = ref.read(appStoreProvider);
+      final printers = ref.read(printerControllerProvider);
+      await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .printSale(
+            sale: order,
+            businessName: store.business?.name ?? 'Eazy POS',
+            settings: printers.settings,
+            printers: printers.selectedPrinters,
+            arabic:
+                Localizations.localeOf(context).languageCode.toLowerCase() ==
+                'ar',
+          );
+      if (mounted) _show('Bill sent to the selected billing printer.');
+    } catch (error) {
+      if (mounted) _show('Unable to print this bill: $error');
+    }
+  }
+
+  Future<void> _printSavedKitchenTicket(Sale order) async {
+    final transactionId = order.serverId;
+    if (transactionId == null || transactionId.isEmpty) {
+      _show('This order has not been synced yet.');
+      return;
+    }
+    try {
+      final summary = await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .processTransaction(
+            transactionId,
+            locationId: order.locationId.isEmpty
+                ? (_locationId(ref.read(appStoreProvider)) ?? '')
+                : order.locationId,
+          );
+      if (mounted) _show('${summary.printedCount} kitchen ticket(s) printed.');
+    } catch (error) {
+      if (mounted) _show('Unable to print the kitchen ticket: $error');
+    }
+  }
+
   Future<void> _billAndPay() async {
     if (_sending || _lines.isEmpty) return;
     final store = ref.read(appStoreProvider);
@@ -671,20 +732,20 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
   }
 
-  Future<void> _showRecentOrders(String locationId) async {
+  Future<void> _showOrders(String locationId, {required bool heldOnly}) async {
     if (_orderLocked) return;
     setState(() => _sending = true);
     try {
       final loadedOrders = await ref.refresh(
         kitchenOrdersProvider(locationId).future,
       );
-      final orders = [...loadedOrders]
-        ..sort((a, b) {
-          if (a.status == b.status) return 0;
-          return a.status == 'draft' ? -1 : 1;
-        });
+      final orders = loadedOrders
+          .where(
+            (order) =>
+                heldOnly ? order.status == 'draft' : order.status != 'draft',
+          )
+          .toList(growable: false);
       if (!mounted) return;
-      final heldCount = orders.where((order) => order.status == 'draft').length;
       final selected = await showDialog<Sale>(
         context: context,
         builder: (dialogContext) {
@@ -715,17 +776,19 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Icon(
-                            Icons.history_rounded,
+                            heldOnly
+                                ? Icons.pause_circle_outline_rounded
+                                : Icons.history_rounded,
                             color: colors.onPrimaryContainer,
                           ),
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Kitchen orders',
+                                heldOnly ? 'Held orders' : 'Previous orders',
                                 style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.w700,
@@ -733,7 +796,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                               ),
                               SizedBox(height: 3),
                               Text(
-                                'Resume held tickets or review recent kitchen orders.',
+                                heldOnly
+                                    ? 'Resume an unfinished kitchen order.'
+                                    : 'Review completed and recently sent kitchen orders.',
                                 style: TextStyle(color: Color(0xFF64726F)),
                               ),
                             ],
@@ -747,20 +812,14 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _OrderSummaryChip(
-                          icon: Icons.pause_circle_outline_rounded,
-                          label: '$heldCount held',
-                          emphasized: heldCount > 0,
-                        ),
-                        _OrderSummaryChip(
-                          icon: Icons.receipt_long_outlined,
-                          label: '${orders.length} total',
-                        ),
-                      ],
+                    _OrderSummaryChip(
+                      icon: heldOnly
+                          ? Icons.pause_circle_outline_rounded
+                          : Icons.receipt_long_outlined,
+                      label: heldOnly
+                          ? '${orders.length} held'
+                          : '${orders.length} previous',
+                      emphasized: orders.isNotEmpty,
                     ),
                     const SizedBox(height: 16),
                     if (orders.isEmpty)
@@ -771,7 +830,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                           border: Border.all(color: colors.outlineVariant),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Column(
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.receipt_long_outlined, size: 38),
@@ -781,7 +840,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                             SizedBox(height: 4),
-                            Text('Held orders will appear here.'),
+                            Text(
+                              heldOnly
+                                  ? 'Held orders will appear here.'
+                                  : 'Sent kitchen orders will appear here.',
+                            ),
                           ],
                         ),
                       )
@@ -794,7 +857,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (_, index) {
                             final order = orders[index];
-                            final isHeld = order.status == 'draft';
+                            final isHeld = heldOnly;
                             final orderNumber = order.invoiceNo.isEmpty
                                 ? 'Order #${order.serverId}'
                                 : order.invoiceNo;
@@ -812,8 +875,28 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                onTap: () =>
-                                    Navigator.pop(dialogContext, order),
+                                onTap: () {
+                                  if (isHeld) {
+                                    Navigator.pop(dialogContext, order);
+                                  } else {
+                                    showDialog<void>(
+                                      context: dialogContext,
+                                      builder: (_) => KitchenOrderDetailsDialog(
+                                        order: order,
+                                        onPreviewBill: () =>
+                                            _previewSavedOrderBill(order),
+                                        onPrintBill: () =>
+                                            _printSavedOrderBill(order),
+                                        onPrintKitchenTicket:
+                                            order.serverId == null
+                                            ? null
+                                            : () => _printSavedKitchenTicket(
+                                                order,
+                                              ),
+                                      ),
+                                    );
+                                  }
+                                },
                                 child: Padding(
                                   padding: const EdgeInsets.all(14),
                                   child: LayoutBuilder(
@@ -883,8 +966,34 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                                         ],
                                       );
                                       final action = FilledButton.icon(
-                                        onPressed: () =>
-                                            Navigator.pop(dialogContext, order),
+                                        onPressed: () {
+                                          if (isHeld) {
+                                            Navigator.pop(dialogContext, order);
+                                          } else {
+                                            showDialog<void>(
+                                              context: dialogContext,
+                                              builder: (_) =>
+                                                  KitchenOrderDetailsDialog(
+                                                    order: order,
+                                                    onPreviewBill: () =>
+                                                        _previewSavedOrderBill(
+                                                          order,
+                                                        ),
+                                                    onPrintBill: () =>
+                                                        _printSavedOrderBill(
+                                                          order,
+                                                        ),
+                                                    onPrintKitchenTicket:
+                                                        order.serverId == null
+                                                        ? null
+                                                        : () =>
+                                                              _printSavedKitchenTicket(
+                                                                order,
+                                                              ),
+                                                  ),
+                                            );
+                                          }
+                                        },
                                         icon: Icon(
                                           isHeld
                                               ? Icons.play_arrow_rounded
@@ -965,7 +1074,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       debugPrint('Unable to load recent kitchen orders: $error\n$stackTrace');
       if (mounted) {
         _show(
-          'Unable to load held orders. Check the connection and try again.',
+          'Unable to load ${heldOnly ? 'held' : 'previous'} orders. Check the connection and try again.',
         );
       }
     } finally {
@@ -1305,22 +1414,48 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           color: Colors.white,
           visualDensity: VisualDensity.compact,
         ),
-        OutlinedButton.icon(
-          key: const ValueKey('kitchen-held-orders'),
-          onPressed: locationId.isEmpty
-              ? null
-              : () => _showRecentOrders(locationId),
-          icon: const Icon(Icons.receipt_long_outlined, size: 17),
-          label: const Text('Orders'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white,
-            side: const BorderSide(color: Colors.white54),
-            minimumSize: const Size(0, 34),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        if (desktop) ...[
+          OutlinedButton.icon(
+            key: const ValueKey('kitchen-held-orders'),
+            onPressed: locationId.isEmpty
+                ? null
+                : () => _showOrders(locationId, heldOnly: true),
+            icon: const Icon(Icons.pause_circle_outline_rounded, size: 17),
+            label: const Text('Held'),
+            style: _headerOrderButtonStyle(),
+          ),
+          const SizedBox(width: 6),
+          OutlinedButton.icon(
+            key: const ValueKey('kitchen-previous-orders'),
+            onPressed: locationId.isEmpty
+                ? null
+                : () => _showOrders(locationId, heldOnly: false),
+            icon: const Icon(Icons.history_rounded, size: 17),
+            label: const Text('Previous'),
+            style: _headerOrderButtonStyle(),
+          ),
+        ] else ...[
+          IconButton(
+            key: const ValueKey('kitchen-held-orders'),
+            tooltip: 'Held orders',
+            onPressed: locationId.isEmpty
+                ? null
+                : () => _showOrders(locationId, heldOnly: true),
+            icon: const Icon(Icons.pause_circle_outline_rounded),
+            color: Colors.white,
             visualDensity: VisualDensity.compact,
           ),
-        ),
+          IconButton(
+            key: const ValueKey('kitchen-previous-orders'),
+            tooltip: 'Previous orders',
+            onPressed: locationId.isEmpty
+                ? null
+                : () => _showOrders(locationId, heldOnly: false),
+            icon: const Icon(Icons.history_rounded),
+            color: Colors.white,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ],
     );
     final controls = SingleChildScrollView(
@@ -1358,7 +1493,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       child: desktop
           ? Row(
               children: [
-                SizedBox(width: 275, child: title),
+                SizedBox(width: 334, child: title),
                 const SizedBox(width: 8),
                 Expanded(child: controls),
               ],
@@ -1414,6 +1549,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
     );
   }
+
+  ButtonStyle _headerOrderButtonStyle() => OutlinedButton.styleFrom(
+    foregroundColor: Colors.white,
+    side: const BorderSide(color: Colors.white54),
+    minimumSize: const Size(0, 34),
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    visualDensity: VisualDensity.compact,
+  );
 
   void _selectService(String label, List<LookupOption> serviceTypes) {
     String? matchedId;
@@ -2650,6 +2794,496 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (note != null && mounted) setState(() => _note = note.trim());
     controller.dispose();
   }
+}
+
+class KitchenOrderDetailsDialog extends StatelessWidget {
+  const KitchenOrderDetailsDialog({
+    super.key,
+    required this.order,
+    this.onPreviewBill,
+    this.onPrintBill,
+    this.onPrintKitchenTicket,
+  });
+
+  final Sale order;
+  final Future<void> Function()? onPreviewBill;
+  final Future<void> Function()? onPrintBill;
+  final Future<void> Function()? onPrintKitchenTicket;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final orderNumber = order.invoiceNo.isEmpty
+        ? 'Order #${order.serverId ?? order.localId}'
+        : order.invoiceNo;
+    return SafeArea(
+      child: Dialog(
+        insetPadding: EdgeInsets.all(compact ? 12 : 28),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 16 : 22,
+                  compact ? 16 : 20,
+                  12,
+                  16,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDDF5ED),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_outlined,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  orderNumber,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFE8D1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  order.paymentStatus.isEmpty
+                                      ? order.status
+                                      : order.paymentStatus,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB65C00),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            order.customer.name,
+                            style: const TextStyle(color: AppColors.muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 14 : 22,
+                    18,
+                    compact ? 14 : 22,
+                    20,
+                  ),
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final facts = [
+                          _OrderFact(
+                            icon: Icons.calendar_today_outlined,
+                            label: 'Order time',
+                            text: order.createdAt.toString().split('.').first,
+                          ),
+                          _OrderFact(
+                            icon: Icons.payments_outlined,
+                            label: 'Status',
+                            text: order.paymentStatus.isEmpty
+                                ? order.status
+                                : order.paymentStatus,
+                          ),
+                          _OrderFact(
+                            icon: Icons.shopping_bag_outlined,
+                            label: 'Total items',
+                            text: '${order.items.length} items',
+                          ),
+                        ];
+                        if (constraints.maxWidth < 500) {
+                          return Column(
+                            children: facts
+                                .map(
+                                  (fact) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: fact,
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        }
+                        return Row(
+                          children: facts
+                              .map(
+                                (fact) => Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    child: fact,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
+                    if (order.saleNote.trim().isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE8F8F3), Color(0xFFF3FBF8)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.takeout_dining_outlined,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                order.saleNote,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Order items',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...order.items.map(
+                      (line) => Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFDCE5E2)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                width: 54,
+                                height: 54,
+                                color: const Color(0xFFF5F7F6),
+                                alignment: Alignment.center,
+                                child: ProductImage(
+                                  line.product.imageUrl,
+                                  width: 54,
+                                  height: 54,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDDF5ED),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${line.quantity}×',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    line.product.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  if (line.modifiers.isNotEmpty)
+                                    Text(
+                                      line.modifiers
+                                          .map(
+                                            (modifier) =>
+                                                '${modifier.quantity}× ${modifier.name}',
+                                          )
+                                          .join(' · '),
+                                      style: const TextStyle(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  if (line.itemNote.trim().isNotEmpty)
+                                    Text(
+                                      line.itemNote,
+                                      style: const TextStyle(
+                                        color: AppColors.muted,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            RiyalAmount(line.total),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4F7F6),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [
+                          _OrderTotalRow(
+                            label: 'Subtotal',
+                            value: order.total - order.tax + order.discount,
+                          ),
+                          _OrderTotalRow(label: 'Tax', value: order.tax),
+                          if (order.discount > 0)
+                            _OrderTotalRow(
+                              label: 'Discount',
+                              value: -order.discount,
+                            ),
+                          const Divider(height: 22),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFE0F5EF), Color(0xFFF0FAF7)],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: _OrderTotalRow(
+                              label: 'Total',
+                              value: order.total,
+                              total: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: EdgeInsets.all(compact ? 12 : 16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final actions = <Widget>[
+                      OutlinedButton.icon(
+                        onPressed: onPreviewBill == null
+                            ? null
+                            : () => onPreviewBill!(),
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('Preview bill'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onPrintBill == null
+                            ? null
+                            : () => onPrintBill!(),
+                        icon: const Icon(Icons.print_outlined),
+                        label: const Text('Print bill'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: onPrintKitchenTicket == null
+                            ? null
+                            : () => onPrintKitchenTicket!(),
+                        icon: const Icon(Icons.restaurant_rounded),
+                        label: const Text('Print kitchen ticket'),
+                      ),
+                    ];
+                    if (constraints.maxWidth < 520) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: actions
+                            .map(
+                              (action) => Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: action,
+                              ),
+                            )
+                            .toList(),
+                      );
+                    }
+                    return Row(
+                      children: actions
+                          .map(
+                            (action) => Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: action,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderFact extends StatelessWidget {
+  const _OrderFact({
+    required this.icon,
+    required this.label,
+    required this.text,
+  });
+  final IconData icon;
+  final String label;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF7F9F8),
+      border: Border.all(color: const Color(0xFFE7ECEA)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE3F6F0),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 18, color: AppColors.primary),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+              Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _OrderTotalRow extends StatelessWidget {
+  const _OrderTotalRow({
+    required this.label,
+    required this.value,
+    this.total = false,
+  });
+  final String label;
+  final int value;
+  final bool total;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: total ? 17 : 14,
+            fontWeight: total ? FontWeight.w800 : FontWeight.w500,
+          ),
+        ),
+        const Spacer(),
+        RiyalAmount(
+          value,
+          style: TextStyle(
+            color: total ? AppColors.primary : null,
+            fontSize: total ? 20 : 14,
+            fontWeight: total ? FontWeight.w900 : FontWeight.w600,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _OrderSummaryChip extends StatelessWidget {

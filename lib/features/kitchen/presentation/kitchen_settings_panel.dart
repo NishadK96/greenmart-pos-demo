@@ -188,6 +188,17 @@ class _KitchenSettingsContent extends ConsumerWidget {
               icon: const Icon(Icons.visibility_outlined),
               label: const Text('Preview template'),
             ),
+            OutlinedButton.icon(
+              onPressed: state.busy || !state.canManageSettings
+                  ? null
+                  : () => _editKitchenPrintName(context, controller, settings),
+              icon: const Icon(Icons.storefront_outlined),
+              label: Text(
+                settings.effectivePrintName.isEmpty
+                    ? 'Kitchen print name'
+                    : 'Print name: ${settings.effectivePrintName}',
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -360,7 +371,7 @@ class _KitchenSettingsContent extends ConsumerWidget {
                         builder: (_) => AlertDialog(
                           title: const Text('Delete route'),
                           content: Text(
-                            'Stop sending ${route.category.name} items to ${route.printer.name}? Existing jobs will be kept.',
+                            'Stop sending ${route.isAllCategories ? 'all category' : route.category!.name} items to ${route.printer.name}? Existing jobs will be kept.',
                           ),
                           actions: [
                             TextButton(
@@ -541,9 +552,11 @@ class _RouteTile extends StatelessWidget {
       child: Icon(route.isActive ? Icons.route : Icons.pause_outlined),
     ),
     title: Text(
-      route.subCategory == null
-          ? route.category.name
-          : '${route.category.name} / ${route.subCategory!.name}',
+      route.isAllCategories
+          ? 'All categories'
+          : route.subCategory == null
+          ? route.category!.name
+          : '${route.category!.name} / ${route.subCategory!.name}',
     ),
     subtitle: Text(
       '${route.printer.name} · ${route.template?.name ?? 'Location default'} · Priority ${route.priority}',
@@ -621,7 +634,7 @@ class _RouteEditor extends StatefulWidget {
 }
 
 class _RouteEditorState extends State<_RouteEditor> {
-  late String _categoryId;
+  String? _categoryId;
   String? _subCategoryId;
   late String _printerId;
   String? _templateKey;
@@ -632,7 +645,11 @@ class _RouteEditorState extends State<_RouteEditor> {
   void initState() {
     super.initState();
     final route = widget.route;
-    _categoryId = route?.category.id ?? widget.options.categories.first.id;
+    _categoryId =
+        route?.category?.id ??
+        (route?.isAllCategories == true
+            ? null
+            : widget.options.categories.first.id);
     _subCategoryId = route?.subCategory?.id;
     _printerId = route?.printer.id ?? widget.options.printers.first.id;
     _templateKey = route?.template?.key;
@@ -642,9 +659,11 @@ class _RouteEditorState extends State<_RouteEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final category = widget.options.categories.firstWhere(
-      (item) => item.id == _categoryId,
-    );
+    final category = _categoryId == null
+        ? null
+        : widget.options.categories.firstWhere(
+            (item) => item.id == _categoryId,
+          );
     return AlertDialog(
       title: Text(
         widget.route == null ? 'Add kitchen route' : 'Edit kitchen route',
@@ -655,40 +674,47 @@ class _RouteEditorState extends State<_RouteEditor> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: _categoryId,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: widget.options.categories
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item.id,
-                        child: Text(item.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _categoryId = value!;
-                  _subCategoryId = null;
-                }),
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String?>(
-                initialValue: _subCategoryId,
-                decoration: const InputDecoration(labelText: 'Subcategory'),
+                initialValue: _categoryId,
+                decoration: const InputDecoration(labelText: 'Routing scope'),
                 items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('All subcategories'),
-                  ),
-                  ...category.subCategories.map(
-                    (item) => DropdownMenuItem<String?>(
+                  if (widget.options.supportsAllCategories)
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All categories'),
+                    ),
+                  ...widget.options.categories.map(
+                    (item) => DropdownMenuItem(
                       value: item.id,
                       child: Text(item.name),
                     ),
                   ),
                 ],
-                onChanged: (value) => setState(() => _subCategoryId = value),
+                onChanged: (value) => setState(() {
+                  _categoryId = value;
+                  _subCategoryId = null;
+                }),
               ),
+              if (category != null) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  initialValue: _subCategoryId,
+                  decoration: const InputDecoration(labelText: 'Subcategory'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All subcategories'),
+                    ),
+                    ...category.subCategories.map(
+                      (item) => DropdownMenuItem<String?>(
+                        value: item.id,
+                        child: Text(item.name),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _subCategoryId = value),
+                ),
+              ],
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _printerId,
@@ -783,13 +809,64 @@ Future<void> _showRouteEditor(
       .read(kitchenPrintingControllerProvider.notifier)
       .saveRoute(
         routeId: route?.id,
-        categoryId: result['categoryId'] as String,
+        categoryId: result['categoryId'] as String?,
         subCategoryId: result['subCategoryId'] as String?,
         printerId: result['printerId'] as String,
         templateKey: result['templateKey'] as String?,
         priority: result['priority'] as int,
         isActive: result['active'] as bool,
       );
+}
+
+Future<void> _editKitchenPrintName(
+  BuildContext context,
+  KitchenPrintingController controller,
+  RestaurantSettings settings,
+) async {
+  final text = TextEditingController(text: settings.printNameOverride ?? '');
+  final value = await showDialog<String?>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Kitchen order print name'),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: text,
+              autofocus: true,
+              maxLength: 255,
+              decoration: InputDecoration(
+                labelText: 'Location print name',
+                hintText: settings.effectivePrintName,
+                helperText:
+                    'Leave empty to use the business name on kitchen tickets.',
+              ),
+            ),
+            if (settings.effectivePrintName.isNotEmpty)
+              Text('Currently printed: ${settings.effectivePrintName}'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, text.text.trim()),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  text.dispose();
+  if (value == null || !context.mounted) return;
+  await controller.updateSettings({
+    'kitchen_order_print_name': value.isEmpty ? null : value,
+  });
 }
 
 Future<void> _previewTemplate(

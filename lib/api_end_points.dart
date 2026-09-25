@@ -73,6 +73,8 @@ abstract final class ApiEndPoints {
       '$invoiceLayoutsUrl/$layoutId/offline-config';
   static String locationInvoiceLayoutUrl(String locationId) =>
       '${Config.baseUrl}/connector/api/business-location/$locationId/invoice-layout';
+  static String locationInvoiceIdentityUrl(String locationId) =>
+      '${Config.baseUrl}/connector/api/business-location/$locationId/invoice-identity';
   static String restaurantSettingsUrl(String locationId) =>
       '${Config.baseUrl}/connector/api/business-location/$locationId/restaurant-settings';
   static String kitchenTemplatePreviewUrl(String locationId, String template) =>

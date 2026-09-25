@@ -1443,17 +1443,14 @@ class Api {
       accessToken,
       'business settings',
     );
-    final company = _map(json['company']);
-    return BusinessSettings(
-      name: company['name']?.toString() ?? '',
-      taxNumber: company['tax_number_1']?.toString() ?? '',
-    );
+    return _businessSettingsFromJson(json);
   }
 
   Future<BusinessSettings> updateBusinessSettings({
     required String accessToken,
     required String name,
     String? taxNumber,
+    InvoiceIdentitySettings? invoiceIdentity,
   }) async {
     final response = await _client
         .patch(
@@ -1464,15 +1461,65 @@ class Api {
             'tax_number_1': taxNumber?.trim().isEmpty == true
                 ? null
                 : taxNumber?.trim(),
+            if (invoiceIdentity != null)
+              'invoice_identity': {
+                'enabled': invoiceIdentity.enabled,
+                'commercial_registration_number': _nullableText(
+                  invoiceIdentity.commercialRegistrationNumber,
+                ),
+                'default_phone': _nullableText(invoiceIdentity.defaultPhone),
+                'default_address_en': _nullableText(
+                  invoiceIdentity.defaultAddressEn,
+                ),
+                'default_address_ar': _nullableText(
+                  invoiceIdentity.defaultAddressAr,
+                ),
+                'show': {
+                  'business_name': invoiceIdentity.showBusinessName,
+                  'vat_number': invoiceIdentity.showVatNumber,
+                  'crn': invoiceIdentity.showCrn,
+                  'phone': invoiceIdentity.showPhone,
+                  'address': invoiceIdentity.showAddress,
+                },
+              },
           }),
         )
         .timeout(const Duration(seconds: 20));
     final root = _requireObject(response, 'business settings update');
-    final company = _map(_map(root['data'])['company']);
-    return BusinessSettings(
-      name: company['name']?.toString() ?? name,
-      taxNumber: company['tax_number_1']?.toString() ?? '',
-    );
+    return _businessSettingsFromJson(_map(root['data']));
+  }
+
+  Future<LocationInvoiceIdentity> locationInvoiceIdentity({
+    required String accessToken,
+    required String locationId,
+  }) async => _locationInvoiceIdentityFromJson(
+    await _getDataObject(
+      Uri.parse(ApiEndPoints.locationInvoiceIdentityUrl(locationId)),
+      accessToken,
+      'location invoice identity',
+    ),
+  );
+
+  Future<LocationInvoiceIdentity> updateLocationInvoiceIdentity({
+    required String accessToken,
+    required String locationId,
+    required String? phone,
+    required String? addressEn,
+    required String? addressAr,
+  }) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.locationInvoiceIdentityUrl(locationId)),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'phone': _nullableText(phone),
+            'address_en': _nullableText(addressEn),
+            'address_ar': _nullableText(addressAr),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'location invoice identity update');
+    return _locationInvoiceIdentityFromJson(_map(root['data']));
   }
 
   Future<bool> updateFlutterPosOverselling(
@@ -3416,6 +3463,55 @@ class Api {
         .timeout(const Duration(seconds: 20));
     final json = _requireObject(response, resource);
     return _map(json['data']);
+  }
+
+  BusinessSettings _businessSettingsFromJson(Map<String, dynamic> json) {
+    final company = _map(json['company']);
+    final identity = _map(json['invoice_identity']);
+    final show = _map(identity['show']);
+    return BusinessSettings(
+      name: company['name']?.toString() ?? '',
+      taxNumber: company['tax_number_1']?.toString() ?? '',
+      invoiceIdentity: InvoiceIdentitySettings(
+        enabled: _asBool(identity['enabled']),
+        commercialRegistrationNumber:
+            identity['commercial_registration_number']?.toString() ?? '',
+        defaultPhone: identity['default_phone']?.toString() ?? '',
+        defaultAddressEn: identity['default_address_en']?.toString() ?? '',
+        defaultAddressAr: identity['default_address_ar']?.toString() ?? '',
+        showBusinessName: _asBool(show['business_name'], fallback: true),
+        showVatNumber: _asBool(show['vat_number'], fallback: true),
+        showCrn: _asBool(show['crn'], fallback: true),
+        showPhone: _asBool(show['phone'], fallback: true),
+        showAddress: _asBool(show['address'], fallback: true),
+      ),
+    );
+  }
+
+  LocationInvoiceIdentity _locationInvoiceIdentityFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final overrides = _map(json['overrides']);
+    final effective = _map(json['effective']);
+    return LocationInvoiceIdentity(
+      locationId: json['location_id']?.toString() ?? '',
+      phoneOverride: overrides['phone']?.toString() ?? '',
+      addressEnOverride: overrides['address_en']?.toString() ?? '',
+      addressArOverride: overrides['address_ar']?.toString() ?? '',
+      effectivePhone: effective['phone']?.toString() ?? '',
+      effectiveAddress: effective['address']?.toString() ?? '',
+      effectiveAddressEn: effective['address_en']?.toString() ?? '',
+      effectiveAddressAr: effective['address_ar']?.toString() ?? '',
+    );
+  }
+
+  bool _asBool(dynamic value, {bool fallback = false}) => value == null
+      ? fallback
+      : value == true || value == 1 || value.toString() == '1';
+
+  String? _nullableText(String? value) {
+    final text = value?.trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   Map<String, dynamic> _requireObject(http.Response response, String resource) {

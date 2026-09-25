@@ -1525,6 +1525,112 @@ void main() {
     );
   });
 
+  test(
+    'business invoice identity maps and updates the shared profile',
+    () async {
+      var calls = 0;
+      final api = Api(
+        client: MockClient((request) async {
+          calls++;
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'data': {
+                  'company': {'name': 'GreenMart', 'tax_number_1': 'VAT-1'},
+                  'invoice_identity': {
+                    'enabled': true,
+                    'commercial_registration_number': 'CRN-1',
+                    'default_phone': '+9665',
+                    'default_address_en': 'Riyadh',
+                    'default_address_ar': 'Riyadh AR',
+                    'show': {
+                      'business_name': true,
+                      'vat_number': false,
+                      'crn': true,
+                      'phone': true,
+                      'address': true,
+                    },
+                  },
+                },
+              }),
+              200,
+            );
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect((body['invoice_identity'] as Map)['enabled'], isTrue);
+          expect(
+            ((body['invoice_identity'] as Map)['show'] as Map)['vat_number'],
+            isFalse,
+          );
+          return http.Response(
+            jsonEncode({
+              'data': {
+                'company': {'name': 'GreenMart', 'tax_number_1': 'VAT-1'},
+                'invoice_identity': {
+                  'enabled': true,
+                  'commercial_registration_number': 'CRN-1',
+                  'default_phone': '+9665',
+                  'default_address_en': 'Riyadh',
+                  'default_address_ar': 'Riyadh AR',
+                  'show': {
+                    'business_name': true,
+                    'vat_number': false,
+                    'crn': true,
+                    'phone': true,
+                    'address': true,
+                  },
+                },
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final settings = await api.businessSettings('token');
+      await api.updateBusinessSettings(
+        accessToken: 'token',
+        name: settings.name,
+        taxNumber: settings.taxNumber,
+        invoiceIdentity: settings.invoiceIdentity,
+      );
+
+      expect(calls, 2);
+      expect(settings.invoiceIdentity.commercialRegistrationNumber, 'CRN-1');
+      expect(settings.invoiceIdentity.showVatNumber, isFalse);
+    },
+  );
+
+  test('location invoice identity sends nullable overrides', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(
+          request.url.path,
+          '/connector/api/business-location/3/invoice-identity',
+        );
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['phone'], isNull);
+        expect(body['address_en'], 'Jeddah');
+        return http.Response(
+          '{"data":{"location_id":3,"overrides":{"phone":null,"address_en":"Jeddah","address_ar":null},"effective":{"phone":"+9665","address":"Jeddah","address_en":"Jeddah","address_ar":""}}}',
+          200,
+        );
+      }),
+    );
+
+    final identity = await api.updateLocationInvoiceIdentity(
+      accessToken: 'token',
+      locationId: '3',
+      phone: '',
+      addressEn: 'Jeddah',
+      addressAr: '',
+    );
+
+    expect(identity.phoneOverride, isEmpty);
+    expect(identity.effectivePhone, '+9665');
+    expect(identity.effectiveAddressEn, 'Jeddah');
+  });
+
   test('business settings update sends only the overselling flag', () async {
     final api = Api(
       client: MockClient((request) async {

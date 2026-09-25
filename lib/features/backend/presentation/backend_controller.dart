@@ -608,6 +608,7 @@ class BackendController extends AsyncNotifier<void> {
   Future<BusinessSettings> updateBusinessSettings({
     required String name,
     String? taxNumber,
+    InvoiceIdentitySettings? invoiceIdentity,
   }) async {
     var token = await _token();
     try {
@@ -617,6 +618,7 @@ class BackendController extends AsyncNotifier<void> {
             accessToken: token,
             name: name,
             taxNumber: taxNumber,
+            invoiceIdentity: invoiceIdentity,
           );
       ref.read(appStoreProvider.notifier).updateBusinessSettings(settings);
       return settings;
@@ -631,6 +633,7 @@ class BackendController extends AsyncNotifier<void> {
             accessToken: token,
             name: name,
             taxNumber: taxNumber,
+            invoiceIdentity: invoiceIdentity,
           );
       ref.read(appStoreProvider.notifier).updateBusinessSettings(settings);
       return settings;

@@ -32,6 +32,7 @@ class PrinterDocumentService {
     Printer? printer,
     Iterable<Printer>? printers,
     PdfPageFormat format = PdfPageFormat.a4,
+    bool fitThermalPrintableWidth = false,
   }) async {
     final destinations = <String, Printer>{
       for (final destination in printers ?? const <Printer>[])
@@ -41,6 +42,9 @@ class PrinterDocumentService {
         printer.url: printer,
     }.values.toList(growable: false);
     if (destinations.isNotEmpty) {
+      final printableBytes = fitThermalPrintableWidth && _isThermal(format)
+          ? await _fitThermalPrintableWidth(bytes, format)
+          : bytes;
       final results = await Future.wait(
         destinations.map((destination) async {
           try {
@@ -49,7 +53,7 @@ class PrinterDocumentService {
               name: name,
               format: format,
               usePrinterSettings: _usesExternalWindowsPreview,
-              onLayout: (_) async => bytes,
+              onLayout: (_) async => printableBytes,
             );
             return (printer: destination, error: printed ? null : 'rejected');
           } catch (_) {
@@ -100,6 +104,53 @@ class PrinterDocumentService {
       return PdfPageFormat(50 * PdfPageFormat.mm, 25 * PdfPageFormat.mm);
     }
     return PdfPageFormat.a4;
+  }
+
+  static bool _isThermal(PdfPageFormat format) =>
+      format.width <= 80.5 * PdfPageFormat.mm;
+
+  /// Windows' PDF print path renders a page at its native size and does not
+  /// shrink it to the printer driver's printable area. An 80 mm printer often
+  /// exposes only about 72 mm after its hardware margins, which clips the
+  /// trailing edge of full-width ERP invoices. Rasterizing the authoritative
+  /// backend PDF and centering it inside a conservative printable width keeps
+  /// the invoice, Arabic shaping and QR code intact.
+  static Future<Uint8List> _fitThermalPrintableWidth(
+    Uint8List bytes,
+    PdfPageFormat format,
+  ) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return bytes;
+
+    final paperWidthMm = format.width / PdfPageFormat.mm;
+    final horizontalMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
+    final contentWidth =
+        format.width - (horizontalMarginMm * 2 * PdfPageFormat.mm);
+    final pageMargin = horizontalMarginMm * PdfPageFormat.mm;
+    final document = pw.Document();
+    var pageCount = 0;
+
+    await for (final page in Printing.raster(bytes, dpi: 203)) {
+      final png = await page.toPng();
+      final contentHeight = contentWidth * page.height / page.width;
+      document.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat(
+            format.width,
+            contentHeight + (pageMargin * 2),
+          ),
+          margin: pw.EdgeInsets.all(pageMargin),
+          build: (_) => pw.Image(
+            pw.MemoryImage(png),
+            width: contentWidth,
+            height: contentHeight,
+            fit: pw.BoxFit.fill,
+          ),
+        ),
+      );
+      pageCount++;
+    }
+
+    return pageCount == 0 ? bytes : document.save();
   }
 
   static Future<Uint8List> sample(

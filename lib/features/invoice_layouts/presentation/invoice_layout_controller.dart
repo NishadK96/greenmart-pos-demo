@@ -122,11 +122,19 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       settings: settings,
       arabic: arabic,
     );
+    final profile = sale.customer.isBusiness
+        ? 'billing-business'
+        : 'billing-retail';
+    final format = PrinterDocumentService.formatFor(
+      settings.paperSizes[profile] ?? '80mm',
+    );
     return PrinterDocumentService.printPdfBytes(
       file.bytes,
       name: file.fileName,
       printer: printer,
       printers: printers,
+      format: format,
+      fitThermalPrintableWidth: true,
     );
   }
 

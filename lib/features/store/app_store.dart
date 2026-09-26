@@ -447,6 +447,8 @@ class AppStore extends Notifier<AppState> {
     profitLoss: profitLoss,
   );
 
+  void replaceSales(List<Sale> sales) => state = state.copyWith(sales: sales);
+
   Sale checkout(String method, {String? serverId, String? invoiceNo}) {
     final now = DateTime.now();
     final customer = state.customer ?? state.customers.first;

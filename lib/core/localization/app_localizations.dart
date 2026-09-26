@@ -552,6 +552,7 @@ const Map<String, String> _ar = {
       'أضف تفاصيل المنتج أو المواصفات أو الملاحظات الداخلية...',
   'Back': 'رجوع',
   'Recent Sales': 'المبيعات الأخيرة',
+  'All sales': 'كل المبيعات',
   'Review completed transactions without leaving the POS.':
       'راجع العمليات المكتملة دون مغادرة نقطة البيع.',
   'Search invoice, customer, phone or payment method':

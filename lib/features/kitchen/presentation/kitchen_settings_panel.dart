@@ -188,18 +188,112 @@ class _KitchenSettingsContent extends ConsumerWidget {
               icon: const Icon(Icons.visibility_outlined),
               label: const Text('Preview template'),
             ),
-            OutlinedButton.icon(
-              onPressed: state.busy || !state.canManageSettings
-                  ? null
-                  : () => _editKitchenPrintName(context, controller, settings),
-              icon: const Icon(Icons.storefront_outlined),
-              label: Text(
-                settings.effectivePrintName.isEmpty
-                    ? 'Kitchen print name'
-                    : 'Print name: ${settings.effectivePrintName}',
-              ),
-            ),
           ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF4FAF8),
+            border: Border.all(color: const Color(0xFFCFE7DF)),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final details = Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDDF5ED),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.storefront_outlined,
+                      color: Color(0xFF08745D),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Kitchen ticket identity',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          settings.effectivePrintName.isEmpty
+                              ? 'The business name will be printed on kitchen tickets.'
+                              : 'Printed name: ${settings.effectivePrintName}',
+                        ),
+                        if (settings.printNameOverride != null &&
+                            settings.printNameOverride!.trim().isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 3),
+                            child: Text(
+                              'A location-specific name is active.',
+                              style: TextStyle(color: Color(0xFF64726F)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: state.busy || !state.canManageSettings
+                        ? null
+                        : () => _editKitchenPrintName(
+                            context,
+                            controller,
+                            settings,
+                          ),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: Text(
+                      settings.printNameOverride == null
+                          ? 'Set print name'
+                          : 'Edit print name',
+                    ),
+                  ),
+                  if (settings.printNameOverride != null &&
+                      settings.printNameOverride!.trim().isNotEmpty)
+                    TextButton.icon(
+                      onPressed: state.busy || !state.canManageSettings
+                          ? null
+                          : () => controller.updateSettings({
+                              'kitchen_order_print_name': null,
+                            }),
+                      icon: const Icon(Icons.restart_alt_rounded),
+                      label: const Text('Use business name'),
+                    ),
+                ],
+              );
+              if (constraints.maxWidth < 680) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [details, const SizedBox(height: 14), actions],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: details),
+                  const SizedBox(width: 16),
+                  actions,
+                ],
+              );
+            },
+          ),
         ),
         const SizedBox(height: 20),
         const Divider(),

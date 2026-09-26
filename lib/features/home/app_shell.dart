@@ -161,7 +161,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                             const _EazyPosIcon(size: 36, radius: 9),
                             const SizedBox(width: 8),
-                            if (path == '/pos')
+                            if (usesCashRegister)
                               Expanded(
                                 child: OutlinedButton(
                                   onPressed: () =>
@@ -279,6 +279,21 @@ class _AppShellState extends ConsumerState<AppShell> {
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 actions: [
+                  if (usesCashRegister)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () => showCashRegisterDialog(context, ref),
+                        icon: Icon(
+                          Icons.point_of_sale_rounded,
+                          size: 18,
+                          color: register == null
+                              ? const Color(0xFFB7791F)
+                              : const Color(0xFF15945B),
+                        ),
+                        label: Text(registerLabel),
+                      ),
+                    ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.language),
                     onSelected: (code) =>
@@ -541,7 +556,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                   child: Row(
                     children: [
-                      if (path == '/pos') ...[
+                      if (usesCashRegister) ...[
                         OutlinedButton.icon(
                           onPressed: () => showCashRegisterDialog(context, ref),
                           icon: const Icon(

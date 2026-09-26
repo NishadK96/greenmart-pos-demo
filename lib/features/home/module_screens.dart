@@ -3594,7 +3594,7 @@ class SalesScreen extends ConsumerStatefulWidget {
 
 class _SalesScreenState extends ConsumerState<SalesScreen> {
   bool showingReturns = false;
-  String period = 'Today';
+  String period = 'All sales';
   String query = '';
   String paymentFilter = 'All';
   String syncFilter = 'All';
@@ -3606,6 +3606,29 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   int page = 1;
   int rowsPerPage = 10;
   String? printingReturnId;
+  bool loadingSales = false;
+  String? salesLoadError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshSales());
+  }
+
+  Future<void> _refreshSales() async {
+    if (loadingSales) return;
+    setState(() {
+      loadingSales = true;
+      salesLoadError = null;
+    });
+    try {
+      await ref.read(backendControllerProvider.notifier).refreshSalesHistory();
+    } catch (error) {
+      if (mounted) setState(() => salesLoadError = error.toString());
+    } finally {
+      if (mounted) setState(() => loadingSales = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3695,8 +3718,53 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                tooltip: 'Refresh sales',
+                onPressed: loadingSales ? null : _refreshSales,
+                icon: loadingSales
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
             ],
           ),
+          if (salesLoadError != null) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: Theme.of(context).colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Unable to load sales: $salesLoadError',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: loadingSales ? null : _refreshSales,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           _SalesHistoryTabs(
             showingReturns: false,
@@ -3707,6 +3775,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             builder: (context, constraints) {
               final periodButtons = <Widget>[
                 for (final value in const [
+                  'All sales',
                   'Today',
                   'Yesterday',
                   'This week',
@@ -4140,6 +4209,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
     final today = DateTime(now.year, now.month, now.day);
     return switch (period) {
+      'All sales' => DateTimeRange(
+        start: DateTime(2020),
+        end: today.add(const Duration(days: 1)),
+      ),
       'Yesterday' => DateTimeRange(
         start: today.subtract(const Duration(days: 1)),
         end: today,

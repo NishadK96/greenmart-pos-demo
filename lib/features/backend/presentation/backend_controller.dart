@@ -106,6 +106,35 @@ class BackendController extends AsyncNotifier<void> {
     }
   }
 
+  Future<void> refreshSalesHistory() async {
+    final current = ref.read(appStoreProvider);
+
+    Future<List<Sale>> load(String token) =>
+        ref.read(apiProvider).sales(token, current.products, current.customers);
+
+    final token = await ref.read(authControllerProvider.future);
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Sign in to refresh sales history.');
+    }
+    if (token == 'offline-local-session') {
+      throw const ApiException(
+        'Connect to the server to refresh sales history.',
+      );
+    }
+
+    try {
+      final sales = await load(token);
+      ref.read(appStoreProvider.notifier).replaceSales(sales);
+    } on ApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      final refreshed = await ref
+          .read(authControllerProvider.notifier)
+          .refreshAccessToken();
+      final sales = await load(refreshed);
+      ref.read(appStoreProvider.notifier).replaceSales(sales);
+    }
+  }
+
   Future<Customer> createCustomer({
     required String name,
     required String mobile,

@@ -288,6 +288,12 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     return transactionId;
   }
 
+  Future<void> deleteKitchenOrder(String transactionId) => _authorized(
+    (token) => ref
+        .read(apiProvider)
+        .deleteSale(accessToken: token, transactionId: transactionId),
+  );
+
   Future<void> updateKitchenOrder({
     required String transactionId,
     required String locationId,
@@ -403,19 +409,80 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     );
   }
 
-  Future<void> printJob(KitchenPrintJob job) async {
+  /// Reprints every routed ticket for an existing order, including jobs that
+  /// are already marked as printed. Durable job statuses are deliberately not
+  /// changed: the backend treats `printed` as terminal and this is a manual
+  /// duplicate requested by the operator, not a retry of the original attempt.
+  Future<KitchenPrintSummary> reprintTransaction(
+    String transactionId, {
+    String? locationId,
+  }) async {
+    if (transactionId.isEmpty) {
+      throw const ApiException('Kitchen transaction ID is missing.');
+    }
+    final current = _current;
+    final result = await _authorized(
+      (token) => ref
+          .read(apiProvider)
+          .generateKitchenPrintJobs(
+            accessToken: token,
+            transactionId: transactionId,
+            locationId: locationId ?? current.locationId,
+          ),
+    );
+    _set(
+      current.copyWith(
+        jobs: _mergeJobs(current.jobs, result.jobs),
+        unassignedItems: result.unassignedItems,
+        clearMessage: result.unassignedItems.isEmpty,
+        message: result.unassignedItems.isEmpty
+            ? null
+            : '${result.unassignedItems.length} kitchen item(s) have no printer route.',
+      ),
+    );
+    if (result.jobs.isEmpty) {
+      throw StateError(
+        result.unassignedItems.isEmpty
+            ? 'No kitchen printer jobs are available for this order.'
+            : '${result.unassignedItems.length} item(s) have no kitchen printer route.',
+      );
+    }
+
+    final failures = <String>[];
+    var printedCount = 0;
+    for (final job in result.jobs) {
+      try {
+        await printJob(job, acknowledge: false);
+        printedCount++;
+      } catch (error) {
+        failures.add('${job.printer.name}: $error');
+      }
+    }
+    if (failures.isNotEmpty) {
+      throw StateError('Reprinting failed for ${failures.join(', ')}');
+    }
+    return KitchenPrintSummary(
+      jobCount: result.jobs.length,
+      printedCount: printedCount,
+      unassignedCount: result.unassignedItems.length,
+    );
+  }
+
+  Future<void> printJob(KitchenPrintJob job, {bool acknowledge = true}) async {
     final localPrinter = ref
         .read(printerControllerProvider)
         .kitchenPrinter(job.printer.id);
     if (localPrinter == null) {
       final message =
           'Pair ERP printer "${job.printer.name}" with a local printer first.';
-      await _reportFailure(job, _attemptId(job), message);
+      if (acknowledge) {
+        await _reportFailure(job, _attemptId(job), message);
+      }
       throw StateError(message);
     }
     final attemptId = _attemptId(job);
     try {
-      await _status(job.id, 'printing', attemptId);
+      if (acknowledge) await _status(job.id, 'printing', attemptId);
       final bytes = await _printDocument(job);
       await PrinterDocumentService.printPdfBytes(
         bytes,
@@ -423,10 +490,14 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
         printer: localPrinter,
         format: PrinterDocumentService.kitchenFormat(job.template),
       );
-      await _status(job.id, 'printed', attemptId);
-      await refreshJobs();
+      if (acknowledge) {
+        await _status(job.id, 'printed', attemptId);
+        await refreshJobs();
+      }
     } catch (error) {
-      await _reportFailure(job, attemptId, error.toString());
+      if (acknowledge) {
+        await _reportFailure(job, attemptId, error.toString());
+      }
       rethrow;
     }
   }

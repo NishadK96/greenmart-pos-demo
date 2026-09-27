@@ -49,6 +49,26 @@ void main() {
     );
   });
 
+  test('held kitchen order deletion uses the sale endpoint', () async {
+    late http.Request captured;
+    final api = Api(
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"success":true}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+
+    await api.deleteSale(accessToken: 'token', transactionId: '42');
+
+    expect(captured.method, 'DELETE');
+    expect(captured.url.path, endsWith('/connector/api/sell/42'));
+    expect(captured.headers['Authorization'], 'Bearer token');
+  });
+
   test(
     'saved web account reset refreshes expired CSRF and retries once',
     () async {

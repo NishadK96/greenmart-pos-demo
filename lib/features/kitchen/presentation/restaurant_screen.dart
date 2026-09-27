@@ -470,7 +470,7 @@ class _RestaurantScreenState extends ConsumerState<RestaurantScreen> {
     try {
       final summary = await ref
           .read(kitchenPrintingControllerProvider.notifier)
-          .processTransaction(
+          .reprintTransaction(
             transactionId,
             locationId: order.locationId.isEmpty ? _location : order.locationId,
           );

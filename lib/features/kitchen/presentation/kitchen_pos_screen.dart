@@ -189,14 +189,20 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (_orderLocked) return;
     final modifiers = await selectProductModifiers(context, product);
     if (modifiers == null || !mounted || _orderLocked) return;
-    final lineId = CartLine(product: product, modifiers: modifiers).lineId;
+    final newLine = CartLine(
+      product: product,
+      quantity: _addQuantity,
+      modifiers: modifiers,
+      // A configured product added from the catalog is a distinct order line.
+      // This lets the cashier add the same product again with its own choices.
+      instanceId: modifiers.isEmpty ? null : _newLineInstanceId(product.id),
+    );
+    final lineId = newLine.lineId;
     setState(() {
       final old = _lines[lineId];
-      _lines[lineId] = CartLine(
-        product: product,
-        quantity: (old?.quantity ?? 0) + _addQuantity,
-        modifiers: modifiers,
-      );
+      _lines[lineId] = old == null
+          ? newLine
+          : old.copyWith(quantity: old.quantity + _addQuantity);
       _search.clear();
     });
     _focus.requestFocus();
@@ -211,7 +217,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       confirmLabel: 'Update item',
     );
     if (modifiers == null || !mounted || _orderLocked) return;
-    final updated = line.copyWith(modifiers: modifiers);
+    final updated = line.copyWith(
+      modifiers: modifiers,
+      // Editing from the cart must keep this item independent rather than
+      // merging it into another line that happens to share the same choices.
+      instanceId: line.instanceId ?? _newLineInstanceId(line.product.id),
+    );
     setState(() {
       _lines.remove(line.lineId);
       final existing = _lines[updated.lineId];
@@ -227,6 +238,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _selectedLineId = updated.lineId;
     });
   }
+
+  String _newLineInstanceId(String productId) =>
+      'kitchen-$productId-${DateTime.now().microsecondsSinceEpoch}';
 
   void _changeQuantity(CartLine line, int delta) {
     if (_orderLocked) return;
@@ -478,7 +492,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     try {
       final summary = await ref
           .read(kitchenPrintingControllerProvider.notifier)
-          .processTransaction(
+          .reprintTransaction(
             transactionId,
             locationId: order.locationId.isEmpty
                 ? (_locationId(ref.read(appStoreProvider)) ?? '')
@@ -1006,6 +1020,35 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                                               : 'View order',
                                         ),
                                       );
+                                      final deleteAction = IconButton.outlined(
+                                        tooltip: 'Remove held order',
+                                        onPressed: !isHeld
+                                            ? null
+                                            : () async {
+                                                final deleted =
+                                                    await _deleteHeldOrder(
+                                                      order,
+                                                    );
+                                                if (!deleted ||
+                                                    !dialogContext.mounted) {
+                                                  return;
+                                                }
+                                                Navigator.pop(dialogContext);
+                                                if (mounted) {
+                                                  unawaited(
+                                                    _showOrders(
+                                                      locationId,
+                                                      heldOnly: true,
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 19,
+                                        ),
+                                        color: colors.error,
+                                      );
                                       return Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.center,
@@ -1041,7 +1084,19 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                                                       const SizedBox(
                                                         height: 12,
                                                       ),
-                                                      action,
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: action,
+                                                          ),
+                                                          if (isHeld) ...[
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            deleteAction,
+                                                          ],
+                                                        ],
+                                                      ),
                                                     ],
                                                   )
                                                 : Row(
@@ -1049,6 +1104,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                                                       Expanded(child: details),
                                                       const SizedBox(width: 16),
                                                       action,
+                                                      if (isHeld) ...[
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        deleteAction,
+                                                      ],
                                                     ],
                                                   ),
                                           ),
@@ -1079,6 +1140,56 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       }
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<bool> _deleteHeldOrder(Sale order) async {
+    final transactionId = order.serverId;
+    if (transactionId == null || transactionId.isEmpty) {
+      _show('This held order has no server ID and cannot be removed.');
+      return false;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (confirmContext) => AlertDialog(
+        icon: const Icon(Icons.delete_outline_rounded),
+        title: const Text('Remove held order?'),
+        content: Text(
+          'Order ${order.invoiceNo.isEmpty ? '#$transactionId' : order.invoiceNo} will be permanently removed. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(confirmContext).colorScheme.error,
+              foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(confirmContext, true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Remove order'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return false;
+
+    try {
+      await ref
+          .read(kitchenPrintingControllerProvider.notifier)
+          .deleteKitchenOrder(transactionId);
+      final locationId = _locationId(ref.read(appStoreProvider));
+      if (locationId != null && locationId.isNotEmpty) {
+        ref.invalidate(kitchenOrdersProvider(locationId));
+      }
+      if (_savedTransactionId == transactionId) _resetOrder();
+      if (mounted) _show('Held order removed.');
+      return true;
+    } catch (error) {
+      if (mounted) _show('Unable to remove held order: $error');
+      return false;
     }
   }
 

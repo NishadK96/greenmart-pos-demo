@@ -2268,6 +2268,15 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<void> deleteSale({
+    required String accessToken,
+    required String transactionId,
+  }) => _catalogMutation(
+    method: 'DELETE',
+    url: ApiEndPoints.saleUrl(transactionId),
+    accessToken: accessToken,
+  );
+
   Future<List<SaleReturnRecord>> saleReturns(String accessToken) async {
     final uri = Uri.parse(
       ApiEndPoints.saleReturnsListUrl,

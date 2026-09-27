@@ -494,6 +494,7 @@ class CartLine {
     this.discount = 0,
     this.unitPriceOverride,
     this.sellLineId,
+    this.instanceId,
     this.quantityReturned = 0,
     this.saleUnitPriceIncTax,
     this.modifiers = const [],
@@ -503,11 +504,13 @@ class CartLine {
   final int quantity, discount;
   final int? unitPriceOverride;
   final String? sellLineId;
+  final String? instanceId;
   final int quantityReturned;
   final int? saleUnitPriceIncTax;
   final List<SelectedModifier> modifiers;
   final String itemNote;
   String get lineId {
+    if (instanceId?.isNotEmpty ?? false) return instanceId!;
     if (modifiers.isEmpty) return product.id;
     final signature = modifiers.map((item) => item.signature).toList()..sort();
     return '${product.id}|${signature.join('|')}';
@@ -561,6 +564,7 @@ class CartLine {
     int? discount,
     int? unitPriceOverride,
     bool clearUnitPriceOverride = false,
+    String? instanceId,
     int? quantityReturned,
     List<SelectedModifier>? modifiers,
     String? itemNote,
@@ -572,6 +576,7 @@ class CartLine {
         ? null
         : unitPriceOverride ?? this.unitPriceOverride,
     sellLineId: sellLineId,
+    instanceId: instanceId ?? this.instanceId,
     quantityReturned: quantityReturned ?? this.quantityReturned,
     saleUnitPriceIncTax: saleUnitPriceIncTax,
     modifiers: modifiers ?? this.modifiers,

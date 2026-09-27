@@ -1,4 +1,5 @@
 import 'package:eazy_pos/core/utils/money.dart';
+import 'package:eazy_pos/core/localization/app_localizations.dart';
 import 'package:eazy_pos/features/kitchen/presentation/kitchen_pos_screen.dart';
 import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
@@ -19,7 +20,93 @@ const _tea = Product(
   variationId: '2',
 );
 
+const _teaWithSize = Product(
+  id: 'tea-with-size',
+  name: 'Tea with size',
+  sku: 'TEA-SIZE',
+  barcode: '124',
+  categoryId: 'drinks',
+  purchasePrice: 500,
+  sellingPrice: 1000,
+  stock: 10,
+  minimumStock: 0,
+  variationId: 'tea-variation',
+  modifierGroups: [
+    ModifierGroup(
+      id: 'size',
+      name: 'Size',
+      maxSelections: 1,
+      options: [
+        ModifierOption(
+          variationId: 'large',
+          name: 'Large',
+          priceAdjustment: 200,
+        ),
+      ],
+    ),
+  ],
+);
+
 void main() {
+  testWidgets(
+    'adding the same configured product from the catalog creates separate lines',
+    (tester) async {
+      tester.view.physicalSize = const Size(1168, 660);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container
+          .read(appStoreProvider.notifier)
+          .replaceCatalog(
+            const [_teaWithSize],
+            [const Category(id: 'drinks', name: 'Beverages', icon: 'drink')],
+          );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            supportedLocales: [Locale('en'), Locale('ar')],
+            localizationsDelegates: [AppLocalizations.delegate],
+            home: Scaffold(body: KitchenPosScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      Future<void> addLargeTea() async {
+        await tester.tap(
+          find.byKey(const ValueKey('kitchen-product-tea-with-size')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Large'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add to order'));
+        await tester.pumpAndSettle();
+      }
+
+      await addLargeTea();
+      await addLargeTea();
+
+      expect(find.text('2 items'), findsOneWidget);
+      expect(
+        tester
+            .widget<RiyalAmount>(
+              find.byKey(const ValueKey('kitchen-order-total')),
+            )
+            .minorUnits,
+        2400,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final size in [
     const Size(320, 700),
     const Size(390, 760),

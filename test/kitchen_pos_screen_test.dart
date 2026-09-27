@@ -48,6 +48,38 @@ const _teaWithSize = Product(
 );
 
 void main() {
+  testWidgets('kitchen POS exposes searchable customer selection', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1168, 660);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          supportedLocales: [Locale('en'), Locale('ar')],
+          localizationsDelegates: [AppLocalizations.delegate],
+          home: Scaffold(body: KitchenPosScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('kitchen-customer-selector')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customers'), findsOneWidget);
+    expect(find.text('Walk-in Customer'), findsWidgets);
+    expect(find.text('Add customer'), findsOneWidget);
+    expect(find.text('Search name, business, phone or email'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'adding the same configured product from the catalog creates separate lines',
     (tester) async {

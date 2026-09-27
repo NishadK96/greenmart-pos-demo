@@ -15,6 +15,7 @@ import '../../../shared/widgets/modifier_selection_dialog.dart';
 import '../../../shared/widgets/ui.dart' show ProductImage;
 import '../../store/app_store.dart';
 import '../../auth/auth_controller.dart';
+import '../../backend/presentation/backend_controller.dart';
 import '../../cash_register/domain/cash_register_entities.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../cash_register/presentation/cash_register_dialog.dart';
@@ -1199,6 +1200,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       caseSensitive: false,
     ).firstMatch(order.saleNote);
     final service = order.saleNote.split('·').first.trim();
+    ref.read(appStoreProvider.notifier).selectCustomer(order.customer);
     setState(() {
       _lines
         ..clear()
@@ -1502,6 +1504,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     _RestaurantContext? restaurant,
     String locationId,
   ) {
+    final store = ref.watch(appStoreProvider);
+    final customer = _customer(store);
     final title = Row(
       children: [
         const Icon(Icons.soup_kitchen_rounded, color: Colors.white, size: 25),
@@ -1573,6 +1577,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
+          _customerButton(store, customer),
+          const SizedBox(width: 6),
           _serviceButton(
             'Dine in',
             Icons.restaurant_outlined,
@@ -1656,6 +1662,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                _customerButton(store, customer, mobile: true),
               ],
             ),
     );
@@ -1668,6 +1676,46 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     padding: const EdgeInsets.symmetric(horizontal: 8),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     visualDensity: VisualDensity.compact,
+  );
+
+  Widget _customerButton(
+    AppState store,
+    Customer? customer, {
+    bool mobile = false,
+  }) => SizedBox(
+    width: mobile ? double.infinity : 180,
+    height: mobile ? 44 : 36,
+    child: OutlinedButton.icon(
+      key: const ValueKey('kitchen-customer-selector'),
+      onPressed: _orderLocked ? null : () => _showCustomerSelector(store),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.ink,
+        side: const BorderSide(color: _border),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      icon: const Icon(Icons.person_outline_rounded, size: 17),
+      label: Text(
+        customer?.name ?? 'Select customer',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  );
+
+  Future<void> _showCustomerSelector(AppState store) => showDialog<void>(
+    context: context,
+    builder: (_) => _KitchenCustomerDialog(
+      customers: store.customers,
+      selected: store.customer,
+      onSelected: (customer) =>
+          ref.read(appStoreProvider.notifier).selectCustomer(customer),
+      onCreate: ({required name, required mobile, required email}) => ref
+          .read(backendControllerProvider.notifier)
+          .createCustomer(name: name, mobile: mobile, email: email),
+    ),
   );
 
   void _selectService(String label, List<LookupOption> serviceTypes) {
@@ -3395,6 +3443,334 @@ class _OrderTotalRow extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _KitchenCustomerDialog extends StatefulWidget {
+  const _KitchenCustomerDialog({
+    required this.customers,
+    required this.selected,
+    required this.onSelected,
+    required this.onCreate,
+  });
+
+  final List<Customer> customers;
+  final Customer? selected;
+  final ValueChanged<Customer> onSelected;
+  final Future<Customer> Function({
+    required String name,
+    required String mobile,
+    required String email,
+  })
+  onCreate;
+
+  @override
+  State<_KitchenCustomerDialog> createState() => _KitchenCustomerDialogState();
+}
+
+class _KitchenCustomerDialogState extends State<_KitchenCustomerDialog> {
+  final _search = TextEditingController();
+  late final List<Customer> _customers = [...widget.customers];
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final visible = _customers
+        .where((customer) {
+          if (query.isEmpty) return true;
+          return customer.name.toLowerCase().contains(query) ||
+              customer.businessName.toLowerCase().contains(query) ||
+              customer.phone.toLowerCase().contains(query) ||
+              customer.email.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 620;
+
+    return Dialog(
+      insetPadding: EdgeInsets.all(compact ? 12 : 28),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 620,
+          maxHeight: compact ? size.height - 24 : 620,
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAF5F1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.people_outline_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Customers',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'Select a customer for this kitchen order.',
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _search,
+                autofocus: true,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: 'Search name, business, phone or email',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _search.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? const Center(child: Text('No customers found.'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, indent: 58),
+                      itemBuilder: (_, index) {
+                        final customer = visible[index];
+                        final selected = widget.selected?.id == customer.id;
+                        final details = [
+                          if (customer.businessName.isNotEmpty)
+                            customer.businessName,
+                          if (customer.phone.isNotEmpty) customer.phone,
+                          if (customer.email.isNotEmpty) customer.email,
+                        ].join('  •  ');
+                        return ListTile(
+                          selectedTileColor: const Color(0xFFF0F8F5),
+                          selected: selected,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFFEAF5F1),
+                            child: Icon(
+                              customer.isBusiness
+                                  ? Icons.storefront_outlined
+                                  : Icons.person_outline_rounded,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          title: Text(
+                            customer.name,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          subtitle: details.isEmpty ? null : Text(details),
+                          trailing: selected
+                              ? const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.primary,
+                                )
+                              : const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            widget.onSelected(customer);
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFAFBFB),
+                border: Border(top: BorderSide(color: Color(0xFFE2E8E5))),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '${visible.length} customer${visible.length == 1 ? '' : 's'}',
+                    style: const TextStyle(color: AppColors.muted),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _createCustomer,
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: const Text('Add customer'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createCustomer() async {
+    final formKey = GlobalKey<FormState>();
+    final name = TextEditingController();
+    final mobile = TextEditingController();
+    final email = TextEditingController();
+    var saving = false;
+    String? error;
+    final customer = await showDialog<Customer>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Add customer'),
+          content: SizedBox(
+            width: 420,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: name,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Customer name',
+                    ),
+                    validator: (value) => value?.trim().isEmpty ?? true
+                        ? 'Customer name is required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: mobile,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Mobile number',
+                    ),
+                    validator: (value) => value?.trim().isEmpty ?? true
+                        ? 'Mobile number is required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email (optional)',
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      error!,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      update(() {
+                        saving = true;
+                        error = null;
+                      });
+                      try {
+                        final created = await widget.onCreate(
+                          name: name.text.trim(),
+                          mobile: mobile.text.trim(),
+                          email: email.text.trim(),
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, created);
+                        }
+                      } on ApiException catch (exception) {
+                        update(() {
+                          saving = false;
+                          error = exception.message;
+                        });
+                      } catch (_) {
+                        update(() {
+                          saving = false;
+                          error =
+                              'Unable to create customer. Please try again.';
+                        });
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded),
+              label: Text(saving ? 'Saving...' : 'Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    mobile.dispose();
+    email.dispose();
+    if (customer == null || !mounted) return;
+    setState(() => _customers.add(customer));
+    widget.onSelected(customer);
+    Navigator.pop(context);
+  }
 }
 
 class _OrderSummaryChip extends StatelessWidget {

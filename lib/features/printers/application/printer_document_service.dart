@@ -135,7 +135,7 @@ class PrinterDocumentService {
     var pageCount = 0;
 
     await for (final page in Printing.raster(bytes, dpi: 300)) {
-      final png = _thermalMonochrome(await page.toPng());
+      final png = thermalMonochrome(await page.toPng());
       final contentHeight = contentWidth * page.height / page.width;
       document.addPage(
         pw.Page(
@@ -166,11 +166,16 @@ class PrinterDocumentService {
   /// Thermal heads produce much clearer small type from a monochrome raster
   /// than from anti-aliased grey pixels. Keep light backgrounds white and turn
   /// invoice text, rules and QR modules into solid black printer dots.
-  static Uint8List _thermalMonochrome(Uint8List png) {
+  @visibleForTesting
+  static Uint8List thermalMonochrome(Uint8List png) {
     final decoded = img.decodePng(png);
     if (decoded == null) return png;
     for (final pixel in decoded) {
-      final value = pixel.luminanceNormalized < 0.9 ? 0 : 255;
+      // PDF raster pages commonly encode the page background as transparent
+      // black. Treat transparent and near-transparent pixels as paper-white;
+      // otherwise the thermal printer produces a solid black receipt.
+      final isPaper = pixel.aNormalized < 0.5;
+      final value = isPaper || pixel.luminanceNormalized >= 0.62 ? 255 : 0;
       pixel.setRgba(value, value, value, 255);
     }
     return Uint8List.fromList(img.encodePng(decoded, level: 9));

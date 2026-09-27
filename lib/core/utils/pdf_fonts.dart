@@ -75,8 +75,9 @@ abstract final class PdfFonts {
     pw.TextAlign? textAlign,
     pw.CrossAxisAlignment crossAxisAlignment = pw.CrossAxisAlignment.start,
   }) {
-    final parts = label.split(RegExp(r'\s+(?:/|\|)\s+'));
-    if (parts.length != 2 || !containsArabic(parts.last)) {
+    final parts = label.split(RegExp(r'\s+(?:/|\||·)\s+'));
+    if (parts.length != 2 ||
+        containsArabic(parts.first) == containsArabic(parts.last)) {
       return text(label, style: style, textAlign: textAlign);
     }
     return pw.Column(

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart' hide Text;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/pdf.dart';
@@ -8,6 +10,7 @@ import '../../../shared/widgets/localized_text.dart';
 import '../../printers/application/printer_controller.dart';
 import '../../printers/application/printer_document_service.dart';
 import '../domain/kitchen_entities.dart';
+import '../application/offline_kitchen_template.dart';
 import 'kitchen_printing_controller.dart';
 
 class KitchenSettingsPanel extends ConsumerStatefulWidget {
@@ -36,6 +39,7 @@ class _KitchenSettingsPanelState extends ConsumerState<KitchenSettingsPanel> {
   Widget build(BuildContext context) {
     final asyncState = ref.watch(kitchenPrintingControllerProvider);
     final controller = ref.read(kitchenPrintingControllerProvider.notifier);
+    final printerState = ref.watch(printerControllerProvider);
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -48,6 +52,9 @@ class _KitchenSettingsPanelState extends ConsumerState<KitchenSettingsPanel> {
           error: (error, _) => _ErrorState(
             message: error.toString(),
             onRetry: controller.refresh,
+            onOfflinePreview: () => _previewOfflineKitchenTemplate(context),
+            onOfflinePrint: () =>
+                _printOfflineKitchenTemplate(context, printerState),
           ),
           data: (state) => _KitchenSettingsContent(
             state: state,
@@ -187,6 +194,23 @@ class _KitchenSettingsContent extends ConsumerWidget {
               ),
               icon: const Icon(Icons.visibility_outlined),
               label: const Text('Preview template'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _previewOfflineKitchenTemplate(
+                context,
+                businessName: settings.effectivePrintName,
+              ),
+              icon: const Icon(Icons.offline_bolt_outlined),
+              label: const Text('Preview offline demo'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => _printOfflineKitchenTemplate(
+                context,
+                printerState,
+                businessName: settings.effectivePrintName,
+              ),
+              icon: const Icon(Icons.print_outlined),
+              label: const Text('Test offline print'),
             ),
           ],
         ),
@@ -1010,6 +1034,84 @@ Future<void> _previewTemplate(
   }
 }
 
+Future<Uint8List> _offlineKitchenPdf({String? businessName}) async {
+  final resolvedBusinessName = businessName?.trim().isNotEmpty == true
+      ? businessName!.trim()
+      : 'مطبخ جرين مارت';
+  final html = OfflineKitchenTemplate.sampleHtml(
+    businessName: resolvedBusinessName,
+  );
+  final info = await Printing.info();
+  if (info.canConvertHtml) {
+    // ignore: deprecated_member_use
+    return Printing.convertHtml(
+      html: html,
+      format: PrinterDocumentService.kitchenFormat('offline_demo'),
+    );
+  }
+  // Windows does not always provide an HTML-to-PDF engine. Use the same
+  // embedded Arabic fonts and structured sample so offline testing still
+  // reaches the physical printer without depending on a WebView or server.
+  return PrinterDocumentService.kitchenTicket(
+    OfflineKitchenTemplate.sampleJob(businessName: resolvedBusinessName),
+  );
+}
+
+Future<void> _previewOfflineKitchenTemplate(
+  BuildContext context, {
+  String? businessName,
+}) async {
+  try {
+    final bytes = await _offlineKitchenPdf(businessName: businessName);
+    await PrinterDocumentService.previewPdfBytes(
+      bytes,
+      name: 'Offline kitchen print demo.pdf',
+      format: PrinterDocumentService.kitchenFormat('offline_demo'),
+    );
+  } catch (error) {
+    if (context.mounted) _snack(context, 'Offline preview failed: $error');
+  }
+}
+
+Future<void> _printOfflineKitchenTemplate(
+  BuildContext context,
+  PrinterState printerState, {
+  String? businessName,
+}) async {
+  try {
+    final bytes = await _offlineKitchenPdf(businessName: businessName);
+    await PrinterDocumentService.printPdfBytes(
+      bytes,
+      name: 'Offline kitchen print demo',
+      printer: _offlineKitchenPrinter(printerState),
+      format: PrinterDocumentService.kitchenFormat('offline_demo'),
+      fitThermalPrintableWidth: true,
+    );
+    if (context.mounted)
+      _snack(context, 'Offline kitchen test sent to printer.');
+  } catch (error) {
+    if (context.mounted) _snack(context, 'Offline test print failed: $error');
+  }
+}
+
+Printer? _offlineKitchenPrinter(PrinterState state) {
+  final bindings = state.settings.kitchenPrinterBindings.entries;
+  final binding = bindings.isEmpty ? null : bindings.first;
+  if (binding != null) {
+    final matches = state.printers.where(
+      (printer) => printer.url == binding.value,
+    );
+    return (matches.isEmpty ? null : matches.first) ??
+        Printer(
+          url: binding.value,
+          name:
+              state.settings.kitchenPrinterBindingNames[binding.key] ??
+              binding.value,
+        );
+  }
+  return state.selectedPrinter;
+}
+
 String _plainText(String html) => html
     .replaceAll(RegExp(r'<style[\s\S]*?</style>', caseSensitive: false), '')
     .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
@@ -1062,9 +1164,14 @@ class _EmptyLine extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
+  const _ErrorState({
+    required this.message,
+    required this.onRetry,
+    required this.onOfflinePreview,
+    required this.onOfflinePrint,
+  });
   final String message;
-  final VoidCallback onRetry;
+  final VoidCallback onRetry, onOfflinePreview, onOfflinePrint;
   @override
   Widget build(BuildContext context) => Center(
     child: Column(
@@ -1078,6 +1185,24 @@ class _ErrorState extends StatelessWidget {
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
           label: const Text('Retry'),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onOfflinePreview,
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('Preview offline demo'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onOfflinePrint,
+              icon: const Icon(Icons.print_outlined),
+              label: const Text('Test offline print'),
+            ),
+          ],
         ),
       ],
     ),

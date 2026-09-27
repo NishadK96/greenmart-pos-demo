@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Refreshing Eazy POS</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; display: grid; min-height: 100vh; place-items: center; margin: 0; color: #153b33; }
+    main { text-align: center; padding: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Refreshing Eazy POS…</h1>
+    <p>Removing the previous cached build.</p>
+  </main>
+  <script>
+    (async () => {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+      const version = Date.now();
+      location.replace(`/?fresh=${version}#/settings/printers`);
+    })().catch((error) => {
+      document.querySelector('p').textContent = `Refresh failed: ${error}`;
+    });
+  </script>
+</body>
+</html>

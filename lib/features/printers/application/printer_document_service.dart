@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -122,23 +123,32 @@ class PrinterDocumentService {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return bytes;
 
     final paperWidthMm = format.width / PdfPageFormat.mm;
-    final horizontalMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
+    final leftMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
+    final rightMarginMm = paperWidthMm >= 79 ? 9.5 : 7.0;
+    final verticalMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
     final contentWidth =
-        format.width - (horizontalMarginMm * 2 * PdfPageFormat.mm);
-    final pageMargin = horizontalMarginMm * PdfPageFormat.mm;
+        format.width - ((leftMarginMm + rightMarginMm) * PdfPageFormat.mm);
+    final leftMargin = leftMarginMm * PdfPageFormat.mm;
+    final rightMargin = rightMarginMm * PdfPageFormat.mm;
+    final verticalMargin = verticalMarginMm * PdfPageFormat.mm;
     final document = pw.Document();
     var pageCount = 0;
 
-    await for (final page in Printing.raster(bytes, dpi: 203)) {
-      final png = await page.toPng();
+    await for (final page in Printing.raster(bytes, dpi: 300)) {
+      final png = _thermalMonochrome(await page.toPng());
       final contentHeight = contentWidth * page.height / page.width;
       document.addPage(
         pw.Page(
           pageFormat: PdfPageFormat(
             format.width,
-            contentHeight + (pageMargin * 2),
+            contentHeight + (verticalMargin * 2),
           ),
-          margin: pw.EdgeInsets.all(pageMargin),
+          margin: pw.EdgeInsets.fromLTRB(
+            leftMargin,
+            verticalMargin,
+            rightMargin,
+            verticalMargin,
+          ),
           build: (_) => pw.Image(
             pw.MemoryImage(png),
             width: contentWidth,
@@ -151,6 +161,19 @@ class PrinterDocumentService {
     }
 
     return pageCount == 0 ? bytes : document.save();
+  }
+
+  /// Thermal heads produce much clearer small type from a monochrome raster
+  /// than from anti-aliased grey pixels. Keep light backgrounds white and turn
+  /// invoice text, rules and QR modules into solid black printer dots.
+  static Uint8List _thermalMonochrome(Uint8List png) {
+    final decoded = img.decodePng(png);
+    if (decoded == null) return png;
+    for (final pixel in decoded) {
+      final value = pixel.luminanceNormalized < 0.9 ? 0 : 255;
+      pixel.setRgba(value, value, value, 255);
+    }
+    return Uint8List.fromList(img.encodePng(decoded, level: 9));
   }
 
   static Future<Uint8List> sample(
@@ -1212,19 +1235,34 @@ class PrinterDocumentService {
     );
   }
 
-  static PdfPageFormat kitchenFormat(String template) => template == 'a4'
-      ? PdfPageFormat.a4
-      : PdfPageFormat(80 * PdfPageFormat.mm, 260 * PdfPageFormat.mm);
+  static PdfPageFormat kitchenFormat(String template) => switch (template) {
+    'a4' => PdfPageFormat.a4,
+    'offline_demo' => PdfPageFormat(
+      80 * PdfPageFormat.mm,
+      160 * PdfPageFormat.mm,
+    ),
+    _ => PdfPageFormat(80 * PdfPageFormat.mm, 260 * PdfPageFormat.mm),
+  };
 
   /// Builds a platform-independent ticket from the durable structured payload.
   /// This avoids HTML/WebView differences on Windows and keeps Arabic shaping
   /// available through the app's embedded PDF font.
   static Future<Uint8List> kitchenTicket(KitchenPrintJob job) async {
-    final format = kitchenFormat(job.template);
+    final format = job.template == 'offline_demo'
+        ? PdfPageFormat(
+            80 * PdfPageFormat.mm,
+            (100 + job.items.length * 30) * PdfPageFormat.mm,
+          )
+        : kitchenFormat(job.template);
     final theme = await PdfFonts.arabicTheme();
     final document = pw.Document();
     final isLarge = job.template == 'large_text';
-    final baseSize = isLarge ? 15.0 : 10.0;
+    final isOfflineDemo = job.template == 'offline_demo';
+    final baseSize = isLarge
+        ? 15.0
+        : isOfflineDemo
+        ? 7.5
+        : 10.0;
     final business = _htmlClassText(job.htmlContent, 'kitchen-order__business');
     final invoiceNumber = _htmlClassText(
       job.htmlContent,
@@ -1236,7 +1274,13 @@ class PrinterDocumentService {
       pw.MultiPage(
         pageFormat: format,
         theme: theme,
-        margin: pw.EdgeInsets.all(job.template == 'a4' ? 32 : 10),
+        margin: pw.EdgeInsets.all(
+          job.template == 'a4'
+              ? 32
+              : isOfflineDemo
+              ? 7
+              : 10,
+        ),
         build: (_) => [
           if (business.isNotEmpty)
             PdfFonts.text(
@@ -1249,6 +1293,8 @@ class PrinterDocumentService {
                     ? 23
                     : job.template == 'a4'
                     ? 26
+                    : isOfflineDemo
+                    ? 11
                     : 18,
                 fontWeight: pw.FontWeight.bold,
               ),
@@ -1259,7 +1305,11 @@ class PrinterDocumentService {
                 ? pw.TextAlign.left
                 : pw.TextAlign.center,
             style: pw.TextStyle(
-              fontSize: isLarge ? 22 : 17,
+              fontSize: isLarge
+                  ? 22
+                  : isOfflineDemo
+                  ? 10
+                  : 17,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
@@ -1274,16 +1324,22 @@ class PrinterDocumentService {
                   ? 29
                   : job.template == 'a4'
                   ? 28
+                  : isOfflineDemo
+                  ? 15
                   : 22,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
           pw.Divider(borderStyle: pw.BorderStyle.dashed),
           if (metadata.isNotEmpty) ...[
-            PdfFonts.text(
-              metadata,
-              style: pw.TextStyle(fontSize: baseSize - 1),
-            ),
+            for (final line in metadata.split('\n'))
+              if (line.trim().isNotEmpty)
+                PdfFonts.bilingual(
+                  line.trim(),
+                  style: pw.TextStyle(fontSize: baseSize - 1),
+                  textAlign: pw.TextAlign.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                ),
             pw.Divider(borderStyle: pw.BorderStyle.dashed),
           ],
           for (final item in job.items) ...[
@@ -1301,16 +1357,25 @@ class PrinterDocumentService {
                   ),
                 ),
                 pw.Expanded(
-                  child: PdfFonts.text(
-                    [
-                      item.productName,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      PdfFonts.bilingual(
+                        item.productName,
+                        style: pw.TextStyle(
+                          fontSize: baseSize + 2,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
                       if (item.variation?.trim().isNotEmpty == true)
-                        item.variation!,
-                    ].join(' · '),
-                    style: pw.TextStyle(
-                      fontSize: baseSize + 2,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
+                        PdfFonts.bilingual(
+                          item.variation!.trim(),
+                          style: pw.TextStyle(
+                            fontSize: baseSize + 1,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -1320,20 +1385,43 @@ class PrinterDocumentService {
                 margin: const pw.EdgeInsets.only(top: 3, left: 6),
                 padding: const pw.EdgeInsets.all(5),
                 decoration: pw.BoxDecoration(border: pw.Border.all(width: .8)),
-                child: PdfFonts.text(
-                  'NOTE: ${item.note}',
-                  style: pw.TextStyle(
-                    fontSize: baseSize,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'NOTE',
+                      style: pw.TextStyle(
+                        fontSize: baseSize,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    PdfFonts.bilingual(
+                      item.note!.trim(),
+                      style: pw.TextStyle(
+                        fontSize: baseSize,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             for (final modifier in item.modifiers)
               pw.Padding(
                 padding: const pw.EdgeInsets.only(left: 12, top: 2),
-                child: PdfFonts.text(
-                  '+ ${_quantity(modifier.quantity)}× ${modifier.productName}',
-                  style: pw.TextStyle(fontSize: baseSize),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      '+ ${_quantity(modifier.quantity)}× ',
+                      style: pw.TextStyle(fontSize: baseSize),
+                    ),
+                    pw.Expanded(
+                      child: PdfFonts.bilingual(
+                        modifier.productName,
+                        style: pw.TextStyle(fontSize: baseSize),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (item.serviceStaff?.trim().isNotEmpty == true)

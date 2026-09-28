@@ -2344,7 +2344,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        const Divider(height: 10),
+        Divider(
+          height: desktop && MediaQuery.sizeOf(context).height < 720 ? 4 : 10,
+        ),
         if (desktop)
           Expanded(child: _orderItems())
         else
@@ -2368,7 +2370,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               foregroundColor: AppColors.muted,
             ),
           ),
-        const Divider(height: 12),
+        Divider(
+          height: desktop && MediaQuery.sizeOf(context).height < 720 ? 6 : 12,
+        ),
         if (desktop && MediaQuery.sizeOf(context).height < 720)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2413,7 +2417,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ),
         ],
-        const Divider(height: 12),
+        Divider(
+          height: desktop && MediaQuery.sizeOf(context).height < 720 ? 6 : 12,
+        ),
         Row(
           children: [
             const Expanded(
@@ -2433,7 +2439,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(
+          height: desktop && MediaQuery.sizeOf(context).height < 720 ? 3 : 6,
+        ),
         if (_savedTransactionId != null || _orderLocked) ...[
           Text(
             _savedTransactionId != null
@@ -2443,90 +2451,97 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
           const SizedBox(height: 6),
         ],
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _lines.isEmpty || _orderLocked || _sending
-                    ? null
-                    : () => unawaited(_saveDraft()),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: const Size(0, 38),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.pause_outlined, size: 18),
-                    SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        'Hold',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+        if (desktop && MediaQuery.sizeOf(context).height < 720)
+          _compactOrderActions()
+        else ...[
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _lines.isEmpty || _orderLocked || _sending
+                      ? null
+                      : () => unawaited(_saveDraft()),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: const Size(0, 38),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.pause_outlined, size: 18),
+                      SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'Hold',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _savedTransactionId == null || _sending
-                    ? null
-                    : () => unawaited(_printBill()),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: const Size(0, 38),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.print_outlined, size: 18),
-                    SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        'Print',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _savedTransactionId == null || _sending
+                      ? null
+                      : () => unawaited(_printBill()),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: const Size(0, 38),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.print_outlined, size: 18),
+                      SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'Print',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton.icon(
-                key: const ValueKey('send-to-kitchen'),
-                onPressed: _sending ? null : _sendToKitchen,
-                icon: const Icon(Icons.soup_kitchen_rounded, size: 17),
-                label: Text(_sending ? 'Sending…' : 'Kitchen'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: const Size(0, 38),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('send-to-kitchen'),
+                  onPressed: _sending ? null : _sendToKitchen,
+                  icon: const Icon(Icons.soup_kitchen_rounded, size: 17),
+                  label: Text(_sending ? 'Sending…' : 'Kitchen'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: const Size(0, 38),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        FilledButton.icon(
-          onPressed: _lines.isEmpty || _sending
-              ? null
-              : () => unawaited(_billAndPay()),
-          icon: const Icon(Icons.point_of_sale_outlined),
-          label: const Text('Bill & Pay'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 40),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ],
           ),
-        ),
-        if (desktop) ...[const SizedBox(height: 6), _numericKeypad()],
+          const SizedBox(height: 6),
+          FilledButton.icon(
+            onPressed: _lines.isEmpty || _sending
+                ? null
+                : () => unawaited(_billAndPay()),
+            icon: const Icon(Icons.point_of_sale_outlined),
+            label: const Text('Bill & Pay'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+        if (desktop) ...[
+          SizedBox(height: MediaQuery.sizeOf(context).height < 720 ? 3 : 6),
+          _numericKeypad(),
+        ],
         if (_activeOrder != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -2543,7 +2558,84 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     ),
   );
 
+  Widget _compactOrderActions() {
+    Widget action({
+      Key? key,
+      required String label,
+      required IconData icon,
+      required VoidCallback? onPressed,
+      bool filled = false,
+    }) => Expanded(
+      child: filled
+          ? FilledButton.icon(
+              key: key,
+              onPressed: onPressed,
+              icon: Icon(icon, size: 16),
+              label: Text(label),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(fontSize: 11),
+              ),
+            )
+          : OutlinedButton.icon(
+              key: key,
+              onPressed: onPressed,
+              icon: Icon(icon, size: 16),
+              label: Text(label),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(fontSize: 11),
+              ),
+            ),
+    );
+
+    return Row(
+      children: [
+        action(
+          label: 'Hold',
+          icon: Icons.pause_outlined,
+          onPressed: _lines.isEmpty || _orderLocked || _sending
+              ? null
+              : () => unawaited(_saveDraft()),
+        ),
+        const SizedBox(width: 4),
+        action(
+          label: 'Print',
+          icon: Icons.print_outlined,
+          onPressed: _savedTransactionId == null || _sending
+              ? null
+              : () => unawaited(_printBill()),
+        ),
+        const SizedBox(width: 4),
+        action(
+          key: const ValueKey('send-to-kitchen'),
+          label: 'Kitchen',
+          icon: Icons.soup_kitchen_rounded,
+          onPressed: _sending ? null : _sendToKitchen,
+          filled: true,
+        ),
+        const SizedBox(width: 4),
+        action(
+          label: 'Pay',
+          icon: Icons.point_of_sale_outlined,
+          onPressed: _lines.isEmpty || _sending
+              ? null
+              : () => unawaited(_billAndPay()),
+          filled: true,
+        ),
+      ],
+    );
+  }
+
   Widget _numericKeypad() {
+    final compactHeight = MediaQuery.sizeOf(context).height < 720;
+    final keyHeight = compactHeight ? 42.0 : 27.0;
+    final modeHeight = compactHeight ? 40.0 : 26.0;
+    final keyFontSize = compactHeight ? 17.0 : 15.0;
     Widget keypadKey(
       String label, {
       String? value,
@@ -2552,9 +2644,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       Color borderColor = const Color(0xFFB8D2E3),
     }) => Expanded(
       child: OutlinedButton(
+        key: ValueKey('kitchen-keypad-${value ?? label}'),
         onPressed: _orderLocked ? null : () => _keypadPress(value ?? label),
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 27),
+          minimumSize: Size(0, keyHeight),
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
@@ -2564,7 +2657,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           disabledBackgroundColor: const Color(0xFFF2F4F3),
           side: BorderSide(color: borderColor),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          textStyle: TextStyle(
+            fontSize: keyFontSize,
+            fontWeight: FontWeight.w900,
+          ),
         ),
         child: Text(label),
       ),
@@ -2580,7 +2676,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
 
     ButtonStyle modeStyle(bool selected) => OutlinedButton.styleFrom(
-      minimumSize: const Size(0, 26),
+      minimumSize: Size(0, modeHeight),
       padding: EdgeInsets.zero,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -2592,7 +2688,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         color: selected ? AppColors.primary : const Color(0xFFB9D5CE),
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
     );
     return Column(
       children: [
@@ -2690,16 +2786,20 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           Expanded(
             flex: 2,
             child: FilledButton(
+              key: const ValueKey('kitchen-keypad-enter'),
               onPressed: _orderLocked ? null : () => _keypadPress('enter'),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 27),
+                minimumSize: Size(0, keyHeight),
                 padding: EdgeInsets.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(7),
                 ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               child: const Text('Enter'),
             ),

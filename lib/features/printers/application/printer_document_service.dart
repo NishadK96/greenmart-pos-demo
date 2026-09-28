@@ -11,6 +11,13 @@ import '../../../core/utils/pdf_fonts.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
 import '../../kitchen/domain/kitchen_entities.dart';
 
+class _PrintableDocument {
+  const _PrintableDocument({required this.bytes, required this.format});
+
+  final Uint8List bytes;
+  final PdfPageFormat format;
+}
+
 class PrinterDocumentService {
   static Future<bool> previewPdfBytes(
     Uint8List bytes, {
@@ -43,16 +50,18 @@ class PrinterDocumentService {
         printer.url: printer,
     }.values.toList(growable: false);
     if (destinations.isNotEmpty) {
-      final printableBytes = fitThermalPrintableWidth && _isThermal(format)
+      final thermalDocument = fitThermalPrintableWidth && _isThermal(format)
           ? await _fitThermalPrintableWidth(bytes, format)
-          : bytes;
+          : null;
+      final printableBytes = thermalDocument?.bytes ?? bytes;
+      final printableFormat = thermalDocument?.format ?? format;
       final results = await Future.wait(
         destinations.map((destination) async {
           try {
             final printed = await Printing.directPrintPdf(
               printer: destination,
               name: name,
-              format: format,
+              format: printableFormat,
               usePrinterSettings: _usesExternalWindowsPreview,
               onLayout: (_) async => printableBytes,
             );
@@ -116,11 +125,11 @@ class PrinterDocumentService {
   /// trailing edge of full-width ERP invoices. Rasterizing the authoritative
   /// backend PDF and centering it inside a conservative printable width keeps
   /// the invoice, Arabic shaping and QR code intact.
-  static Future<Uint8List> _fitThermalPrintableWidth(
+  static Future<_PrintableDocument?> _fitThermalPrintableWidth(
     Uint8List bytes,
     PdfPageFormat format,
   ) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return bytes;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return null;
 
     final paperWidthMm = format.width / PdfPageFormat.mm;
     final leftMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
@@ -133,16 +142,16 @@ class PrinterDocumentService {
     final verticalMargin = verticalMarginMm * PdfPageFormat.mm;
     final document = pw.Document();
     var pageCount = 0;
+    var printableHeight = format.height;
 
     await for (final page in Printing.raster(bytes, dpi: 300)) {
       final png = thermalMonochrome(await page.toPng());
       final contentHeight = contentWidth * page.height / page.width;
+      final pageHeight = contentHeight + (verticalMargin * 2);
+      if (pageCount == 0) printableHeight = pageHeight;
       document.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat(
-            format.width,
-            contentHeight + (verticalMargin * 2),
-          ),
+          pageFormat: PdfPageFormat(format.width, pageHeight),
           margin: pw.EdgeInsets.fromLTRB(
             leftMargin,
             verticalMargin,
@@ -160,7 +169,15 @@ class PrinterDocumentService {
       pageCount++;
     }
 
-    return pageCount == 0 ? bytes : document.save();
+    if (pageCount == 0) return null;
+    return _PrintableDocument(
+      bytes: await document.save(),
+      // Keep the driver page height aligned with the rasterized receipt. If a
+      // long thermal page is advertised as the old fixed-height format,
+      // Windows scales the whole invoice down to fit and small text becomes
+      // faint. Thermal rolls support a job-specific continuous page height.
+      format: PdfPageFormat(format.width, printableHeight),
+    );
   }
 
   /// Thermal heads produce much clearer small type from a monochrome raster

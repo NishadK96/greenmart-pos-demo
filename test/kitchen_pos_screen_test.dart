@@ -186,6 +186,13 @@ void main() {
           (serviceRect.height - tableRect.height).abs(),
           lessThanOrEqualTo(2),
         );
+        if (size.height < 720) {
+          final keypadSeven = tester.getRect(
+            find.byKey(const ValueKey('kitchen-keypad-7')),
+          );
+          expect(keypadSeven.height, greaterThanOrEqualTo(34));
+          expect(keypadSeven.bottom, lessThanOrEqualTo(size.height));
+        }
       } else {
         final tableRect = tester.getRect(
           find.byKey(const ValueKey('kitchen-table-card')),

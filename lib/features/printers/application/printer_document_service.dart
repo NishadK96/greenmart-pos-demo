@@ -132,8 +132,12 @@ class PrinterDocumentService {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return null;
 
     final paperWidthMm = format.width / PdfPageFormat.mm;
-    final leftMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
-    final rightMarginMm = paperWidthMm >= 79 ? 9.5 : 7.0;
+    // Most 80 mm thermal heads expose 72 mm (576 dots at 203 DPI). Keep the
+    // converted invoice centred in that native printable area. The previous
+    // asymmetric 68 mm area avoided clipping, but unnecessarily reduced the
+    // ERP invoice's already-small multi-column type.
+    final leftMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
+    final rightMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
     final verticalMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
     final contentWidth =
         format.width - ((leftMarginMm + rightMarginMm) * PdfPageFormat.mm);
@@ -192,7 +196,11 @@ class PrinterDocumentService {
       // black. Treat transparent and near-transparent pixels as paper-white;
       // otherwise the thermal printer produces a solid black receipt.
       final isPaper = pixel.aNormalized < 0.5;
-      final value = isPaper || pixel.luminanceNormalized >= 0.62 ? 255 : 0;
+      // Preserve the lighter edge pixels of thin ERP invoice glyphs. They are
+      // anti-aliased in the backend PDF and otherwise disappear when reduced
+      // to a 203-DPI thermal head. KOT tickets are printed through their native
+      // vector path and are intentionally unaffected by this conversion.
+      final value = isPaper || pixel.luminanceNormalized >= 0.74 ? 255 : 0;
       pixel.setRgba(value, value, value, 255);
     }
     return Uint8List.fromList(img.encodePng(decoded, level: 9));

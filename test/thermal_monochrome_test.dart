@@ -6,10 +6,11 @@ import 'package:image/image.dart' as img;
 
 void main() {
   test('transparent PDF raster background becomes white thermal paper', () {
-    final source = img.Image(width: 3, height: 1, numChannels: 4);
+    final source = img.Image(width: 4, height: 1, numChannels: 4);
     source.setPixelRgba(0, 0, 0, 0, 0, 0);
     source.setPixelRgba(1, 0, 30, 30, 30, 255);
     source.setPixelRgba(2, 0, 245, 245, 245, 255);
+    source.setPixelRgba(3, 0, 175, 175, 175, 255);
 
     final output = img.decodePng(
       PrinterDocumentService.thermalMonochrome(
@@ -20,5 +21,10 @@ void main() {
     expect(output.getPixel(0, 0).r, 255);
     expect(output.getPixel(1, 0).r, 0);
     expect(output.getPixel(2, 0).r, 255);
+    expect(
+      output.getPixel(3, 0).r,
+      0,
+      reason: 'thin anti-aliased invoice text must remain printer-black',
+    );
   });
 }

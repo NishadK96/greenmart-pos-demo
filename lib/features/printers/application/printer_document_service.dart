@@ -132,12 +132,11 @@ class PrinterDocumentService {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return null;
 
     final paperWidthMm = format.width / PdfPageFormat.mm;
-    // Most 80 mm thermal heads expose 72 mm (576 dots at 203 DPI). Keep the
-    // converted invoice centred in that native printable area. The previous
-    // asymmetric 68 mm area avoided clipping, but unnecessarily reduced the
-    // ERP invoice's already-small multi-column type.
-    final leftMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
-    final rightMarginMm = paperWidthMm >= 79 ? 4.0 : 3.0;
+    // This printer's Windows driver exposes an asymmetric printable area. A
+    // wider centred image is clipped on the right, so retain conservative
+    // hardware-safe margins for the authoritative ERP invoice.
+    final leftMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
+    final rightMarginMm = paperWidthMm >= 79 ? 9.5 : 7.0;
     final verticalMarginMm = paperWidthMm >= 79 ? 2.5 : 2.0;
     final contentWidth =
         format.width - ((leftMarginMm + rightMarginMm) * PdfPageFormat.mm);
@@ -148,7 +147,10 @@ class PrinterDocumentService {
     var pageCount = 0;
     var printableHeight = format.height;
 
-    await for (final page in Printing.raster(bytes, dpi: 300)) {
+    // Render directly at the common 203-DPI thermal head resolution. Sending
+    // a 300-DPI bitmap makes the Windows driver resample thin invoice text a
+    // second time, which softens glyphs even after monochrome conversion.
+    await for (final page in Printing.raster(bytes, dpi: 203)) {
       final png = thermalMonochrome(await page.toPng());
       final contentHeight = contentWidth * page.height / page.width;
       final pageHeight = contentHeight + (verticalMargin * 2);
@@ -196,11 +198,9 @@ class PrinterDocumentService {
       // black. Treat transparent and near-transparent pixels as paper-white;
       // otherwise the thermal printer produces a solid black receipt.
       final isPaper = pixel.aNormalized < 0.5;
-      // Preserve the lighter edge pixels of thin ERP invoice glyphs. They are
-      // anti-aliased in the backend PDF and otherwise disappear when reduced
-      // to a 203-DPI thermal head. KOT tickets are printed through their native
-      // vector path and are intentionally unaffected by this conversion.
-      final value = isPaper || pixel.luminanceNormalized >= 0.74 ? 255 : 0;
+      // Retain enough anti-aliased edge pixels for thin ERP invoice glyphs
+      // without making counters and close columns bleed together.
+      final value = isPaper || pixel.luminanceNormalized >= 0.66 ? 255 : 0;
       pixel.setRgba(value, value, value, 255);
     }
     return Uint8List.fromList(img.encodePng(decoded, level: 9));

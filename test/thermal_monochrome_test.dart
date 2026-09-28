@@ -10,7 +10,7 @@ void main() {
     source.setPixelRgba(0, 0, 0, 0, 0, 0);
     source.setPixelRgba(1, 0, 30, 30, 30, 255);
     source.setPixelRgba(2, 0, 245, 245, 245, 255);
-    source.setPixelRgba(3, 0, 175, 175, 175, 255);
+    source.setPixelRgba(3, 0, 160, 160, 160, 255);
 
     final output = img.decodePng(
       PrinterDocumentService.thermalMonochrome(

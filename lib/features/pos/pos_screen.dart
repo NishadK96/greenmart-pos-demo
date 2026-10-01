@@ -14,6 +14,7 @@ import '../../shared/widgets/product_card_style_picker.dart';
 import '../../shared/widgets/modifier_selection_dialog.dart';
 import '../../shared/widgets/document_preview_actions.dart';
 import '../backend/presentation/backend_controller.dart';
+import '../cash_register/presentation/cash_register_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
@@ -33,6 +34,17 @@ final _posCartKeyboardProvider =
 
 final _posCartKeyDispatcherProvider =
     NotifierProvider<_CartKeyDispatcher, void>(_CartKeyDispatcher.new);
+
+final _retailPanelTabProvider =
+    NotifierProvider.autoDispose<_RetailPanelTabNotifier, int>(
+      _RetailPanelTabNotifier.new,
+    );
+
+class _RetailPanelTabNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void select(int value) => state = value;
+}
 
 class _CartKeyDispatcher extends Notifier<void> {
   KeyEventResult Function(KeyEvent event)? _handler;
@@ -119,6 +131,8 @@ class PosScreen extends ConsumerStatefulWidget {
 
 class _PosScreenState extends ConsumerState<PosScreen> {
   final _searchController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
+  final _unitPriceController = TextEditingController(text: '0.00');
   final _searchFocus = FocusNode();
   final _posFocus = FocusNode(debugLabel: 'POS keyboard controller');
   final Set<String> _favorites = {};
@@ -138,6 +152,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   void dispose() {
     FocusManager.instance.removeEarlyKeyEventHandler(_handleEarlyCartKey);
     _searchController.dispose();
+    _quantityController.dispose();
+    _unitPriceController.dispose();
     _searchFocus.dispose();
     _posFocus.dispose();
     super.dispose();
@@ -153,9 +169,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         const SingleActivator(LogicalKeyboardKey.digit2, control: true):
             _focusProductSearch,
         const SingleActivator(LogicalKeyboardKey.f3): () =>
-            _openRecentSales(context, state),
+            _openProductSelector(state),
         const SingleActivator(LogicalKeyboardKey.digit3, control: true): () =>
-            _openRecentSales(context, state),
+            _openProductSelector(state),
         const SingleActivator(LogicalKeyboardKey.f4): () =>
             _openCustomerSelector(context, state),
         const SingleActivator(LogicalKeyboardKey.digit4, control: true): () =>
@@ -163,6 +179,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         const SingleActivator(LogicalKeyboardKey.f6): _editLatestCartPrice,
         const SingleActivator(LogicalKeyboardKey.digit6, control: true):
             _editLatestCartPrice,
+        const SingleActivator(LogicalKeyboardKey.f7): () =>
+            _openRecentSales(context, state),
+        const SingleActivator(LogicalKeyboardKey.digit7, control: true): () =>
+            _openRecentSales(context, state),
         const SingleActivator(LogicalKeyboardKey.f8): _editGrossDiscount,
         const SingleActivator(LogicalKeyboardKey.digit8, control: true):
             _editGrossDiscount,
@@ -324,20 +344,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 ],
               );
             }
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _catalog(state, products)),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: constraints.maxWidth >= 1240 ? 430 : 385,
-                    child: const _CurrentOrder(),
-                  ),
-                ],
-              ),
-            );
+            return _desktopRetailWorkspace(state, constraints.maxWidth);
           },
         ),
       ),
@@ -402,7 +409,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _searchFocus.unfocus();
     _posFocus.requestFocus();
     final state = ref.read(appStoreProvider);
-    final visualLines = state.cart.reversed.toList(growable: false);
+    final retailDesktop = mounted && MediaQuery.sizeOf(context).width >= 930;
+    final visualLines = retailDesktop
+        ? state.cart
+        : state.cart.reversed.toList(growable: false);
     final keyboardState = ref.read(_posCartKeyboardProvider);
     final keyboard = ref.read(_posCartKeyboardProvider.notifier);
     if (keyboardState.paySelected) return KeyEventResult.handled;
@@ -410,10 +420,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       (line) => line.lineId == keyboardState.selectedProductId,
     );
     if (selectedIndex < 0) selectedIndex = 0;
-    if (selectedIndex == visualLines.length - 1) {
+    if (!retailDesktop && selectedIndex == visualLines.length - 1) {
       keyboard.selectPay();
     } else {
-      keyboard.select(visualLines[selectedIndex + 1].lineId);
+      final next = (selectedIndex + 1).clamp(0, visualLines.length - 1);
+      keyboard.select(visualLines[next].lineId);
     }
     return KeyEventResult.handled;
   }
@@ -502,6 +513,893 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
     return rows;
   }
+
+  Widget _desktopRetailWorkspace(AppState state, double width) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+    child: Column(
+      children: [
+        _saleContextBar(state),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    _retailInputPanel(state),
+                    const SizedBox(height: 8),
+                    Expanded(child: _retailCartTable(state)),
+                    const SizedBox(height: 8),
+                    _retailQuickActions(state),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: width >= 1380 ? 390 : 350,
+                child: const _CurrentOrder(retailPanel: true),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _saleContextBar(AppState state) {
+    final now = DateTime.now();
+    final register = ref.watch(cashRegisterControllerProvider).asData?.value;
+    final location =
+        state.locations.firstOrNull?.name ?? context.tr('Main Counter');
+    final cashier = state.user?.name ?? context.tr('Cashier');
+    return SizedBox(
+      height: 68,
+      child: Row(
+        children: [
+          _contextTile(
+            Icons.receipt_long_outlined,
+            context.tr('New Sale'),
+            '#INV-${(state.sales.length + 1).toString().padLeft(6, '0')}',
+            flex: 11,
+          ),
+          _contextTile(
+            Icons.person_rounded,
+            state.customer?.name ?? context.tr('Walk-in Customer'),
+            context.tr('Customer'),
+            accent: true,
+            flex: 14,
+            onTap: () => _openCustomerSelector(context, state),
+          ),
+          _contextTile(
+            Icons.calendar_today_outlined,
+            DateFormat('dd/MM/yyyy').format(now),
+            DateFormat('HH:mm').format(now),
+            flex: 11,
+          ),
+          _contextTile(
+            Icons.point_of_sale_outlined,
+            context.tr('Register'),
+            location,
+            flex: 14,
+          ),
+          _contextTile(
+            Icons.person_outline_rounded,
+            context.tr('Cashier'),
+            cashier,
+            flex: 13,
+          ),
+          _contextTile(
+            Icons.circle,
+            context.tr(register == null ? 'Shift Closed' : 'Shift Open'),
+            register == null
+                ? context.tr('Open register to sell')
+                : '${context.tr('Register')} ${register.id}',
+            success: register != null,
+            warning: register == null,
+            flex: 12,
+          ),
+          _contextTile(
+            Icons.wifi_rounded,
+            context.tr('Online'),
+            context.tr('Synced'),
+            success: true,
+            flex: 11,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contextTile(
+    IconData icon,
+    String title,
+    String subtitle, {
+    bool accent = false,
+    bool success = false,
+    bool warning = false,
+    int flex = 1,
+    VoidCallback? onTap,
+  }) => Expanded(
+    flex: flex,
+    child: Padding(
+      padding: const EdgeInsetsDirectional.only(end: 7),
+      child: Material(
+        color: accent
+            ? const Color(0xFFF0F6FF)
+            : success
+            ? const Color(0xFFF0F8F5)
+            : warning
+            ? const Color(0xFFFFF8EB)
+            : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: Color(0xFFD7E1DD)),
+        ),
+        elevation: 0.7,
+        shadowColor: const Color(0x190B3D32),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: icon == Icons.circle ? 9 : 19,
+                  color: success
+                      ? AppColors.primary
+                      : warning
+                      ? AppColors.accent
+                      : accent
+                      ? Colors.blue.shade700
+                      : AppColors.primary,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: accent ? Colors.blue.shade700 : AppColors.ink,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          color: AppColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _retailInputPanel(AppState state) => Surface(
+    padding: const EdgeInsets.all(10),
+    child: Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF6F2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.document_scanner_outlined,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onChanged: (value) => setState(() => _query = value),
+                onSubmitted: (_) => _addFromRetailInput(state),
+                decoration: InputDecoration(
+                  hintText: context.tr(
+                    'Scan barcode or search product (Name, SKU, Barcode...)',
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: const Padding(
+                    padding: EdgeInsets.all(13),
+                    child: Text(
+                      'F2',
+                      style: TextStyle(fontSize: 10, color: AppColors.muted),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 46,
+              child: FilledButton.icon(
+                onPressed: _focusProductSearch,
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
+                label: Text(context.tr('Scan')),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            SizedBox(
+              width: 125,
+              child: _compactNumberField(
+                _quantityController,
+                context.tr('Quantity'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 140,
+              child: _compactNumberField(
+                _unitPriceController,
+                context.tr('Unit Price'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: () =>
+                      _addFromRetailInput(state, alwaysSelect: true),
+                  icon: const Icon(Icons.add_shopping_cart_rounded),
+                  label: Text(
+                    context.tr('Add Item'),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 165,
+              height: 56,
+              child: OutlinedButton.icon(
+                onPressed: () => _openCustomerSelector(context, state),
+                icon: const Icon(Icons.person_outline_rounded),
+                label: Expanded(
+                  child: Text(
+                    state.customer?.name ?? context.tr('Customer'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _compactNumberField(TextEditingController controller, String label) =>
+      TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+        ),
+      );
+
+  Future<void> _addFromRetailInput(
+    AppState state, {
+    bool alwaysSelect = false,
+  }) async {
+    final query = _searchController.text.trim().toLowerCase();
+    final matches = state.products
+        .where(
+          (product) =>
+              product.active &&
+              (query.isEmpty ||
+                  product.name.toLowerCase().contains(query) ||
+                  product.nameEn.toLowerCase().contains(query) ||
+                  product.nameAr.toLowerCase().contains(query) ||
+                  product.sku.toLowerCase().contains(query) ||
+                  product.barcode.toLowerCase().contains(query)),
+        )
+        .toList();
+    if (!alwaysSelect && matches.length == 1) {
+      await _addProduct(matches.first);
+      _searchController.clear();
+      setState(() => _query = '');
+      return;
+    }
+    await _openProductSelector(state, initialQuery: query);
+  }
+
+  Future<void> _openProductSelector(
+    AppState state, {
+    String initialQuery = '',
+  }) async {
+    if (_quickActionOpen) return;
+    _quickActionOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => _RetailProductSelector(
+          products: state.products,
+          categories: state.categories,
+          recentProductIds: _recent,
+          initialQuery: initialQuery,
+          canSell: _canSell,
+          onAdd: (product) async {
+            await _addProduct(product);
+            if (mounted) setState(() {});
+          },
+        ),
+      );
+    } finally {
+      _quickActionOpen = false;
+    }
+  }
+
+  Widget _retailCartTable(AppState state) {
+    final keyboardState = ref.watch(_posCartKeyboardProvider);
+    final selectedId =
+        state.cart.any((line) => line.lineId == keyboardState.selectedProductId)
+        ? keyboardState.selectedProductId
+        : state.cart.lastOrNull?.lineId;
+    if (selectedId != keyboardState.selectedProductId && selectedId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(_posCartKeyboardProvider.notifier).select(selectedId);
+        }
+      });
+    }
+    ref
+        .read(_posCartKeyDispatcherProvider.notifier)
+        .register((event) => _handleRetailCartKey(state, selectedId, event));
+    return Surface(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF0F6FB),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: const _RetailCartHeader(),
+          ),
+          Expanded(
+            child: state.cart.isEmpty
+                ? EmptyState(
+                    context.tr(
+                      'Use Add Item or scan a barcode to start a sale',
+                    ),
+                  )
+                : ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: state.cart.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Color(0xFFE7ECEA),
+                    ),
+                    itemBuilder: (_, index) {
+                      final line = state.cart[index];
+                      final selected = line.lineId == selectedId;
+                      return KeyedSubtree(
+                        key: ValueKey('retail-cart-${line.lineId}'),
+                        child: Builder(
+                          builder: (rowContext) {
+                            if (selected) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (rowContext.mounted) {
+                                  Scrollable.ensureVisible(
+                                    rowContext,
+                                    duration: const Duration(milliseconds: 140),
+                                    alignmentPolicy:
+                                        ScrollPositionAlignmentPolicy
+                                            .keepVisibleAtEnd,
+                                  );
+                                }
+                              });
+                            }
+                            return _retailCartRow(
+                              line,
+                              index,
+                              selected: selected,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _retailCartRow(CartLine line, int index, {required bool selected}) {
+    final product = line.product;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 72),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFFEAF6F2) : Colors.white,
+        border: BorderDirectional(
+          start: BorderSide(
+            color: selected ? AppColors.primary : Colors.transparent,
+            width: 4,
+          ),
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          _cartKeyboardActive = true;
+          _posFocus.requestFocus();
+          ref.read(_posCartKeyboardProvider.notifier).select(line.lineId);
+        },
+        child: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              child: Text('${index + 1}', style: const TextStyle(fontSize: 11)),
+            ),
+            Expanded(
+              flex: 27,
+              child: Row(
+                children: [
+                  _retailProductThumbnail(product),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.displayName(context.isArabic),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          product.sku.isEmpty ? product.barcode : product.sku,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Color(0xFF61756F),
+                          ),
+                        ),
+                        if (line.modifiers.isNotEmpty)
+                          Text(
+                            line.modifiers.map((e) => e.name).join(' • '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 13,
+              child: Text(
+                product.sku.isEmpty ? product.barcode : product.sku,
+                style: const TextStyle(fontSize: 10, color: AppColors.muted),
+              ),
+            ),
+            Expanded(
+              flex: 8,
+              child: Text(
+                product.unit.toUpperCase(),
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+            Expanded(flex: 15, child: _inlineQuantity(line)),
+            Expanded(
+              flex: 11,
+              child: InkWell(
+                onTap: () => _showUnitPriceEditor(context, ref, line),
+                child: RiyalAmount(
+                  line.unitPrice,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 10,
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () => _showRetailLineDiscount(line),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: line.discount > 0
+                          ? const Color(0xFFE8F6F1)
+                          : const Color(0xFFF4F7F6),
+                      border: Border.all(color: const Color(0xFFDCE6E2)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: RiyalAmount(
+                      line.discount,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: line.discount > 0
+                            ? AppColors.primary
+                            : AppColors.muted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 9,
+              child: RiyalAmount(
+                line.tax,
+                style: const TextStyle(fontSize: 10, color: AppColors.muted),
+              ),
+            ),
+            Expanded(
+              flex: 12,
+              child: RiyalAmount(
+                line.unitPriceIncludingTax,
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+            Expanded(
+              flex: 11,
+              child: RiyalAmount(
+                line.total,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 76,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    tooltip: context.tr('Edit price'),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFF2F8F6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    onPressed: () => _showUnitPriceEditor(context, ref, line),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: context.tr('Remove item'),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFF1F1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    onPressed: () =>
+                        ref.read(appStoreProvider.notifier).remove(line.lineId),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 17,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  KeyEventResult _handleRetailCartKey(
+    AppState state,
+    String? selectedId,
+    KeyEvent event,
+  ) {
+    if (event is! KeyDownEvent || state.cart.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final keyboard = ref.read(_posCartKeyboardProvider.notifier);
+    var index = state.cart.indexWhere((line) => line.lineId == selectedId);
+    if (index < 0) index = 0;
+    final line = state.cart[index];
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      _cartKeyboardActive = true;
+      final delta = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      final next = (index + delta).clamp(0, state.cart.length - 1);
+      keyboard.select(state.cart[next].lineId);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.add ||
+        key == LogicalKeyboardKey.numpadAdd ||
+        key == LogicalKeyboardKey.equal) {
+      ref.read(appStoreProvider.notifier).quantity(line.lineId, 1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.minus ||
+        key == LogicalKeyboardKey.numpadSubtract) {
+      if (line.quantity > 1) {
+        ref.read(appStoreProvider.notifier).quantity(line.lineId, -1);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.delete) {
+      ref.read(appStoreProvider.notifier).remove(line.lineId);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _showUnitPriceEditor(context, ref, line);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _retailProductThumbnail(Product product) {
+    final fallback = Container(
+      color: const Color(0xFFF2F6F4),
+      alignment: Alignment.center,
+      child: Text(
+        product.displayName(context.isArabic).trim().isEmpty
+            ? '?'
+            : product.displayName(context.isArabic).trim()[0].toUpperCase(),
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+    return Container(
+      width: 42,
+      height: 42,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F6F4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE0E8E5)),
+      ),
+      child: product.imageUrl.trim().isEmpty
+          ? fallback
+          : Image.network(
+              product.imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+            ),
+    );
+  }
+
+  Widget _inlineQuantity(CartLine line) => Container(
+    height: 30,
+    decoration: BoxDecoration(
+      color: const Color(0xFFF7F9F8),
+      border: Border.all(color: const Color(0xFFDCE4E1)),
+      borderRadius: BorderRadius.circular(7),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: () =>
+                ref.read(appStoreProvider.notifier).quantity(line.lineId, -1),
+            child: const Icon(Icons.remove, size: 14),
+          ),
+        ),
+        Text(
+          '${line.quantity}',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+        ),
+        Expanded(
+          child: InkWell(
+            onTap: () =>
+                ref.read(appStoreProvider.notifier).quantity(line.lineId, 1),
+            child: const Icon(Icons.add, size: 14),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _showRetailLineDiscount(CartLine line) async {
+    final controller = TextEditingController(
+      text: line.discount == 0 ? '' : (line.discount / 100).toStringAsFixed(2),
+    );
+    final result = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.tr('Line discount')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: context.tr('Discount amount')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              double.tryParse(controller.text.trim()) ?? 0,
+            ),
+            child: Text(context.tr('Apply')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result != null)
+      ref
+          .read(appStoreProvider.notifier)
+          .discount(
+            line.lineId,
+            (result * 100).round().clamp(0, line.subtotal),
+          );
+  }
+
+  Widget _retailQuickActions(AppState state) => Surface(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _bottomAction(
+            Icons.pause_rounded,
+            'Hold Sale',
+            'F6',
+            state.cart.isEmpty
+                ? null
+                : () => ref.read(appStoreProvider.notifier).holdCart(),
+          ),
+          _bottomAction(
+            Icons.history_rounded,
+            'Recent Orders',
+            'F7',
+            () => _openRecentSales(context, state),
+          ),
+          _bottomAction(
+            Icons.receipt_long_outlined,
+            'Saved Orders',
+            'F8',
+            () => ref.read(_retailPanelTabProvider.notifier).select(1),
+          ),
+          const SizedBox(width: 8),
+          _bottomAction(
+            Icons.search_rounded,
+            'Item Search',
+            'F3',
+            () => _openProductSelector(state),
+          ),
+          _bottomAction(
+            Icons.price_check_outlined,
+            'Price Check',
+            '',
+            () => _openProductSelector(state),
+          ),
+          _bottomAction(
+            Icons.edit_outlined,
+            'Edit Price',
+            '',
+            state.cart.isEmpty ? null : _editLatestCartPrice,
+          ),
+          _bottomAction(
+            Icons.more_horiz_rounded,
+            'More',
+            '',
+            () => _noteFromRetail(),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _bottomAction(
+    IconData icon,
+    String label,
+    String shortcut,
+    VoidCallback? onTap,
+  ) => Padding(
+    padding: const EdgeInsetsDirectional.only(end: 6),
+    child: OutlinedButton.icon(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      icon: Icon(icon, size: 16),
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            context.tr(label),
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+          ),
+          if (shortcut.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            Text(
+              shortcut,
+              style: const TextStyle(fontSize: 8, color: AppColors.muted),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  void _noteFromRetail() => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        context.tr('More sale actions are available from the payment panel.'),
+      ),
+    ),
+  );
 
   Widget _catalog(AppState state, List<Product> products) => Column(
     children: [
@@ -2405,8 +3303,270 @@ Future<void> _showGrossDiscountEditor(
   }
 }
 
+class _RetailCartHeader extends StatelessWidget {
+  const _RetailCartHeader();
+
+  @override
+  Widget build(BuildContext context) => const Row(
+    children: [
+      SizedBox(width: 28, child: Text('#', style: _headerStyle)),
+      Expanded(flex: 27, child: Text('Item', style: _headerStyle)),
+      Expanded(flex: 13, child: Text('SKU / Barcode', style: _headerStyle)),
+      Expanded(flex: 8, child: Text('Unit', style: _headerStyle)),
+      Expanded(flex: 15, child: Text('Qty', style: _headerStyle)),
+      Expanded(flex: 11, child: Text('Unit Price', style: _headerStyle)),
+      Expanded(flex: 10, child: Text('Discount', style: _headerStyle)),
+      Expanded(flex: 9, child: Text('VAT', style: _headerStyle)),
+      Expanded(flex: 12, child: Text('Price incl. VAT', style: _headerStyle)),
+      Expanded(flex: 11, child: Text('Total', style: _headerStyle)),
+      SizedBox(
+        width: 76,
+        child: Text('Actions', style: _headerStyle, textAlign: TextAlign.end),
+      ),
+    ],
+  );
+
+  static const _headerStyle = TextStyle(
+    fontSize: 9,
+    fontWeight: FontWeight.w900,
+    color: Color(0xFF283632),
+  );
+}
+
+class _RetailProductSelector extends StatefulWidget {
+  const _RetailProductSelector({
+    required this.products,
+    required this.categories,
+    required this.recentProductIds,
+    required this.initialQuery,
+    required this.canSell,
+    required this.onAdd,
+  });
+  final List<Product> products;
+  final List<Category> categories;
+  final List<String> recentProductIds;
+  final String initialQuery;
+  final bool Function(Product) canSell;
+  final Future<void> Function(Product) onAdd;
+
+  @override
+  State<_RetailProductSelector> createState() => _RetailProductSelectorState();
+}
+
+class _RetailProductSelectorState extends State<_RetailProductSelector> {
+  late final TextEditingController search = TextEditingController(
+    text: widget.initialQuery,
+  );
+  String category = 'all';
+  int tab = 0;
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  List<Product> get rows {
+    final query = search.text.trim().toLowerCase();
+    var result = widget.products
+        .where(
+          (product) =>
+              product.active &&
+              (category == 'all' || product.categoryId == category) &&
+              (query.isEmpty ||
+                  product.name.toLowerCase().contains(query) ||
+                  product.nameEn.toLowerCase().contains(query) ||
+                  product.nameAr.toLowerCase().contains(query) ||
+                  product.sku.toLowerCase().contains(query) ||
+                  product.barcode.toLowerCase().contains(query)),
+        )
+        .toList();
+    if (tab == 1) {
+      result.sort((a, b) => b.stock.compareTo(a.stock));
+      result = result.take(30).toList();
+    } else if (tab == 2) {
+      final recent = widget.recentProductIds;
+      result = result.where((product) => recent.contains(product.id)).toList()
+        ..sort((a, b) => recent.indexOf(a.id).compareTo(recent.indexOf(b.id)));
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.all(28),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 980, maxHeight: 720),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    context.tr('Select product'),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: search,
+                    autofocus: true,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: context.tr('Search name, SKU or barcode'),
+                      prefixIcon: const Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        FocusScope.of(context).requestFocus(FocusNode()),
+                    icon: const Icon(Icons.qr_code_scanner_rounded),
+                    label: Text(context.tr('Scan')),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: SegmentedButton<int>(
+                    segments: [
+                      ButtonSegment(
+                        value: 0,
+                        label: Text(context.tr('All Products')),
+                      ),
+                      ButtonSegment(
+                        value: 1,
+                        label: Text(context.tr('Top Selling')),
+                      ),
+                      ButtonSegment(
+                        value: 2,
+                        label: Text(context.tr('Recent')),
+                      ),
+                    ],
+                    selected: {tab},
+                    onSelectionChanged: (value) =>
+                        setState(() => tab = value.first),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: category,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: context.tr('Category'),
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text(context.tr('All categories')),
+                      ),
+                      ...widget.categories.map(
+                        (item) => DropdownMenuItem(
+                          value: item.id,
+                          child: Text(
+                            item.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => category = value ?? 'all'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: rows.isEmpty
+                  ? EmptyState(context.tr('No products match this filter'))
+                  : ListView.separated(
+                      itemCount: rows.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (_, index) {
+                        final product = rows[index];
+                        final enabled = widget.canSell(product);
+                        return Material(
+                          color: index.isEven
+                              ? Colors.white
+                              : const Color(0xFFFAFCFB),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFFE0E7E4)),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            title: Text(
+                              product.displayName(context.isArabic),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${product.sku}  •  ${product.barcode}  •  ${product.stock} ${context.tr('in stock')}',
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                RiyalAmount(
+                                  product.sellingPrice,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                FilledButton.icon(
+                                  onPressed: enabled
+                                      ? () => widget.onAdd(product)
+                                      : null,
+                                  icon: const Icon(Icons.add_rounded, size: 17),
+                                  label: Text(context.tr('Add')),
+                                ),
+                              ],
+                            ),
+                            onTap: enabled ? () => widget.onAdd(product) : null,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _CurrentOrder extends ConsumerWidget {
-  const _CurrentOrder();
+  const _CurrentOrder({this.retailPanel = false});
+  final bool retailPanel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2428,6 +3588,7 @@ class _CurrentOrder extends ConsumerWidget {
         );
       });
     }
+    if (retailPanel) return _retailPaymentPanel(context, ref, state);
     final mobile = MediaQuery.sizeOf(context).width < 700;
     final compactHeight = MediaQuery.sizeOf(context).height < 800;
     final hasModifiers = state.cart.any((line) => line.modifiers.isNotEmpty);
@@ -2563,6 +3724,467 @@ class _CurrentOrder extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _retailPaymentPanel(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+  ) {
+    final tab = ref.watch(_retailPanelTabProvider);
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFDCE5E1)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+            child: Container(
+              height: 46,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(9),
+                border: const Border(
+                  bottom: BorderSide(color: Color(0xFFE4EBE8)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _retailPanelTab(
+                      context,
+                      selected: tab == 0,
+                      label: context.tr('Payment'),
+                      onTap: () =>
+                          ref.read(_retailPanelTabProvider.notifier).select(0),
+                    ),
+                  ),
+                  Expanded(
+                    child: _retailPanelTab(
+                      context,
+                      selected: tab == 1,
+                      label: context.tr('Saved Orders'),
+                      onTap: () =>
+                          ref.read(_retailPanelTabProvider.notifier).select(1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: tab == 0
+                ? _paymentTab(context, ref, state)
+                : _savedOrdersTab(context, ref, state),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _retailPanelTab(
+    BuildContext context, {
+    required bool selected,
+    required String label,
+    required VoidCallback onTap,
+  }) => AnimatedContainer(
+    duration: const Duration(milliseconds: 160),
+    decoration: BoxDecoration(
+      border: Border(
+        bottom: BorderSide(
+          color: selected ? AppColors.primary : Colors.transparent,
+          width: 3,
+        ),
+      ),
+    ),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.primary : AppColors.muted,
+                  fontSize: 14,
+                  letterSpacing: -.1,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _paymentTab(BuildContext context, WidgetRef ref, AppState state) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9F6),
+                border: Border.all(color: const Color(0xFFB7DED2)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('Amount Due'),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  RiyalAmount(
+                    state.cartTotal,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            _touchKeypad(context, ref, state),
+            const SizedBox(height: 9),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _panelTotal(
+                      context,
+                      'Subtotal (${state.itemCount} items)',
+                      state.cartSubtotal,
+                    ),
+                    _panelTotal(
+                      context,
+                      'Item Discount',
+                      -state.cartLineDiscount,
+                    ),
+                    _panelTotal(
+                      context,
+                      'Order Discount',
+                      -state.cartGrossDiscount,
+                    ),
+                    _panelTotal(context, 'VAT', state.cartTax),
+                    _panelTotal(context, 'Round Off', 0),
+                    const Divider(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF6F2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              context.tr('Total Payable'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          RiyalAmount(
+                            state.cartTotal,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _panelTotal(context, 'Total Paid', 0),
+                    _panelTotal(
+                      context,
+                      'Remaining Balance',
+                      state.cartTotal,
+                      color: AppColors.danger,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton(
+                onPressed: _canPay(state)
+                    ? () => _payment(context, ref, state)
+                    : null,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      context.tr('Pay Now'),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(width: 6),
+                    RiyalAmount(
+                      state.cartTotal,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _paymentKeyBadge('F9', onPrimary: true),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            _paymentShortcuts(context, ref, state),
+          ],
+        ),
+      );
+
+  Widget _touchKeypad(BuildContext context, WidgetRef ref, AppState state) {
+    final keys = [
+      '7',
+      '8',
+      '9',
+      'Qty +',
+      '4',
+      '5',
+      '6',
+      'Qty −',
+      '1',
+      '2',
+      '3',
+      '⌫',
+      '0',
+      '.',
+      'Clear',
+      'Enter',
+    ];
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisExtent: 45,
+        crossAxisSpacing: 6,
+        mainAxisSpacing: 6,
+      ),
+      itemCount: keys.length,
+      itemBuilder: (_, index) {
+        final key = keys[index];
+        final primary = key == 'Enter';
+        final danger = key == 'Clear';
+        final quantity = key.startsWith('Qty');
+        return FilledButton(
+          style: FilledButton.styleFrom(
+            padding: EdgeInsets.zero,
+            backgroundColor: primary
+                ? AppColors.primary
+                : danger
+                ? const Color(0xFFFFECEC)
+                : quantity
+                ? const Color(0xFFEAF6F2)
+                : const Color(0xFFF2F4F3),
+            foregroundColor: primary
+                ? Colors.white
+                : danger
+                ? AppColors.danger
+                : quantity
+                ? AppColors.primary
+                : AppColors.ink,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: () => _onTouchKey(context, ref, state, key),
+          child: Text(
+            key,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+          ),
+        );
+      },
+    );
+  }
+
+  void _onTouchKey(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+    String key,
+  ) {
+    final selectedId =
+        ref.read(_posCartKeyboardProvider).selectedProductId ??
+        state.cart.lastOrNull?.lineId;
+    if (key == 'Enter') {
+      if (_canPay(state)) _payment(context, ref, state);
+      return;
+    }
+    if (selectedId == null) return;
+    if (key == 'Qty +') {
+      ref.read(appStoreProvider.notifier).quantity(selectedId, 1);
+    } else if (key == 'Qty −') {
+      ref.read(appStoreProvider.notifier).quantity(selectedId, -1);
+    } else if (key == 'Clear') {
+      ref.read(_posCartKeyboardProvider.notifier).clearQuantity();
+    } else if (key == '⌫') {
+      ref.read(_posCartKeyboardProvider.notifier).removeQuantityDigit();
+    } else if (RegExp(r'^\d$').hasMatch(key)) {
+      ref.read(_posCartKeyboardProvider.notifier).appendQuantityDigit(key);
+    }
+  }
+
+  Widget _panelTotal(
+    BuildContext context,
+    String label,
+    int value, {
+    Color? color,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            context.tr(label),
+            style: const TextStyle(fontSize: 11, color: AppColors.muted),
+          ),
+        ),
+        RiyalAmount(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _savedOrdersTab(BuildContext context, WidgetRef ref, AppState state) {
+    if (state.heldCarts.isEmpty)
+      return EmptyState(context.tr('No saved orders'));
+    return ListView.separated(
+      padding: const EdgeInsets.all(9),
+      itemCount: state.heldCarts.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 7),
+      itemBuilder: (_, index) {
+        final held = state.heldCarts[index];
+        final amount =
+            held.lines.fold<int>(0, (total, line) => total + line.total) -
+            held.grossDiscount;
+        final count = held.lines.fold<int>(
+          0,
+          (total, line) => total + line.quantity,
+        );
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFCFB),
+            border: Border.all(color: const Color(0xFFDCE5E1)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${context.tr('Order')} #H${(state.heldCarts.length - index).toString().padLeft(3, '0')}',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          '$count ${context.tr('items')} • ${context.tr('Held sale')}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  RiyalAmount(
+                    amount,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: state.cart.isEmpty
+                          ? () => ref
+                                .read(appStoreProvider.notifier)
+                                .resumeHeldCart(index)
+                          : null,
+                      icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                      label: Text(context.tr('Recall')),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.outlined(
+                    tooltip: context.tr('Print'),
+                    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          context.tr('Recall the order before printing.'),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.print_outlined, size: 17),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.outlined(
+                    tooltip: context.tr('Delete'),
+                    onPressed: () => ref
+                        .read(appStoreProvider.notifier)
+                        .removeHeldCart(index),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 17,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

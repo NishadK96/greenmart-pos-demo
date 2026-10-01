@@ -20,12 +20,28 @@ class CashRegisterController extends AsyncNotifier<CashRegister?> {
 
   Future<void> open(String locationId, double initialCash) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () async => ref
-          .read(cashRegisterRepositoryProvider)
-          .open(await _token(), locationId, initialCash),
-    );
-    if (state.hasError) throw state.error!;
+    final repository = ref.read(cashRegisterRepositoryProvider);
+    final token = await _token();
+    try {
+      final register = await repository.open(token, locationId, initialCash);
+      state = AsyncData(register);
+    } catch (error, stackTrace) {
+      // The current-register read and open request can race (or a previous
+      // request may have succeeded while its response was interrupted). In
+      // that case, recover the already-open register instead of leaving the
+      // UI in an error state and asking the cashier to open it again.
+      try {
+        final current = await repository.current(token);
+        if (current != null) {
+          state = AsyncData(current);
+          return;
+        }
+      } catch (_) {
+        // Preserve the original open error because it is the actionable one.
+      }
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
   }
 
   Future<void> cashIn(double amount) => _movement(amount, true);

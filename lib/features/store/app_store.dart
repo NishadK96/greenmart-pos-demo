@@ -284,6 +284,34 @@ class AppStore extends Notifier<AppState> {
     );
   }
 
+  void resumeHeldCart(int index) {
+    if (state.cart.isNotEmpty || index < 0 || index >= state.heldCarts.length) {
+      return;
+    }
+    final held = state.heldCarts[index];
+    state = state.copyWith(
+      orderTaxId: held.orderTaxId,
+      cart: [...held.lines],
+      grossDiscount: held.grossDiscount,
+      grossDiscountType: held.grossDiscountType,
+      grossDiscountRate: held.grossDiscountRate,
+      heldCarts: [
+        ...state.heldCarts.take(index),
+        ...state.heldCarts.skip(index + 1),
+      ],
+    );
+  }
+
+  void removeHeldCart(int index) {
+    if (index < 0 || index >= state.heldCarts.length) return;
+    state = state.copyWith(
+      heldCarts: [
+        ...state.heldCarts.take(index),
+        ...state.heldCarts.skip(index + 1),
+      ],
+    );
+  }
+
   void selectCustomer(Customer value) =>
       state = state.copyWith(customer: value);
   void addCustomer(Customer customer) =>

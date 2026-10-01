@@ -124,15 +124,34 @@ class BackendController extends AsyncNotifier<void> {
 
     try {
       final sales = await load(token);
-      ref.read(appStoreProvider.notifier).replaceSales(sales);
+      _mergeSalesHistory(sales);
     } on ApiException catch (error) {
       if (error.statusCode != 401) rethrow;
       final refreshed = await ref
           .read(authControllerProvider.notifier)
           .refreshAccessToken();
       final sales = await load(refreshed);
-      ref.read(appStoreProvider.notifier).replaceSales(sales);
+      _mergeSalesHistory(sales);
     }
+  }
+
+  void _mergeSalesHistory(List<Sale> remoteSales) {
+    final localSales = ref.read(appStoreProvider).sales;
+    final merged = <Sale>[];
+    final identities = <String>{};
+
+    String identity(Sale sale) => sale.serverId?.isNotEmpty == true
+        ? 'server:${sale.serverId}'
+        : 'local:${sale.localId}';
+
+    // Prefer the server representation when it is available, but retain
+    // newly completed/offline sales that have not appeared in the history
+    // endpoint yet.
+    for (final sale in [...remoteSales, ...localSales]) {
+      if (identities.add(identity(sale))) merged.add(sale);
+    }
+    merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    ref.read(appStoreProvider.notifier).replaceSales(merged);
   }
 
   Future<Customer> createCustomer({

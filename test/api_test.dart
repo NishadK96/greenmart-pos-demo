@@ -793,6 +793,32 @@ void main() {
     expect(products.single.imageUrl, endsWith('/flour.jpg'));
   });
 
+  test('authenticated requests refresh once and retry after a 401', () async {
+    var requestCount = 0;
+    var refreshCount = 0;
+    final api = Api(
+      client: MockClient((request) async {
+        requestCount++;
+        if (requestCount == 1) {
+          expect(request.headers['Authorization'], 'Bearer expired-token');
+          return http.Response('{"message":"Access token expired"}', 401);
+        }
+        expect(request.headers['Authorization'], 'Bearer refreshed-token');
+        return http.Response('{"data":[]}', 200);
+      }),
+    );
+    api.setAccessTokenRefresher(() async {
+      refreshCount++;
+      return 'refreshed-token';
+    });
+
+    final products = await api.products('expired-token');
+
+    expect(products, isEmpty);
+    expect(requestCount, 2);
+    expect(refreshCount, 1);
+  });
+
   test('categories loads product taxonomies from the backend', () async {
     final api = Api(
       client: MockClient((request) async {

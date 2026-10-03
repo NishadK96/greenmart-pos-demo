@@ -12,6 +12,53 @@ import '../features/kitchen/domain/kitchen_entities.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
+class _RefreshingClient extends http.BaseClient {
+  _RefreshingClient(this._inner);
+
+  final http.Client _inner;
+  Future<String> Function()? accessTokenRefresher;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final retry = _copyRequest(request);
+    final response = await _inner.send(request);
+    final refresh = accessTokenRefresher;
+    final authorization = request.headers['Authorization'];
+    if (response.statusCode != 401 ||
+        refresh == null ||
+        authorization == null ||
+        !authorization.startsWith('Bearer ') ||
+        retry == null) {
+      return response;
+    }
+
+    // Refresh failures deliberately leave the original 401 response intact so
+    // existing authentication handling can sign the user out normally.
+    final String accessToken;
+    try {
+      accessToken = await refresh();
+    } catch (_) {
+      return response;
+    }
+    await response.stream.drain<void>();
+    retry.headers['Authorization'] = 'Bearer $accessToken';
+    return _inner.send(retry);
+  }
+
+  http.Request? _copyRequest(http.BaseRequest request) {
+    if (request is! http.Request) return null;
+    return http.Request(request.method, request.url)
+      ..headers.addAll(request.headers)
+      ..bodyBytes = request.bodyBytes
+      ..followRedirects = request.followRedirects
+      ..maxRedirects = request.maxRedirects
+      ..persistentConnection = request.persistentConnection;
+  }
+
+  @override
+  void close() => _inner.close();
+}
+
 class LoginResult {
   const LoginResult.success(this.accessToken) : failure = null, message = null;
 
@@ -94,10 +141,14 @@ class WebAuthBootstrap {
 
 class Api {
   Api({http.Client? client, String? loginUrl})
-    : _client = client ?? http.Client(),
+    : _client = _RefreshingClient(client ?? http.Client()),
       _loginUrl = loginUrl ?? ApiEndPoints.loginUrl;
-  final http.Client _client;
+  final _RefreshingClient _client;
   final String _loginUrl;
+
+  void setAccessTokenRefresher(Future<String> Function() refresh) {
+    _client.accessTokenRefresher = refresh;
+  }
 
   Future<LoginResult> login(String username, String password) async {
     try {

@@ -18,10 +18,12 @@ class AuthController extends AsyncNotifier<String?> {
       OfflineCredentialStorage();
   String? _webCsrfToken;
   Future<void>? _webBootstrapInFlight;
+  Future<String>? _refreshInFlight;
   String? _activeSessionId;
 
   @override
   Future<String?> build() async {
+    ref.read(apiProvider).setAccessTokenRefresher(refreshAccessToken);
     if (kIsWeb) {
       try {
         await _bootstrapWeb();
@@ -137,7 +139,20 @@ class AuthController extends AsyncNotifier<String?> {
     state = AsyncData(result.accessToken);
   }
 
-  Future<String> refreshAccessToken() async {
+  Future<String> refreshAccessToken() {
+    final pending = _refreshInFlight;
+    if (pending != null) return pending;
+
+    final operation = _refreshAccessToken();
+    _refreshInFlight = operation;
+    return operation.whenComplete(() {
+      if (identical(_refreshInFlight, operation)) {
+        _refreshInFlight = null;
+      }
+    });
+  }
+
+  Future<String> _refreshAccessToken() async {
     final SessionLoginResult result;
     if (kIsWeb) {
       await _bootstrapWeb();

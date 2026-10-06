@@ -241,6 +241,35 @@ void main() {
   });
 
   test(
+    'restaurant service type creation sends the connector contract',
+    () async {
+      late Map<String, dynamic> payload;
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/connector/api/types-of-service');
+          payload = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"data":{"id":15,"name":"Dine In"}}', 201);
+        }),
+      );
+
+      final created = await api.createRestaurantServiceType(
+        accessToken: 'token',
+        name: 'Dine In',
+      );
+
+      expect(created.id, '15');
+      expect(created.name, 'Dine In');
+      expect(payload, {
+        'name': 'Dine In',
+        'packing_charge': 0,
+        'packing_charge_type': 'fixed',
+        'enable_custom_fields': false,
+      });
+    },
+  );
+
+  test(
     'modifier settings and product assignments use connector contract',
     () async {
       final requests = <http.Request>[];
@@ -979,6 +1008,7 @@ void main() {
       total: 4200,
       grossDiscount: 200,
       clientTransactionId: '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a002',
+      serviceTypeId: '15',
     );
 
     final sale = (payload['sells'] as List).single as Map<String, dynamic>;
@@ -989,6 +1019,7 @@ void main() {
       '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a002',
     );
     expect(sale['discount_amount'], 2);
+    expect(sale['types_of_service_id'], 15);
     expect(line['unit_price_inc_tax'], '45.50');
     expect(line.containsKey('unit_price'), isFalse);
     expect(line['quantity'], '1.0000');

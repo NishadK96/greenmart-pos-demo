@@ -307,11 +307,16 @@ class BackendController extends AsyncNotifier<void> {
     return updated;
   }
 
-  Future<Sale> checkout(String paymentMethod) =>
-      _checkout(paymentMethod, allowTokenRefresh: true);
+  Future<Sale> checkout(String paymentMethod, {String? serviceTypeCode}) =>
+      _checkout(
+        paymentMethod,
+        serviceTypeCode: serviceTypeCode,
+        allowTokenRefresh: true,
+      );
 
   Future<Sale> _checkout(
     String paymentMethod, {
+    String? serviceTypeCode,
     required bool allowTokenRefresh,
   }) async {
     final state = ref.read(appStoreProvider);
@@ -333,11 +338,13 @@ class BackendController extends AsyncNotifier<void> {
           'The open cash register does not match an available business location.',
         );
       }
+      final serviceTypeId = await _resolveServiceTypeId(token, serviceTypeCode);
       final fingerprint = _saleFingerprint(
         state,
         paymentMethod,
         register.locationId,
         register.id,
+        serviceTypeCode,
       );
       if (_pendingSaleFingerprint != fingerprint ||
           _pendingClientTransactionId == null) {
@@ -359,6 +366,7 @@ class BackendController extends AsyncNotifier<void> {
             isCreditSale: paymentMethod == 'credit',
             isKitchenOrder: false,
             orderTaxId: state.orderTaxId,
+            serviceTypeId: serviceTypeId,
             grossDiscountType: state.grossDiscountType,
             grossDiscountRate: state.grossDiscountRate,
           );
@@ -376,7 +384,11 @@ class BackendController extends AsyncNotifier<void> {
       if (error.statusCode == 401 && allowTokenRefresh) {
         try {
           await ref.read(authControllerProvider.notifier).refreshAccessToken();
-          return await _checkout(paymentMethod, allowTokenRefresh: false);
+          return await _checkout(
+            paymentMethod,
+            serviceTypeCode: serviceTypeCode,
+            allowTokenRefresh: false,
+          );
         } catch (_) {
           return await _queueOfflineSale(paymentMethod);
         }
@@ -392,11 +404,13 @@ class BackendController extends AsyncNotifier<void> {
     String paymentMethod,
     String locationId,
     String cashRegisterId,
+    String? serviceTypeCode,
   ) => [
     locationId,
     cashRegisterId,
     state.customer?.id ?? state.customers.first.id,
     paymentMethod,
+    serviceTypeCode ?? '',
     state.cartGrossDiscount,
     state.grossDiscountType,
     state.grossDiscountRate,
@@ -406,6 +420,44 @@ class BackendController extends AsyncNotifier<void> {
           '${line.unitPrice}:${line.discount}:'
           '${line.modifiers.map((modifier) => modifier.signature).join(',')}',
   ].join('|');
+
+  Future<String?> _resolveServiceTypeId(
+    String accessToken,
+    String? serviceTypeCode,
+  ) async {
+    if (serviceTypeCode == null || serviceTypeCode.trim().isEmpty) return null;
+    final requested = _normalizedServiceType(serviceTypeCode);
+    final aliases = switch (requested) {
+      'takeaway' => const {'takeaway', 'takeout', 'parcel'},
+      'dinein' => const {'dinein', 'dining'},
+      'delivery' => const {'delivery', 'homedelivery'},
+      _ => {requested},
+    };
+    final options = await ref
+        .read(apiProvider)
+        .restaurantServiceTypes(accessToken);
+    for (final option in options) {
+      if (aliases.contains(_normalizedServiceType(option.name))) {
+        return option.id;
+      }
+    }
+    final backendName = switch (requested) {
+      'dinein' => 'Dine In',
+      'takeaway' => 'Takeaway',
+      'delivery' => 'Delivery',
+      _ => serviceTypeCode.trim(),
+    };
+    final created = await ref
+        .read(apiProvider)
+        .createRestaurantServiceType(
+          accessToken: accessToken,
+          name: backendName,
+        );
+    return created.id;
+  }
+
+  String _normalizedServiceType(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   String _uuidV4() {
     final random = Random.secure();

@@ -192,6 +192,7 @@ abstract interface class BackendRepository {
     bool isCreditSale = false,
     bool isKitchenOrder = false,
     String? orderTaxId,
+    String? serviceTypeId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   });

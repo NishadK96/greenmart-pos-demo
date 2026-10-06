@@ -20,6 +20,7 @@ import '../printers/application/printer_controller.dart';
 import '../printers/application/printer_document_service.dart';
 import '../store/app_store.dart';
 import '../settings/application/payment_method_settings_controller.dart';
+import '../settings/application/order_type_settings_controller.dart';
 import '../zatca/presentation/zatca_controller.dart';
 
 final _posPaymentShortcutProvider =
@@ -44,6 +45,18 @@ final _posBarcodeFocusRequestProvider =
     NotifierProvider.autoDispose<_BarcodeFocusRequestNotifier, int>(
       _BarcodeFocusRequestNotifier.new,
     );
+
+final _retailOrderTypeProvider =
+    NotifierProvider.autoDispose<_RetailOrderTypeNotifier, String>(
+      _RetailOrderTypeNotifier.new,
+    );
+
+class _RetailOrderTypeNotifier extends Notifier<String> {
+  @override
+  String build() => 'Takeaway';
+
+  void select(String value) => state = value;
+}
 
 List<PaymentOption> _configuredPaymentOptions(WidgetRef ref, AppState state) =>
     ref.read(paymentMethodSettingsProvider).apply(state.posPaymentOptions);
@@ -211,6 +224,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appStoreProvider);
+    final orderTypes = ref.watch(orderTypeSettingsProvider).apply();
+    final selectedOrderType = ref.watch(_retailOrderTypeProvider);
+    if (orderTypes.isNotEmpty &&
+        !orderTypes.any((option) => option.code == selectedOrderType)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref
+            .read(_retailOrderTypeProvider.notifier)
+            .select(orderTypes.first.code);
+      });
+    }
     ref.watch(paymentMethodSettingsProvider);
     ref.watch(printerControllerProvider);
     ref.listen<int>(_posBarcodeFocusRequestProvider, (_, __) {
@@ -558,6 +581,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
+                  SizedBox(width: 36, child: _compactOrderTypeControl()),
+                  const SizedBox(width: 4),
                   SizedBox(width: 48, child: _quickPaperSizeControl()),
                   const SizedBox(width: 4),
                   SizedBox(width: 48, child: _quickPrintToggle()),
@@ -888,6 +913,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Widget _saleContextBar(AppState state) {
     final cashier = state.user?.name ?? context.tr('Cashier');
+    final orderTypes = ref.watch(orderTypeSettingsProvider).apply();
     return Container(
       height: 60,
       clipBehavior: Clip.antiAlias,
@@ -919,6 +945,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             () => _addFromRetailInput(state, alwaysSelect: true),
             flex: 10,
           ),
+          if (orderTypes.isNotEmpty) _contextOrderTypeControl(orderTypes),
           _contextTile(
             Icons.person_outline_rounded,
             context.tr('Cashier'),
@@ -929,6 +956,92 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           _quickPrintToggle(),
           _contextTextSizeControl(),
         ],
+      ),
+    );
+  }
+
+  Widget _contextOrderTypeControl(List<PosOrderType> orderTypes) {
+    final selected = ref.watch(_retailOrderTypeProvider);
+    final current = orderTypes.any((option) => option.code == selected)
+        ? selected
+        : orderTypes.first.code;
+    return Container(
+      width: 112,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: const BoxDecoration(
+        border: BorderDirectional(end: BorderSide(color: Color(0xFFE1E8E5))),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: current,
+          isExpanded: true,
+          icon: const Icon(Icons.expand_more_rounded, size: 18),
+          items: [
+            for (final option in orderTypes)
+              DropdownMenuItem(
+                value: option.code,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.restaurant_outlined,
+                      size: 17,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        context.tr(option.label),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              ref.read(_retailOrderTypeProvider.notifier).select(value);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _compactOrderTypeControl() {
+    final orderTypes = ref.watch(orderTypeSettingsProvider).apply();
+    if (orderTypes.isEmpty) return const SizedBox.shrink();
+    final selected = ref.watch(_retailOrderTypeProvider);
+    final current = orderTypes.firstWhere(
+      (option) => option.code == selected,
+      orElse: () => orderTypes.first,
+    );
+    return PopupMenuButton<String>(
+      tooltip: context.tr('Order type'),
+      initialValue: current.code,
+      position: PopupMenuPosition.under,
+      onSelected: (value) =>
+          ref.read(_retailOrderTypeProvider.notifier).select(value),
+      itemBuilder: (_) => [
+        for (final option in orderTypes)
+          PopupMenuItem(
+            value: option.code,
+            child: Text(context.tr(option.label)),
+          ),
+      ],
+      child: Tooltip(
+        message: context.tr(current.label),
+        child: const Center(
+          child: Icon(
+            Icons.restaurant_outlined,
+            size: 19,
+            color: AppColors.primary,
+          ),
+        ),
       ),
     );
   }
@@ -6784,9 +6897,19 @@ class _CurrentOrder extends ConsumerWidget {
       final printingLabel = sheetContext.tr('Printing…');
       final printingOffLabel = sheetContext.tr('Printing off');
       final printFailedLabel = sheetContext.tr('Print failed');
+      final availableOrderTypes = ref.read(orderTypeSettingsProvider).apply();
+      final selectedOrderType = ref.read(_retailOrderTypeProvider);
       final sale = await ref
           .read(backendControllerProvider.notifier)
-          .checkout(code);
+          .checkout(
+            code,
+            serviceTypeCode:
+                availableOrderTypes.any(
+                  (option) => option.code == selectedOrderType,
+                )
+                ? selectedOrderType
+                : availableOrderTypes.firstOrNull?.code,
+          );
       if (!sheetContext.mounted) return;
       Navigator.pop(sheetContext);
       router.go('/pos');

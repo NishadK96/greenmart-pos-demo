@@ -1834,6 +1834,34 @@ class Api {
         .toList(growable: false);
   }
 
+  Future<LookupOption> createRestaurantServiceType({
+    required String accessToken,
+    required String name,
+    num packingCharge = 0,
+    String packingChargeType = 'fixed',
+    bool enableCustomFields = false,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse(ApiEndPoints.serviceTypesUrl),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({
+            'name': name.trim(),
+            'packing_charge': packingCharge,
+            'packing_charge_type': packingChargeType,
+            'enable_custom_fields': enableCustomFields,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final root = _requireObject(response, 'restaurant service type creation');
+    final data = _map(root['data'] ?? root);
+    final id = data['id']?.toString() ?? '';
+    if (id.isEmpty) {
+      throw const ApiException('Invalid restaurant service type response.');
+    }
+    return LookupOption(id: id, name: data['name']?.toString() ?? name.trim());
+  }
+
   Future<List<ModifierGroup>> modifierGroups(
     String accessToken, {
     bool activeOnly = false,

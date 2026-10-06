@@ -359,6 +359,7 @@ class EazyErpBackendRepository implements BackendRepository {
     bool isCreditSale = false,
     bool isKitchenOrder = false,
     String? orderTaxId,
+    String? serviceTypeId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
   }) async {
@@ -375,6 +376,7 @@ class EazyErpBackendRepository implements BackendRepository {
       isCreditSale: isCreditSale,
       isKitchenOrder: isKitchenOrder,
       orderTaxId: orderTaxId,
+      serviceTypeId: serviceTypeId,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
     );

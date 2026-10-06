@@ -16,9 +16,15 @@ import '../../backend/presentation/backend_controller.dart';
 import '../../store/app_store.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
-  const ProductFormScreen({super.key, this.product, this.quick = false});
+  const ProductFormScreen({
+    super.key,
+    this.product,
+    this.quick = false,
+    this.returnRoute = '/products',
+  });
   final Product? product;
   final bool quick;
+  final String returnRoute;
 
   @override
   ConsumerState<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -202,7 +208,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           children: [
             IconButton(
               tooltip: context.tr('Back to products'),
-              onPressed: () => context.go('/products'),
+              onPressed: () => context.go(widget.returnRoute),
               icon: const Icon(Icons.arrow_back_rounded),
             ),
             SizedBox(width: compact ? 2 : 6),
@@ -1171,33 +1177,36 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             child: Row(
               children: [
                 OutlinedButton(
-                  onPressed: _saving ? null : () => context.go('/products'),
+                  onPressed: _saving
+                      ? null
+                      : () => context.go(widget.returnRoute),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 48),
                   ),
                   child: const Text('Cancel'),
                 ),
                 const SizedBox(width: 8),
-                if (!editing && !widget.quick) ...[
+                if (!editing) ...[
                   PopupMenuButton<_SaveMode>(
                     enabled: !_saving,
                     tooltip: context.tr('More save options'),
                     onSelected: _save,
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
                         value: _SaveMode.addAnother,
                         child: ListTile(
                           leading: Icon(Icons.add_circle_outline),
                           title: Text('Save & add another'),
                         ),
                       ),
-                      PopupMenuItem(
-                        value: _SaveMode.openingStock,
-                        child: ListTile(
-                          leading: Icon(Icons.inventory_2_outlined),
-                          title: Text('Save & add opening stock'),
+                      if (!widget.quick)
+                        const PopupMenuItem(
+                          value: _SaveMode.openingStock,
+                          child: ListTile(
+                            leading: Icon(Icons.inventory_2_outlined),
+                            title: Text('Save & add opening stock'),
+                          ),
                         ),
-                      ),
                     ],
                     child: const SizedBox(
                       width: 48,
@@ -1231,10 +1240,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           runSpacing: 8,
           children: [
             OutlinedButton(
-              onPressed: _saving ? null : () => context.go('/products'),
+              onPressed: _saving ? null : () => context.go(widget.returnRoute),
               child: const Text('Cancel'),
             ),
-            if (!editing && !widget.quick)
+            if (!editing)
               FilledButton.tonalIcon(
                 onPressed: _saving ? null : () => _save(_SaveMode.addAnother),
                 icon: const Icon(Icons.add_circle_outline),
@@ -2105,7 +2114,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           const SnackBar(content: Text('Product saved. Add the next product.')),
         );
       } else {
-        context.go('/products');
+        context.go(widget.returnRoute);
       }
     } on ApiException catch (e) {
       if (mounted)

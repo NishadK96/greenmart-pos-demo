@@ -39,6 +39,17 @@ void main() {
     );
   });
 
+  test('POS automatic printing preference persists', () async {
+    final repository = PrinterSettingsRepository();
+
+    await repository.save(
+      const PrinterSettings().copyWith(posPrintingEnabled: false),
+    );
+    final restored = await repository.load();
+
+    expect(restored.posPrintingEnabled, isFalse);
+  });
+
   test(
     'one default printer persists globally for every document type',
     () async {

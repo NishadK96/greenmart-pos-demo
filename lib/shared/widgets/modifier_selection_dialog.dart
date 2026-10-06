@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
@@ -46,6 +47,7 @@ class _ModifierSelectionDialog extends StatefulWidget {
 
 class _ModifierSelectionDialogState extends State<_ModifierSelectionDialog> {
   final Map<String, Set<String>> _selected = {};
+  int _focusedOption = 0;
 
   @override
   void initState() {
@@ -103,60 +105,133 @@ class _ModifierSelectionDialogState extends State<_ModifierSelectionDialog> {
     Navigator.of(context).pop(result);
   }
 
+  List<({ModifierGroup group, ModifierOption option})> get _availableOptions =>
+      [
+        for (final group in widget.groups)
+          for (final option in group.options)
+            if (option.isActive && option.isAvailable)
+              (group: group, option: option),
+      ];
+
+  KeyEventResult _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final options = _availableOptions;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+        event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      final delta = event.logicalKey == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      final targetCount = options.length + 1;
+      setState(() {
+        _focusedOption = (_focusedOption + delta) % targetCount;
+        if (_focusedOption < 0) _focusedOption += targetCount;
+      });
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.space ||
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      if (_focusedOption == options.length) {
+        if (_valid) _confirm();
+        return KeyEventResult.handled;
+      }
+      if (options.isEmpty) return KeyEventResult.handled;
+      final focused = options[_focusedOption];
+      final selected =
+          _selected[focused.group.id]?.contains(focused.option.variationId) ??
+          false;
+      _toggle(focused.group, focused.option, !selected);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    titlePadding: const EdgeInsets.fromLTRB(24, 22, 16, 8),
-    contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-    title: Row(
-      children: [
-        const Icon(Icons.tune_rounded, color: AppColors.primary),
-        const SizedBox(width: 12),
-        Expanded(
+  Widget build(BuildContext context) => Focus(
+    autofocus: true,
+    onKeyEvent: (_, event) => _onKeyEvent(event),
+    child: AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 16, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+      title: Row(
+        children: [
+          const Icon(Icons.tune_rounded, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.product.name,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const Text(
+                  'Choose modifiers',
+                  style: TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Close',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 560),
+        child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                widget.product.name,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const Text(
-                'Choose modifiers',
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+              for (final group in widget.groups) _groupCard(group),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Use ↑ / ↓ to select. Space or Enter toggles an option and Enter confirms Add to order.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
               ),
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Close',
+      ),
+      actions: [
+        TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close_rounded),
+          child: const Text('Cancel'),
+        ),
+        Semantics(
+          selected: _focusedOption == _availableOptions.length,
+          child: FilledButton.icon(
+            onPressed: _valid ? _confirm : null,
+            style: FilledButton.styleFrom(
+              elevation: _focusedOption == _availableOptions.length ? 5 : 0,
+              shadowColor: AppColors.primary.withValues(alpha: .35),
+              side: BorderSide(
+                color: _focusedOption == _availableOptions.length
+                    ? const Color(0xFFF4B942)
+                    : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            icon: Icon(
+              _focusedOption == _availableOptions.length
+                  ? Icons.keyboard_return_rounded
+                  : Icons.add_shopping_cart_rounded,
+            ),
+            label: Text(widget.confirmLabel),
+          ),
         ),
       ],
     ),
-    content: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520, maxHeight: 560),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [for (final group in widget.groups) _groupCard(group)],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
-      ),
-      FilledButton.icon(
-        onPressed: _valid ? _confirm : null,
-        icon: const Icon(Icons.add_shopping_cart_rounded),
-        label: Text(widget.confirmLabel),
-      ),
-    ],
   );
 
   Widget _groupCard(ModifierGroup group) {
@@ -220,18 +295,52 @@ class _ModifierSelectionDialogState extends State<_ModifierSelectionDialog> {
             )
           else
             for (final option in available)
-              CheckboxListTile(
-                value: selected.contains(option.variationId),
-                onChanged: (value) => _toggle(group, option, value ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
-                dense: true,
-                title: Text(option.name),
-                subtitle: option.subSku.isEmpty ? null : Text(option.subSku),
-                secondary: option.priceAdjustment == 0
-                    ? const Text('Included')
-                    : Text('+${money(option.priceAdjustment)}'),
-              ),
+              _optionTile(group, option, selected),
         ],
+      ),
+    );
+  }
+
+  Widget _optionTile(
+    ModifierGroup group,
+    ModifierOption option,
+    Set<String> selected,
+  ) {
+    final optionIndex = _availableOptions.indexWhere(
+      (entry) =>
+          entry.group.id == group.id &&
+          entry.option.variationId == option.variationId,
+    );
+    final focused = optionIndex == _focusedOption;
+    return Container(
+      decoration: BoxDecoration(
+        color: focused ? AppColors.primary.withValues(alpha: .10) : null,
+        border: BorderDirectional(
+          start: BorderSide(
+            color: focused ? AppColors.primary : Colors.transparent,
+            width: 3,
+          ),
+        ),
+      ),
+      child: CheckboxListTile(
+        value: selected.contains(option.variationId),
+        onChanged: (value) {
+          setState(() => _focusedOption = optionIndex);
+          _toggle(group, option, value ?? false);
+        },
+        controlAffinity: ListTileControlAffinity.leading,
+        dense: true,
+        title: Text(
+          option.name,
+          style: TextStyle(
+            fontWeight: focused ? FontWeight.w800 : FontWeight.w500,
+            color: focused ? AppColors.primary : null,
+          ),
+        ),
+        subtitle: option.subSku.isEmpty ? null : Text(option.subSku),
+        secondary: option.priceAdjustment == 0
+            ? const Text('Included')
+            : Text('+${money(option.priceAdjustment)}'),
       ),
     );
   }

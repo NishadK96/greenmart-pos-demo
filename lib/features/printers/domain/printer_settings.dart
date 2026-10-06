@@ -49,6 +49,7 @@ class PrinterSettings {
     this.showStoreName = true,
     this.showPrice = true,
     this.showDate = true,
+    this.posPrintingEnabled = true,
   });
 
   final PrinterSection section;
@@ -69,7 +70,7 @@ class PrinterSettings {
   final String? defaultPrinterUrl;
   final String? defaultPrinterName;
   final int barcodeColumns, barcodeHeight, barcodeWidthPercent, barcodeDpi;
-  final bool showStoreName, showPrice, showDate;
+  final bool showStoreName, showPrice, showDate, posPrintingEnabled;
 
   String get profileKey => section == PrinterSection.billing
       ? 'billing-${billingAudience.name}'
@@ -111,6 +112,7 @@ class PrinterSettings {
     bool? showStoreName,
     bool? showPrice,
     bool? showDate,
+    bool? posPrintingEnabled,
   }) => PrinterSettings(
     section: section ?? this.section,
     billingAudience: billingAudience ?? this.billingAudience,
@@ -135,6 +137,7 @@ class PrinterSettings {
     showStoreName: showStoreName ?? this.showStoreName,
     showPrice: showPrice ?? this.showPrice,
     showDate: showDate ?? this.showDate,
+    posPrintingEnabled: posPrintingEnabled ?? this.posPrintingEnabled,
   );
 
   Map<String, Object?> toJson() => {
@@ -153,6 +156,7 @@ class PrinterSettings {
     'showStoreName': showStoreName,
     'showPrice': showPrice,
     'showDate': showDate,
+    'posPrintingEnabled': posPrintingEnabled,
   };
 
   factory PrinterSettings.fromJson(Map<String, dynamic> json) {
@@ -189,6 +193,7 @@ class PrinterSettings {
       showStoreName: json['showStoreName'] as bool? ?? true,
       showPrice: json['showPrice'] as bool? ?? true,
       showDate: json['showDate'] as bool? ?? true,
+      posPrintingEnabled: json['posPrintingEnabled'] as bool? ?? true,
     );
   }
 

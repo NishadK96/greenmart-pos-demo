@@ -2422,8 +2422,15 @@ class Api {
               {
                 'product_id': int.parse(line.product.id),
                 'variation_id': int.parse(line.product.variationId),
-                'quantity': line.quantity,
-                'unit_price': line.unitPriceExcludingTax / 100,
+                'quantity': line.quantity.toStringAsFixed(4),
+                // Connector sales are finalized from the tax-inclusive unit
+                // price. Sending the exclusive value here makes the backend
+                // calculate a different invoice total for inclusive products.
+                'unit_price_inc_tax': (line.unitPriceIncludingTax / 100)
+                    .toStringAsFixed(2),
+                'tax_rate_id': line.product.taxId.isEmpty
+                    ? null
+                    : int.tryParse(line.product.taxId),
                 'discount_type': 'fixed',
                 'discount_amount': line.discount / 100,
                 if (line.itemNote.trim().isNotEmpty)

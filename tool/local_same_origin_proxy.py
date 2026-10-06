@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serve Flutter Web and proxy Connector requests through one local origin."""
 
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPSConnection
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import argparse
@@ -22,6 +22,7 @@ HOP_BY_HOP = {
 class SameOriginHandler(SimpleHTTPRequestHandler):
     backend_host = "127.0.0.1"
     backend_port = 8080
+    backend_https = False
 
     def _proxy(self):
         length = int(self.headers.get("Content-Length", "0"))
@@ -31,8 +32,10 @@ class SameOriginHandler(SimpleHTTPRequestHandler):
             for key, value in self.headers.items()
             if key.lower() not in HOP_BY_HOP and key.lower() != "host"
         }
-        headers["Host"] = f"{self.backend_host}:{self.backend_port}"
-        connection = HTTPConnection(self.backend_host, self.backend_port, timeout=30)
+        default_port = 443 if self.backend_https else 80
+        headers["Host"] = self.backend_host if self.backend_port == default_port else f"{self.backend_host}:{self.backend_port}"
+        connection_type = HTTPSConnection if self.backend_https else HTTPConnection
+        connection = connection_type(self.backend_host, self.backend_port, timeout=30)
         try:
             connection.request(self.command, self.path, body=body, headers=headers)
             response = connection.getresponse()
@@ -76,9 +79,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8081)
     parser.add_argument("--backend-port", type=int, default=8080)
+    parser.add_argument("--backend-host", default="127.0.0.1")
+    parser.add_argument("--backend-https", action="store_true")
     parser.add_argument("--directory", default="build/web")
     args = parser.parse_args()
     SameOriginHandler.backend_port = args.backend_port
+    SameOriginHandler.backend_host = args.backend_host
+    SameOriginHandler.backend_https = args.backend_https
     handler = lambda *handler_args, **kwargs: SameOriginHandler(
         *handler_args, directory=args.directory, **kwargs
     )

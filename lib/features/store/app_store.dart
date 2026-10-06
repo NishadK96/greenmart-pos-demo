@@ -338,6 +338,13 @@ class AppStore extends Notifier<AppState> {
                 .map((item) => item.id == product.id ? product : item)
                 .toList(growable: false)
           : [product, ...state.products],
+      cart: state.cart
+          .map(
+            (line) => line.product.id == product.id
+                ? line.copyWith(product: product)
+                : line,
+          )
+          .toList(growable: false),
     );
   }
 

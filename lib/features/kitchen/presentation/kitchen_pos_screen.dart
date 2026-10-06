@@ -21,6 +21,7 @@ import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../cash_register/presentation/cash_register_dialog.dart';
 import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../printers/application/printer_controller.dart';
+import '../../settings/application/order_type_settings_controller.dart';
 import 'kitchen_printing_controller.dart';
 
 typedef _RestaurantContext = ({
@@ -357,6 +358,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _resetOrder() {
+    final defaultService = ref
+        .read(orderTypeSettingsProvider)
+        .apply()
+        .firstOrNull
+        ?.code;
     setState(() {
       _lines.clear();
       _activeOrder = null;
@@ -365,7 +371,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _tableId = null;
       _waiterId = null;
       _serviceTypeId = null;
-      _service = 'Takeaway';
+      _service = defaultService ?? 'Takeaway';
       _guests = 1;
       _note = '';
       _grossDiscount = 0;
@@ -1211,9 +1217,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _tableId = order.tableId.isEmpty ? null : order.tableId;
       _waiterId = order.waiterId.isEmpty ? null : order.waiterId;
       _serviceTypeId = order.serviceTypeId.isEmpty ? null : order.serviceTypeId;
-      _service = const ['Dine in', 'Takeaway', 'Delivery'].contains(service)
+      final enabledServices = ref.read(orderTypeSettingsProvider).apply();
+      _service = enabledServices.any((item) => item.code == service)
           ? service
-          : 'Takeaway';
+          : enabledServices.firstOrNull?.code ?? 'Takeaway';
       _guests = int.tryParse(pax?.group(1) ?? '') ?? 1;
       _note = order.saleNote
           .split('·')
@@ -1380,6 +1387,18 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   @override
   Widget build(BuildContext context) {
     final store = ref.watch(appStoreProvider);
+    final orderTypes = ref.watch(orderTypeSettingsProvider).apply();
+    if (orderTypes.isNotEmpty &&
+        !orderTypes.any((item) => item.code == _service)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _service = orderTypes.first.code;
+          _serviceTypeId = null;
+          if (_service != 'Dine in') _tableId = null;
+        });
+      });
+    }
     final products = _visible(store);
     final width = MediaQuery.sizeOf(context).width;
     final desktop = width >= 960;
@@ -1412,7 +1431,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         autofocus: true,
         child: Column(
           children: [
-            _header(desktop, restaurantContext, locationId),
+            _header(desktop, restaurantContext, locationId, orderTypes),
             Expanded(
               child: desktop
                   ? Row(
@@ -1503,6 +1522,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     bool desktop,
     _RestaurantContext? restaurant,
     String locationId,
+    List<PosOrderType> orderTypes,
   ) {
     final store = ref.watch(appStoreProvider);
     final customer = _customer(store);
@@ -1579,21 +1599,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         children: [
           _customerButton(store, customer),
           const SizedBox(width: 6),
-          _serviceButton(
-            'Dine in',
-            Icons.restaurant_outlined,
-            restaurant?.serviceTypes ?? const [],
-          ),
-          _serviceButton(
-            'Takeaway',
-            Icons.shopping_bag_outlined,
-            restaurant?.serviceTypes ?? const [],
-          ),
-          _serviceButton(
-            'Delivery',
-            Icons.local_shipping_outlined,
-            restaurant?.serviceTypes ?? const [],
-          ),
+          for (final option in orderTypes)
+            _serviceButton(
+              option,
+              _serviceIcon(option.code),
+              restaurant?.serviceTypes ?? const [],
+            ),
           if (_service == 'Dine in') _tableCard(restaurant?.tables ?? const []),
           _guestCard(),
           _waiterCard(restaurant?.staff ?? const []),
@@ -1622,26 +1633,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Expanded(
-                      child: _mobileServiceButton(
-                        'Dine in',
-                        restaurant?.serviceTypes ?? const [],
+                    for (var index = 0; index < orderTypes.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 5),
+                      Expanded(
+                        child: _mobileServiceButton(
+                          orderTypes[index],
+                          restaurant?.serviceTypes ?? const [],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: _mobileServiceButton(
-                        'Takeaway',
-                        restaurant?.serviceTypes ?? const [],
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: _mobileServiceButton(
-                        'Delivery',
-                        restaurant?.serviceTypes ?? const [],
-                      ),
-                    ),
+                    ],
                   ],
                 ),
                 if (_service == 'Dine in') ...[
@@ -1735,20 +1735,26 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     });
   }
 
+  IconData _serviceIcon(String code) => switch (code) {
+    'Dine in' => Icons.restaurant_outlined,
+    'Delivery' => Icons.local_shipping_outlined,
+    _ => Icons.shopping_bag_outlined,
+  };
+
   Widget _serviceButton(
-    String label,
+    PosOrderType option,
     IconData icon,
     List<LookupOption> serviceTypes,
   ) {
-    final selected = _service == label;
+    final selected = _service == option.code;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: OutlinedButton.icon(
         onPressed: _orderLocked
             ? null
-            : () => _selectService(label, serviceTypes),
+            : () => _selectService(option.code, serviceTypes),
         icon: Icon(icon, size: 16),
-        label: Text(label),
+        label: Text(option.label),
         style: OutlinedButton.styleFrom(
           backgroundColor: selected ? AppColors.primary : Colors.white,
           foregroundColor: selected ? Colors.white : AppColors.ink,
@@ -1763,12 +1769,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
-  Widget _mobileServiceButton(String label, List<LookupOption> serviceTypes) {
-    final selected = _service == label;
+  Widget _mobileServiceButton(
+    PosOrderType option,
+    List<LookupOption> serviceTypes,
+  ) {
+    final selected = _service == option.code;
     return OutlinedButton(
       onPressed: _orderLocked
           ? null
-          : () => _selectService(label, serviceTypes),
+          : () => _selectService(option.code, serviceTypes),
       style: OutlinedButton.styleFrom(
         backgroundColor: selected ? AppColors.primary : Colors.white,
         foregroundColor: selected ? Colors.white : AppColors.ink,
@@ -1778,7 +1787,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
-      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      child: Text(option.label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 

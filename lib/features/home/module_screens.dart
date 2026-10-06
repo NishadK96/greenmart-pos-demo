@@ -25,6 +25,8 @@ import '../offline_pos/presentation/offline_pos_controller.dart';
 import '../../core/network/api_provider.dart';
 import '../auth/auth_controller.dart';
 import '../settings/application/pos_operating_mode_controller.dart';
+import '../settings/application/payment_method_settings_controller.dart';
+import '../settings/application/order_type_settings_controller.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
@@ -6579,15 +6581,13 @@ class SettingsScreen extends ConsumerWidget {
               await ref.read(posOperatingModeProvider.notifier).setMode(mode);
               if (context.mounted) {
                 ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
+                  ..clearSnackBars()
                   ..showSnackBar(
                     SnackBar(
+                      duration: const Duration(seconds: 3),
+                      showCloseIcon: true,
                       content: Text(
                         '${context.tr(mode.label)} ${context.tr('is now the default POS for this device.')}',
-                      ),
-                      action: SnackBarAction(
-                        label: context.tr('Open POS'),
-                        onPressed: () => context.go(mode.route),
                       ),
                     ),
                   );
@@ -6623,6 +6623,10 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 10),
+          _PaymentMethodSettings(options: state.posPaymentOptions),
+          const SizedBox(height: 10),
+          const _OrderTypeSettings(),
+          const SizedBox(height: 10),
           for (final section in sections)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -6646,6 +6650,393 @@ class SettingsScreen extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _OrderTypeSettings extends ConsumerWidget {
+  const _OrderTypeSettings();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(orderTypeSettingsProvider).apply();
+    return Surface(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const CircleAvatar(child: Icon(Icons.restaurant_menu_rounded)),
+        title: Text(
+          context.tr('POS order types'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          enabled.map((item) => context.tr(item.label)).join(' • '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => const _OrderTypeSettingsDialog(),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderTypeSettingsDialog extends ConsumerWidget {
+  const _OrderTypeSettingsDialog();
+
+  IconData _icon(String code) => switch (code) {
+    'Dine in' => Icons.restaurant_outlined,
+    'Delivery' => Icons.local_shipping_outlined,
+    _ => Icons.shopping_bag_outlined,
+  };
+
+  Future<void> _rename(
+    BuildContext context,
+    WidgetRef ref,
+    PosOrderType option,
+  ) async {
+    final controller = TextEditingController(text: option.label);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Order type name')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 30,
+          decoration: InputDecoration(labelText: context.tr('Display name')),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text(context.tr('Save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value != null) {
+      await ref
+          .read(orderTypeSettingsProvider.notifier)
+          .rename(option.code, value);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(orderTypeSettingsProvider);
+    final ordered = settings.copyWith(disabledCodes: const {}).apply();
+    final enabledCount = ordered
+        .where((item) => !settings.disabledCodes.contains(item.code))
+        .length;
+    return AlertDialog(
+      title: Text(context.tr('POS order types')),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr(
+                'Choose which order types appear in POS, rename them, and set their order.',
+              ),
+              style: const TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 12),
+            for (var index = 0; index < ordered.length; index++) ...[
+              if (index > 0) const Divider(height: 1),
+              Builder(
+                builder: (context) {
+                  final option = ordered[index];
+                  final enabled = !settings.disabledCodes.contains(option.code);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(_icon(option.code), color: AppColors.primary),
+                    title: Text(
+                      context.tr(option.label),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(option.code),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: context.tr('Move up'),
+                          onPressed: index == 0
+                              ? null
+                              : () => ref
+                                    .read(orderTypeSettingsProvider.notifier)
+                                    .move(ordered, index, index - 1),
+                          icon: const Icon(Icons.keyboard_arrow_up),
+                        ),
+                        IconButton(
+                          tooltip: context.tr('Move down'),
+                          onPressed: index == ordered.length - 1
+                              ? null
+                              : () => ref
+                                    .read(orderTypeSettingsProvider.notifier)
+                                    .move(ordered, index, index + 1),
+                          icon: const Icon(Icons.keyboard_arrow_down),
+                        ),
+                        IconButton(
+                          tooltip: context.tr('Rename'),
+                          onPressed: () => _rename(context, ref, option),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        Switch(
+                          value: enabled,
+                          onChanged: enabled && enabledCount == 1
+                              ? null
+                              : (value) => ref
+                                    .read(orderTypeSettingsProvider.notifier)
+                                    .setEnabled(option.code, value),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => ref.read(orderTypeSettingsProvider.notifier).reset(),
+          child: Text(context.tr('Reset defaults')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.tr('Done')),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentMethodSettings extends ConsumerWidget {
+  const _PaymentMethodSettings({required this.options});
+
+  final List<PaymentOption> options;
+
+  IconData _iconFor(String code) => switch (code.toLowerCase()) {
+    'cash' => Icons.payments_outlined,
+    'card' => Icons.credit_card_outlined,
+    'cheque' => Icons.account_balance_wallet_outlined,
+    'bank_transfer' => Icons.account_balance_outlined,
+    'credit' => Icons.wallet_outlined,
+    _ => Icons.more_horiz,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(paymentMethodSettingsProvider);
+    final enabled = settings.apply(options);
+    return Surface(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const CircleAvatar(child: Icon(Icons.point_of_sale_outlined)),
+        title: Text(
+          context.tr('POS payment methods'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          enabled.isEmpty
+              ? context.tr('No payment methods enabled')
+              : enabled.map((option) => context.tr(option.label)).join(' • '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: options.isEmpty
+            ? null
+            : () => showDialog<void>(
+                context: context,
+                builder: (_) => _PaymentMethodSettingsDialog(
+                  options: options,
+                  iconFor: _iconFor,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _PaymentMethodSettingsDialog extends ConsumerWidget {
+  const _PaymentMethodSettingsDialog({
+    required this.options,
+    required this.iconFor,
+  });
+
+  final List<PaymentOption> options;
+  final IconData Function(String code) iconFor;
+
+  Future<void> _rename(
+    BuildContext context,
+    WidgetRef ref,
+    PaymentOption option,
+    String currentLabel,
+  ) async {
+    final controller = TextEditingController(text: currentLabel);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Payment method name')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: InputDecoration(labelText: context.tr('Display name')),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: Text(context.tr('Save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value != null) {
+      await ref
+          .read(paymentMethodSettingsProvider.notifier)
+          .rename(option.code, value == option.label ? null : value);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(paymentMethodSettingsProvider);
+    final ordered = settings.copyWith(disabledCodes: const {}).apply(options);
+    final enabledCount = ordered
+        .where(
+          (option) =>
+              !settings.disabledCodes.contains(option.code.toLowerCase()),
+        )
+        .length;
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 8, 10),
+      title: Row(
+        children: [
+          const Expanded(child: Text('POS payment methods')),
+          IconButton(
+            tooltip: context.tr('Close'),
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      content: SizedBox(
+        width: 560,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr(
+                'Choose which methods appear at checkout, change their display names, and set their order.',
+              ),
+              style: const TextStyle(color: AppColors.muted),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: ordered.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final option = ordered[index];
+                  final code = option.code.toLowerCase();
+                  final isEnabled = !settings.disabledCodes.contains(code);
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(iconFor(code), color: AppColors.primary),
+                    title: Text(
+                      option.label,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(code),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: context.tr('Move up'),
+                          onPressed: index == 0
+                              ? null
+                              : () => ref
+                                    .read(
+                                      paymentMethodSettingsProvider.notifier,
+                                    )
+                                    .move(ordered, index, index - 1),
+                          icon: const Icon(Icons.keyboard_arrow_up),
+                        ),
+                        IconButton(
+                          tooltip: context.tr('Move down'),
+                          onPressed: index == ordered.length - 1
+                              ? null
+                              : () => ref
+                                    .read(
+                                      paymentMethodSettingsProvider.notifier,
+                                    )
+                                    .move(ordered, index, index + 1),
+                          icon: const Icon(Icons.keyboard_arrow_down),
+                        ),
+                        IconButton(
+                          tooltip: context.tr('Rename'),
+                          onPressed: () => _rename(
+                            context,
+                            ref,
+                            options.firstWhere(
+                              (item) => item.code.toLowerCase() == code,
+                            ),
+                            option.label,
+                          ),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        Switch(
+                          value: isEnabled,
+                          onChanged: isEnabled && enabledCount == 1
+                              ? null
+                              : (value) => ref
+                                    .read(
+                                      paymentMethodSettingsProvider.notifier,
+                                    )
+                                    .setEnabled(code, value),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () =>
+              ref.read(paymentMethodSettingsProvider.notifier).reset(),
+          child: Text(context.tr('Reset defaults')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(context.tr('Done')),
+        ),
+      ],
     );
   }
 }

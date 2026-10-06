@@ -15,6 +15,8 @@ import '../store/app_store.dart';
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../kitchen/presentation/kitchen_printing_controller.dart';
 import '../settings/application/pos_operating_mode_controller.dart';
+import '../zatca/presentation/zatca_controller.dart';
+import '../zatca/domain/zatca_entities.dart';
 
 const destinations = [
   ('/pos', 'POS', Icons.point_of_sale_outlined),
@@ -31,6 +33,98 @@ const destinations = [
   ('/zatca', 'ZATCA', Icons.verified_user_outlined),
   ('/settings', 'Settings', Icons.settings_outlined),
 ];
+
+class _ZatcaPhaseBadge extends StatelessWidget {
+  const _ZatcaPhaseBadge({required this.status, this.compact = false});
+
+  final AsyncValue<ZatcaIntegrationStatus> status;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = status.asData?.value;
+    final configured = data?.locations.any((item) => item.configured) ?? false;
+    final phaseTwo =
+        data?.installed == true &&
+        data?.subscriptionEnabled == true &&
+        configured;
+    final setupRequired =
+        data?.installed == true && data?.subscriptionEnabled == true;
+    final loading = status.isLoading;
+    final unavailable = status.hasError;
+    final label = loading
+        ? 'ZATCA…'
+        : unavailable
+        ? 'ZATCA status'
+        : phaseTwo
+        ? (compact ? 'ZATCA P2' : 'ZATCA Phase 2')
+        : setupRequired
+        ? (compact ? 'ZATCA setup' : 'ZATCA Phase 2 setup')
+        : (compact ? 'ZATCA P1' : 'ZATCA Phase 1');
+    final color = phaseTwo
+        ? AppColors.primary
+        : setupRequired
+        ? const Color(0xFFB7791F)
+        : unavailable
+        ? AppColors.muted
+        : const Color(0xFF356A8A);
+    final detail = phaseTwo
+        ? 'Phase 2 integrated'
+        : setupRequired
+        ? 'Device onboarding required'
+        : unavailable
+        ? 'Status unavailable'
+        : 'Phase 1 QR invoicing';
+
+    return Tooltip(
+      message: context.tr(detail),
+      child: InkWell(
+        onTap: () => context.go('/zatca'),
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          height: compact ? 30 : 38,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .09),
+            border: Border.all(color: color.withValues(alpha: .24)),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: compact ? 12 : 14,
+                  height: compact ? 12 : 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              else
+                Icon(
+                  phaseTwo
+                      ? Icons.verified_user_rounded
+                      : Icons.gpp_maybe_outlined,
+                  size: compact ? 14 : 16,
+                  color: color,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                context.tr(label),
+                style: TextStyle(
+                  color: color,
+                  fontSize: compact ? 9.5 : 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
@@ -83,6 +177,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final appState = ref.watch(appStoreProvider);
     final posMode = ref.watch(posOperatingModeProvider);
+    final zatcaStatus = ref.watch(zatcaControllerProvider);
     final shellDestinations = [
       (posMode.route, posMode.label, Icons.point_of_sale_outlined),
       ...destinations.skip(1),
@@ -103,7 +198,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       sidebarInitialized = true;
     }
     final path = GoRouterState.of(context).uri.path;
-    final navExpanded = path != '/kitchen-pos' && expanded;
+    final compactPosSidebar = path == '/pos' || path == '/kitchen-pos';
+    final navExpanded = !compactPosSidebar && expanded;
     final usesCashRegister = path == '/pos' || path == '/kitchen-pos';
     final AsyncValue<CashRegister?> registerState = usesCashRegister
         ? ref.watch(cashRegisterControllerProvider)
@@ -232,6 +328,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                         const SizedBox(height: 3),
                         Row(
                           children: [
+                            _ZatcaPhaseBadge(
+                              status: zatcaStatus,
+                              compact: true,
+                            ),
+                            const SizedBox(width: 7),
                             StatusBadge(context.tr('Online')),
                             const SizedBox(width: 7),
                             StatusBadge(context.tr('Synced')),
@@ -304,6 +405,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                       PopupMenuItem(value: 'ar', child: Text('العربية')),
                     ],
                   ),
+                  _ZatcaPhaseBadge(status: zatcaStatus, compact: true),
+                  const SizedBox(width: 7),
                   StatusBadge(context.tr('Online')),
                   IconButton(
                     onPressed: () => context.go(posMode.route),
@@ -336,7 +439,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
-            width: navExpanded ? 244 : (path == '/kitchen-pos' ? 64 : 82),
+            width: navExpanded ? 244 : (compactPosSidebar ? 64 : 82),
             color: AppColors.navy,
             child: SafeArea(
               child: Column(
@@ -384,7 +487,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ],
                     ),
                   ),
-                  if (!navExpanded && path != '/kitchen-pos')
+                  if (!navExpanded && !compactPosSidebar)
                     IconButton(
                       onPressed: () => _setExpanded(true),
                       icon: const Icon(
@@ -634,6 +737,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ),
                       ],
                       const Spacer(),
+                      _ZatcaPhaseBadge(status: zatcaStatus),
+                      const SizedBox(width: 10),
                       PopupMenuButton<String>(
                         tooltip: context.tr('Language'),
                         onSelected: (code) =>

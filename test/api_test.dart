@@ -989,14 +989,17 @@ void main() {
       '4d2f6b17-4e4b-4f2d-9a1d-0aa1d7a5a002',
     );
     expect(sale['discount_amount'], 2);
-    expect(line['unit_price'], 45.5);
+    expect(line['unit_price_inc_tax'], '45.50');
+    expect(line.containsKey('unit_price'), isFalse);
+    expect(line['quantity'], '1.0000');
+    expect(line['tax_rate_id'], isNull);
     expect(line['discount_amount'], 1.5);
     expect((sale['payments'] as List).single['amount'], 42);
     expect((sale['payments'] as List).single['method'], 'cash');
   });
 
   test(
-    'create sale converts tax-inclusive price to exclusive unit price',
+    'create sale sends tax-inclusive unit price and tax rate to backend',
     () async {
       late Map<String, dynamic> payload;
       final api = Api(
@@ -1017,6 +1020,7 @@ void main() {
         stock: 2,
         minimumStock: 1,
         taxPercent: 15,
+        taxId: '3',
         sellingPriceIncludesTax: true,
       );
 
@@ -1034,7 +1038,9 @@ void main() {
 
       final sale = (payload['sells'] as List).single as Map<String, dynamic>;
       final line = (sale['products'] as List).single as Map<String, dynamic>;
-      expect(line['unit_price'], 13.04);
+      expect(line['unit_price_inc_tax'], '15.00');
+      expect(line['tax_rate_id'], 3);
+      expect(line.containsKey('unit_price'), isFalse);
       expect((sale['payments'] as List).single['amount'], 15);
     },
   );

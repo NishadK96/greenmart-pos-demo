@@ -560,6 +560,7 @@ class CartLine {
   int get unitPriceIncludingTax =>
       product.sellingPriceIncludesTax ? unitPrice : unitPrice + unitTax;
   CartLine copyWith({
+    Product? product,
     int? quantity,
     int? discount,
     int? unitPriceOverride,
@@ -569,7 +570,7 @@ class CartLine {
     List<SelectedModifier>? modifiers,
     String? itemNote,
   }) => CartLine(
-    product: product,
+    product: product ?? this.product,
     quantity: quantity ?? this.quantity,
     discount: discount ?? this.discount,
     unitPriceOverride: clearUnitPriceOverride

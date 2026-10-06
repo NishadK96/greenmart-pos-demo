@@ -58,14 +58,22 @@ final _router = GoRouter(
         ),
         GoRoute(
           path: '/products/quick',
-          pageBuilder: (_, state) =>
-              _instantPage(state, const ProductFormScreen(quick: true)),
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            ProductFormScreen(
+              quick: true,
+              returnRoute: state.uri.queryParameters['return'] ?? '/products',
+            ),
+          ),
         ),
         GoRoute(
           path: '/products/edit',
           pageBuilder: (_, state) => _instantPage(
             state,
-            ProductFormScreen(product: state.extra! as Product),
+            ProductFormScreen(
+              product: state.extra! as Product,
+              returnRoute: state.uri.queryParameters['return'] ?? '/products',
+            ),
           ),
         ),
         GoRoute(

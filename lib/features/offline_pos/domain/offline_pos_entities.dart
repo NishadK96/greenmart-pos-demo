@@ -115,19 +115,25 @@ class OfflineSaleRecord {
   final int revision;
   final String? message;
 
-  bool get pending => status == 'pending' || status == 'temp_retry';
+  bool get pending =>
+      status == 'pending' ||
+      status == 'temp_retry' ||
+      status == 'print_pending';
 
-  OfflineSaleRecord copyWith({String? status, String? message}) =>
-      OfflineSaleRecord(
-        localSaleId: localSaleId,
-        clientTransactionId: clientTransactionId,
-        provisionalInvoiceRef: provisionalInvoiceRef,
-        createdAt: createdAt,
-        payload: payload,
-        revision: revision,
-        status: status ?? this.status,
-        message: message ?? this.message,
-      );
+  OfflineSaleRecord copyWith({
+    String? status,
+    String? message,
+    bool clearMessage = false,
+  }) => OfflineSaleRecord(
+    localSaleId: localSaleId,
+    clientTransactionId: clientTransactionId,
+    provisionalInvoiceRef: provisionalInvoiceRef,
+    createdAt: createdAt,
+    payload: payload,
+    revision: revision,
+    status: status ?? this.status,
+    message: clearMessage ? null : message ?? this.message,
+  );
 
   Map<String, dynamic> toJson() => {
     'local_sale_id': localSaleId,

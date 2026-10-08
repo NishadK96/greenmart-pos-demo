@@ -477,12 +477,25 @@ class AppStore extends Notifier<AppState> {
     required List<StockItem> stockItems,
     required ProfitLoss profitLoss,
   }) => state = state.copyWith(
-    sales: sales,
+    sales: _keepPendingLocalSales(sales),
     stockItems: stockItems,
     profitLoss: profitLoss,
   );
 
-  void replaceSales(List<Sale> sales) => state = state.copyWith(sales: sales);
+  List<Sale> _keepPendingLocalSales(List<Sale> remote) => [
+    ...state.sales.where(
+      (sale) => sale.serverId == null && sale.syncStatus == SyncStatus.pending,
+    ),
+    ...remote,
+  ];
+
+  void replaceSales(List<Sale> sales) =>
+      state = state.copyWith(sales: _keepPendingLocalSales(sales));
+
+  void addQueuedKitchenSale(Sale sale) => state = state.copyWith(
+    sales: [sale, ...state.sales.where((item) => item.localId != sale.localId)],
+    lastSale: sale,
+  );
 
   Sale checkout(String method, {String? serverId, String? invoiceNo}) {
     final now = DateTime.now();

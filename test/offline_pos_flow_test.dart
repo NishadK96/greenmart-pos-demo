@@ -5,6 +5,7 @@ import 'package:eazy_pos/core/network/api_provider.dart';
 import 'package:eazy_pos/features/auth/auth_controller.dart';
 import 'package:eazy_pos/features/offline_pos/presentation/offline_pos_controller.dart';
 import 'package:eazy_pos/features/store/app_store.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeAuthController extends AuthController {
@@ -192,4 +193,67 @@ void main() {
     expect(payload['payments'], isEmpty);
     expect(payload.containsKey('unpaid_balance'), isFalse);
   });
+
+  test(
+    'kitchen draft persists its order context and can be revised offline',
+    () async {
+      final container = _container(_OfflineApi());
+      addTearDown(container.dispose);
+      await container.read(offlinePosControllerProvider.future);
+      await container
+          .read(offlinePosControllerProvider.notifier)
+          .prepare(locationId: '1', cashRegisterId: '12');
+      final app = container.read(appStoreProvider);
+      final offline = container.read(offlinePosControllerProvider.notifier);
+      final first = await offline.queueKitchenOrder(
+        locationId: '1',
+        customer: app.customers.first,
+        lines: [CartLine(product: app.products.first)],
+        clientTransactionId: 'kitchen-order-1',
+        saleNote: 'Takeaway · Pax 1',
+        status: 'draft',
+      );
+      expect(first.isKitchenOrder, isTrue);
+      expect(first.invoiceNo, startsWith('OFF-K-'));
+      expect(
+        container.read(offlinePosControllerProvider).requireValue.pendingCount,
+        1,
+      );
+
+      await offline.queueKitchenOrder(
+        locationId: '1',
+        customer: app.customers.first,
+        lines: [CartLine(product: app.products.first, quantity: 2)],
+        clientTransactionId: 'kitchen-order-1',
+        saleNote: 'Takeaway · Pax 1',
+        status: 'final',
+      );
+      final queued = container
+          .read(offlinePosControllerProvider)
+          .requireValue
+          .queue
+          .single;
+      expect(queued.payload['sell']['is_kitchen_order'], 1);
+      expect(queued.payload['sell']['status'], 'final');
+      expect(queued.payload['sell']['products'][0]['quantity'], '2.0000');
+      expect(
+        queued.payload['sell']['products'][0]['unit_price_inc_tax'],
+        '11.50',
+      );
+      expect(queued.payload['sell'].containsKey('payments'), isFalse);
+      expect(queued.provisionalInvoiceRef, first.invoiceNo);
+      expect(
+        container.read(offlinePosControllerProvider).requireValue.pendingCount,
+        1,
+      );
+      container.dispose();
+      final restarted = _container(_OfflineApi());
+      addTearDown(restarted.dispose);
+      await restarted.read(offlinePosControllerProvider.future);
+      final restored = restarted.read(appStoreProvider).sales.single;
+      expect(restored.isKitchenOrder, isTrue);
+      expect(restored.items.single.quantity, 2);
+      expect(restored.status, 'final');
+    },
+  );
 }

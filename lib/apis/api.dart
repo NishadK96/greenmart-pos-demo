@@ -2487,6 +2487,17 @@ class Api {
         },
       ],
     };
+    return createSalePayload(
+      accessToken: accessToken,
+      sell: Map<String, dynamic>.from(body['sells']!.first),
+    );
+  }
+
+  /// Replays a persisted kitchen sale using its original idempotency ID.
+  Future<Map<String, dynamic>> createSalePayload({
+    required String accessToken,
+    required Map<String, dynamic> sell,
+  }) async {
     final response = await _client
         .post(
           Uri.parse(ApiEndPoints.salesUrl),
@@ -2494,7 +2505,9 @@ class Api {
             ..._authorizedHeaders(accessToken),
             'Content-Type': 'application/json',
           },
-          body: jsonEncode(body),
+          body: jsonEncode({
+            'sells': [sell],
+          }),
         )
         .timeout(const Duration(seconds: 30));
     final decoded = _decodeAny(response.body);

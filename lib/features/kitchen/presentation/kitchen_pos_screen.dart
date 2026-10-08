@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../apis/api.dart';
 import '../../../core/network/api_provider.dart';
@@ -20,6 +21,7 @@ import '../../cash_register/domain/cash_register_entities.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../cash_register/presentation/cash_register_dialog.dart';
 import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
+import '../../offline_pos/presentation/offline_pos_controller.dart';
 import '../../printers/application/printer_controller.dart';
 import '../../settings/application/order_type_settings_controller.dart';
 import 'kitchen_printing_controller.dart';
@@ -158,10 +160,54 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   bool _showMobileOrder = false;
   bool _sending = false;
   String? _pendingClientTransactionId;
+  String? _offlineDraftClientId;
   String? _savedTransactionId;
   Sale? _activeOrder;
 
   bool get _orderLocked => _pendingClientTransactionId != null;
+
+  bool get _offlineSession =>
+      ref.read(authControllerProvider).asData?.value == 'offline-local-session';
+
+  bool _isConnectionFailure(Object error) =>
+      error is TimeoutException ||
+      error is http.ClientException ||
+      (error is ApiException &&
+          (error.statusCode == 408 ||
+              error.statusCode == 429 ||
+              (error.statusCode ?? 0) >= 500));
+
+  Future<void> _queueOfflineOrder(String status) async {
+    final store = ref.read(appStoreProvider);
+    final locationId = _locationId(store);
+    final customer = _customer(store);
+    if (locationId == null || customer == null) {
+      throw const ApiException(
+        'Cached customer and location data are required.',
+      );
+    }
+    _pendingClientTransactionId ??=
+        _offlineDraftClientId ?? _newClientTransactionId();
+    final sale = await ref
+        .read(offlinePosControllerProvider.notifier)
+        .queueKitchenOrder(
+          locationId: locationId,
+          customer: customer,
+          lines: _lines.values.toList(growable: false),
+          clientTransactionId: _pendingClientTransactionId!,
+          saleNote: _composedSaleNote(),
+          status: status,
+          tableId: _service == 'Dine in' ? _tableId : null,
+          serviceStaffId: _waiterId,
+          serviceTypeId: _serviceTypeId,
+          grossDiscount: _grossDiscount,
+        );
+    if (!mounted) return;
+    _resetOrder();
+    _show(
+      '${status == 'draft' ? 'Draft' : 'Kitchen order'} ${sale.invoiceNo} saved on this device. Sync before it appears in the kitchen; no ticket has printed yet.',
+    );
+  }
 
   @override
   void dispose() {
@@ -368,6 +414,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _activeOrder = null;
       _savedTransactionId = null;
       _pendingClientTransactionId = null;
+      _offlineDraftClientId = null;
       _tableId = null;
       _waiterId = null;
       _serviceTypeId = null;
@@ -757,9 +804,28 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (_orderLocked) return;
     setState(() => _sending = true);
     try {
-      final loadedOrders = await ref.refresh(
-        kitchenOrdersProvider(locationId).future,
-      );
+      final localOrders = ref
+          .read(appStoreProvider)
+          .sales
+          .where(
+            (order) =>
+                order.isKitchenOrder &&
+                order.locationId == locationId &&
+                order.localId.startsWith('kitchen-') &&
+                order.serverId == null,
+          )
+          .toList();
+      List<Sale> remoteOrders = const [];
+      if (!_offlineSession) {
+        try {
+          remoteOrders = await ref.refresh(
+            kitchenOrdersProvider(locationId).future,
+          );
+        } catch (error) {
+          if (localOrders.isEmpty) rethrow;
+        }
+      }
+      final loadedOrders = [...localOrders, ...remoteOrders];
       final orders = loadedOrders
           .where(
             (order) =>
@@ -1137,7 +1203,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           );
         },
       );
-      if (selected != null && mounted) _loadOrder(selected);
+      if (selected != null && mounted) {
+        if (selected.serverId == null && selected.status != 'draft') {
+          _show('This order is waiting to sync and cannot be edited yet.');
+        } else {
+          _loadOrder(selected);
+        }
+      }
     } catch (error, stackTrace) {
       debugPrint('Unable to load recent kitchen orders: $error\n$stackTrace');
       if (mounted) {
@@ -1214,6 +1286,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _activeOrder = order;
       _savedTransactionId = order.serverId;
       _pendingClientTransactionId = null;
+      _offlineDraftClientId =
+          order.localId.startsWith('kitchen-') && order.serverId == null
+          ? order.localId.substring('kitchen-'.length)
+          : null;
       _tableId = order.tableId.isEmpty ? null : order.tableId;
       _waiterId = order.waiterId.isEmpty ? null : order.waiterId;
       _serviceTypeId = order.serviceTypeId.isEmpty ? null : order.serviceTypeId;
@@ -1240,6 +1316,14 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     final customer = _customer(store);
     if (locationId == null || locationId.isEmpty || customer == null) {
       _show('Refresh customer and business location data before saving.');
+      return;
+    }
+    if (_offlineSession && _savedTransactionId == null) {
+      try {
+        await _queueOfflineOrder('draft');
+      } catch (error) {
+        if (mounted) _show('Unable to save offline draft: $error');
+      }
       return;
     }
     setState(() => _sending = true);
@@ -1284,7 +1368,15 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _show('Order #$transactionId saved as draft.');
       _resetOrder();
     } catch (error) {
-      if (mounted) _show('Unable to save this draft: $error');
+      if (_savedTransactionId == null && _isConnectionFailure(error)) {
+        try {
+          await _queueOfflineOrder('draft');
+        } catch (queueError) {
+          if (mounted) _show('Unable to save offline draft: $queueError');
+        }
+      } else if (mounted) {
+        _show('Unable to save this draft: $error');
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -1296,8 +1388,27 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _show('Add an item before sending an order.');
       return;
     }
+    if (_offlineSession && _savedTransactionId == null) {
+      try {
+        await _queueOfflineOrder('final');
+      } catch (error) {
+        if (mounted) _show('Unable to queue kitchen order: $error');
+      }
+      return;
+    }
     final kitchen = ref.read(kitchenPrintingControllerProvider).asData?.value;
     if (_savedTransactionId == null && kitchen?.hasActiveRoutes != true) {
+      final kitchenLoad = ref.read(kitchenPrintingControllerProvider);
+      if (kitchenLoad.hasError &&
+          _isConnectionFailure(kitchenLoad.error!) &&
+          ref.read(offlinePosControllerProvider).value?.ready == true) {
+        try {
+          await _queueOfflineOrder('final');
+        } catch (error) {
+          if (mounted) _show('Unable to queue kitchen order: $error');
+        }
+        return;
+      }
       _show('Set up a kitchen printer route in Printer settings first.');
       return;
     }
@@ -1360,6 +1471,14 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _resetOrder();
     } catch (error) {
       if (!mounted) return;
+      if (_savedTransactionId == null && _isConnectionFailure(error)) {
+        try {
+          await _queueOfflineOrder('final');
+        } catch (queueError) {
+          if (mounted) _show('Unable to queue kitchen order: $queueError');
+        }
+        return;
+      }
       setState(() => _showMobileOrder = true);
       _show(
         _savedTransactionId == null

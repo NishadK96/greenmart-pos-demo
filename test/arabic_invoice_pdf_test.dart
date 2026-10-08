@@ -8,6 +8,7 @@ import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/purchases/presentation/purchase_document_export.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:eazy_pos/features/invoice_layouts/domain/invoice_layout_entities.dart';
+import 'package:eazy_pos/features/invoice_layouts/application/offline_ar_receipt.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,7 @@ void main() {
       minimumStock: 1,
       variationId: '1',
       taxPercent: 15,
+      sellingPriceIncludesTax: true,
     );
     final sale = Sale(
       localId: 'sale-ar-1',
@@ -129,6 +131,25 @@ void main() {
       arabic: false,
     );
     expect(offlineBytes.length, greaterThan(10000));
+    final templateHtml = await OfflineArabicReceipt.renderHtml(
+      sale: sale,
+      businessName: 'متجر جرين مارت',
+      vatNumber: '300123456700003',
+      cashierName: 'Cashier 1',
+    );
+    expect(templateHtml, contains('INV-AR-0001'));
+    expect(templateHtml, contains('قهوة عربية فاخرة'));
+    expect(templateHtml, contains('فاتورة مؤقتة'));
+    expect(templateHtml, contains('data:image/svg+xml;base64,'));
+    expect(templateHtml, isNot(contains('[Product Name]')));
+    expect(templateHtml, isNot(contains('[Total Due]')));
+    final templatePdf = await OfflineArabicReceipt.pdf(
+      sale: sale,
+      businessName: 'متجر جرين مارت',
+      vatNumber: '300123456700003',
+      cashierName: 'Cashier 1',
+    );
+    expect(templatePdf.length, greaterThan(10000));
 
     expect(purchaseBytes.length, greaterThan(10000));
     expect(receiptBytes.length, greaterThan(10000));
@@ -150,6 +171,9 @@ void main() {
       File(
         '${directory.path}/offline-bilingual-receipt.pdf',
       ).writeAsBytesSync(offlineBytes);
+      File(
+        '${directory.path}/offline-ar-template-receipt.pdf',
+      ).writeAsBytesSync(templatePdf);
     }
   });
 }

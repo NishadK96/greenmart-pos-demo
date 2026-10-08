@@ -12,6 +12,7 @@ import '../../printers/domain/printer_settings.dart';
 import '../../store/app_store.dart';
 import '../domain/invoice_layout_entities.dart';
 import '../data/offline_invoice_layout_repository.dart';
+import '../application/offline_ar_receipt.dart';
 
 final offlineInvoiceLayoutRepositoryProvider = Provider(
   (_) => OfflineInvoiceLayoutRepository(),
@@ -125,9 +126,11 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     final profile = sale.customer.isBusiness
         ? 'billing-business'
         : 'billing-retail';
-    final format = PrinterDocumentService.formatFor(
-      settings.paperSizes[profile] ?? '80mm',
-    );
+    final format = sale.serverId == null
+        ? OfflineArabicReceipt.pageFormat
+        : PrinterDocumentService.formatFor(
+            settings.paperSizes[profile] ?? '80mm',
+          );
     return PrinterDocumentService.printPdfBytes(
       file.bytes,
       name: file.fileName,
@@ -159,11 +162,16 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
         name: file.fileName,
       );
     }
-    return PrinterDocumentService.previewReceipt(
-      sale,
-      businessName,
-      settings,
+    final file = await salePdf(
+      sale: sale,
+      businessName: businessName,
+      settings: settings,
       arabic: arabic,
+    );
+    return PrinterDocumentService.previewPdfBytes(
+      file.bytes,
+      name: file.fileName,
+      format: OfflineArabicReceipt.pageFormat,
     );
   }
 
@@ -183,29 +191,38 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       _salePdfCache[saleId] = file;
       return file;
     }
-    final profile = sale.customer.isBusiness
-        ? 'billing-business'
-        : 'billing-retail';
-    final format = PrinterDocumentService.formatFor(
-      settings.paperSizes[profile] ?? '80mm',
-    );
     final offlineLayout = await ref
         .read(offlineInvoiceLayoutRepositoryProvider)
         .load(_locationId, _documentType);
+    final store = ref.read(appStoreProvider);
+    final manifest = offlineLayout?.manifest ?? const <String, dynamic>{};
+    final business = manifest['business'] is Map
+        ? Map<String, dynamic>.from(manifest['business'] as Map)
+        : const <String, dynamic>{};
+    final identity = manifest['invoice_identity'] is Map
+        ? Map<String, dynamic>.from(manifest['invoice_identity'] as Map)
+        : const <String, dynamic>{};
+    final arabicBusinessName = store.business?.nameAr.trim().isNotEmpty == true
+        ? store.business!.nameAr.trim()
+        : '${business['name_ar'] ?? ''}'.trim();
+    final cachedBusinessName =
+        '${business['name_en'] ?? business['name'] ?? ''}'.trim();
+    final cachedVat =
+        '${identity['vat_number'] ?? business['tax_number'] ?? ''}'.trim();
     return ErpInvoicePdf(
-      bytes: offlineLayout == null
-          ? await PrinterDocumentService.receipt(
-              sale,
-              businessName,
-              settings,
-              format,
-              arabic: arabic,
-            )
-          : await PrinterDocumentService.offlineLayoutReceipt(
-              sale,
-              offlineLayout,
-              arabic: arabic,
-            ),
+      bytes: await OfflineArabicReceipt.pdf(
+        sale: sale,
+        businessName: arabicBusinessName.isNotEmpty
+            ? arabicBusinessName
+            : businessName == 'Eazy POS' && cachedBusinessName.isNotEmpty
+            ? cachedBusinessName
+            : businessName,
+        vatNumber: store.business?.taxNumber.isNotEmpty == true
+            ? store.business!.taxNumber
+            : cachedVat,
+        cashierName: store.user?.name ?? '',
+        layout: offlineLayout,
+      ),
       fileName: 'Invoice ${sale.invoiceNo}.pdf',
     );
   }

@@ -6369,10 +6369,20 @@ class SyncScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text(
                   offlineState?.ready == true
-                      ? '${offlineState!.pendingCount} sale(s) waiting to synchronize. ${offlineState.catalog.products.length} products cached. Authorization expires ${DateFormat('dd MMM yyyy, HH:mm').format(offlineState.context!.authorizedUntil.toLocal())}.'
+                      ? '${offlineState!.pendingCount} retail/kitchen order(s) waiting to synchronize. ${offlineState.catalog.products.length} products cached. Authorization expires ${DateFormat('dd MMM yyyy, HH:mm').format(offlineState.context!.authorizedUntil.toLocal())}.'
                       : 'Connect once with an open register to authorize this device for offline sales.',
                   style: const TextStyle(color: AppColors.muted),
                 ),
+                if (offlineState?.queue.any(
+                      (item) => item.status == 'print_pending',
+                    ) ==
+                    true) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'A kitchen order reached the server but its ticket has not printed. Check printer routes, then retry sync.',
+                    style: TextStyle(color: AppColors.danger),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 8,
@@ -6437,7 +6447,7 @@ class SyncScreen extends ConsumerWidget {
                             )
                           : const Icon(Icons.cloud_sync_outlined),
                       label: Text(
-                        'Sync queued sales (${offlineState?.pendingCount ?? 0})',
+                        'Sync queued orders (${offlineState?.pendingCount ?? 0})',
                       ),
                     ),
                     OutlinedButton.icon(

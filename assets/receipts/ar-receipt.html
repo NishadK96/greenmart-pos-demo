@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>فاتورة ضريبية</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+            color: #000 !important;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        .ar-receipt {
+            width: 80mm;
+            max-width: 80mm;
+            margin: 0;
+            padding: 2mm 3mm;
+            font-family: Tahoma, Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.25;
+            color: #000;
+            direction: rtl;
+            unicode-bidi: plaintext;
+        }
+
+        .ar-center { text-align: center; }
+        .ar-muted { color: #000; }
+        .ar-strong { font-weight: 800; }
+        .ar-num { direction: ltr; unicode-bidi: plaintext; }
+        .ar-xs { font-size: 11px; }
+        .ar-sep { margin: 0 6px; color: #000; }
+        .ar-en {
+            direction: ltr;
+            unicode-bidi: plaintext;
+            font-size: 10px;
+            color: #000;
+            font-weight: 700;
+            margin-right: 4px;
+            white-space: nowrap;
+        }
+        .ar-en--below {
+            display: block;
+            margin: 1px 0 0;
+            font-size: 10px;
+            color: #000;
+        }
+        .ar-ar { display: block; }
+
+        .ar-logo img {
+            width: 80px;
+            height: 60px;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+        .ar-title {
+            font-size: 16px;
+            font-weight: 900;
+            margin: 2px 0 4px;
+        }
+        .ar-biz {
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        .ar-section {
+            padding-top: 6px;
+            margin-top: 6px;
+            border-top: 1px dashed #bbb;
+        }
+
+        .ar-kv {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 2px 0;
+            align-items: baseline;
+        }
+        .ar-kv .k { color: #000; font-weight: 700; max-width: 62%; }
+        .ar-kv .v { font-weight: 800; text-align: left; }
+        .ar-kv .ar-invoice-no { font-size: 20px; font-weight: 900; }
+
+        .ar-items {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-top: 2px;
+        }
+        .ar-items thead th {
+            padding: 4px 2px;
+            font-size: 11px;
+            border-bottom: 1px solid #999;
+            color: #000;
+            font-weight: 900;
+        }
+        .ar-items thead th.ar-col-qty { text-align: center; }
+        .ar-items thead th.ar-col-item { text-align: right; }
+        .ar-items thead th.ar-col-piece,
+        .ar-items thead th.ar-col-total,
+        .ar-items thead th.ar-col-vat { text-align: left; }
+        .ar-items thead .ar-ar,
+        .ar-items thead .ar-en {
+            display: block;
+            width: 100%;
+            margin-left: 0;
+            margin-right: 0;
+            text-align: inherit;
+            white-space: normal;
+        }
+        .ar-items tbody td {
+            padding: 4px 2px;
+            vertical-align: top;
+            border-bottom: 1px dotted #ddd;
+        }
+        .ar-items .ar-strong { color: #000 !important; }
+        .ar-item-modifiers { margin-top: 2px; font-size: 11px; font-weight: 600; }
+        .ar-col-item { width: 32%; text-align: right; overflow-wrap: anywhere; }
+        .ar-col-qty { width: 12%; text-align: center; }
+        .ar-col-piece,
+        .ar-col-total,
+        .ar-col-vat {
+            text-align: left;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .ar-col-piece { width: 19%; }
+        .ar-col-total { width: 19%; }
+        .ar-col-vat { width: 18%; }
+        .ar-items-footer { margin-top: 6px; }
+
+        .ar-summary { width: 100%; border-collapse: collapse; }
+        .ar-summary td { padding: 3px 0; }
+        .ar-summary .k { color: #000; font-weight: 800; }
+        .ar-summary .v { text-align: left; font-weight: 900; }
+        .ar-total td {
+            padding-top: 6px;
+            border-top: 1px solid #333;
+        }
+
+        .ar-qr {
+            width: 160px;
+            height: 160px;
+            display: inline-block;
+        }
+        .ar-footer {
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px dashed #bbb;
+            font-size: 11px;
+        }
+
+        @media print {
+            html,
+            body {
+                width: 80mm;
+                margin: 0;
+                padding: 0;
+            }
+            .avoid-page-break { page-break-inside: avoid; break-inside: avoid; }
+            .ar-items tr { page-break-inside: avoid; break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <main class="ar-receipt">
+        <header class="ar-header avoid-page-break">
+            <!-- Optional logo: <div class="ar-center ar-logo"><img src="logo.png" alt="Logo"></div> -->
+
+            <div class="ar-biz ar-center">[Business Name]</div>
+            <div class="ar-title ar-center">فاتورة ضريبية مبسطة</div>
+            <div class="ar-center ar-muted ar-xs">SIMPLIFIED TAX INVOICE</div>
+
+            <div class="ar-center ar-muted">
+                الرقم الضريبي <span class="ar-en">VAT</span>:
+                <span class="ar-strong ar-num">[VAT Number]</span>
+            </div>
+            <div class="ar-center ar-muted ar-xs">
+                السجل التجاري <span class="ar-en">CRN</span>:
+                <span class="ar-strong ar-num">[Commercial Registration Number]</span>
+            </div>
+            <div class="ar-center ar-muted ar-xs">
+                الهاتف <span class="ar-en">Tel</span>:
+                <span class="ar-strong ar-num">[Phone Number]</span>
+            </div>
+            <div class="ar-center ar-muted ar-xs">[Business Address]</div>
+        </header>
+
+        <section class="ar-section avoid-page-break" aria-label="بيانات الفاتورة">
+            <div class="ar-kv">
+                <span class="k">رقم الفاتورة <span class="ar-en">Inv#</span>:</span>
+                <span class="v ar-num ar-invoice-no">[Invoice Number]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">رقم الفاتورة الأصلية <span class="ar-en">Original Inv#</span>:</span>
+                <span class="v ar-num">[Optional]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">تاريخ الفاتورة <span class="ar-en">Date</span>:</span>
+                <span class="v ar-num">[YYYY/MM/DD]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">وقت البيع <span class="ar-en">Time</span>:</span>
+                <span class="v ar-num">[HH:MM:SS]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">الكاشير <span class="ar-en">Cashier</span>:</span>
+                <span class="v">[Cashier Name]</span>
+            </div>
+        </section>
+
+        <section class="ar-section avoid-page-break" aria-label="بيانات العميل">
+            <div class="ar-kv">
+                <span class="k">العميل <span class="ar-en">Cust</span>:</span>
+                <span class="v">[Customer Name or Cash Customer]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">الجوال <span class="ar-en">Mob</span>:</span>
+                <span class="v ar-num">[Mobile Number]</span>
+            </div>
+            <div class="ar-kv">
+                <span class="k">رقم ضريبة العميل <span class="ar-en">VAT</span>:</span>
+                <span class="v ar-num">[Customer VAT Number]</span>
+            </div>
+        </section>
+
+        <section class="ar-section" aria-label="تفاصيل المنتجات">
+            <table class="ar-items">
+                <thead>
+                    <tr>
+                        <th class="ar-col-item">
+                            <span class="ar-ar">المنتج</span>
+                            <span class="ar-en ar-en--below">Item</span>
+                        </th>
+                        <th class="ar-col-qty">
+                            <span class="ar-ar">الكمية</span>
+                            <span class="ar-en ar-en--below">Qty</span>
+                        </th>
+                        <th class="ar-col-piece ar-num">
+                            <span class="ar-ar">سعر القطعة</span>
+                            <span class="ar-en ar-en--below">Piece Amount</span>
+                        </th>
+                        <th class="ar-col-total ar-num">
+                            <span class="ar-ar">الإجمالي</span>
+                            <span class="ar-en ar-en--below">Total Amount</span>
+                        </th>
+                        <th class="ar-col-vat ar-num">
+                            <span class="ar-ar">قيمة الضريبة</span>
+                            <span class="ar-en ar-en--below">VAT Amount</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="ar-col-item"><div class="ar-strong">[Product Name]</div></td>
+                        <td class="ar-col-qty ar-num">[Quantity]</td>
+                        <td class="ar-col-piece ar-num">[Unit Price]</td>
+                        <td class="ar-col-total ar-num ar-strong">[Line Total]</td>
+                        <td class="ar-col-vat ar-num">[Line VAT]</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="ar-muted ar-center ar-xs ar-items-footer">
+                إجمالي الكمية: <span class="ar-strong ar-num">[Total Quantity]</span>
+                <span class="ar-sep">|</span>
+                عدد الأصناف: <span class="ar-strong ar-num">[Item Count]</span>
+            </div>
+        </section>
+
+        <section class="ar-section avoid-page-break" aria-label="ملخص الفاتورة">
+            <table class="ar-summary">
+                <tbody>
+                    <tr>
+                        <td class="k"><span class="ar-ar">السعر</span><span class="ar-en ar-en--below">Sub</span></td>
+                        <td class="v ar-num">[Subtotal Before Tax]</td>
+                    </tr>
+                    <tr>
+                        <td class="k"><span class="ar-ar">الخصم</span><span class="ar-en ar-en--below">Disc</span></td>
+                        <td class="v ar-num">[Discount]</td>
+                    </tr>
+                    <tr>
+                        <td class="k"><span class="ar-ar">الضريبة</span><span class="ar-en ar-en--below">VAT</span></td>
+                        <td class="v ar-num">[Total VAT]</td>
+                    </tr>
+                    <tr class="ar-total">
+                        <td class="k"><span class="ar-ar">الإجمالي</span><span class="ar-en ar-en--below">Total</span></td>
+                        <td class="v ar-num">[Total Due]</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Optional QR code: <section class="ar-section avoid-page-break ar-center"><img class="ar-qr" src="qr-code.png" alt="QR Code"></section> -->
+
+        <footer class="ar-footer avoid-page-break ar-center ar-muted">شكراً لتعاملكم معنا</footer>
+    </main>
+</body>
+</html>

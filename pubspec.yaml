@@ -46,6 +46,7 @@ dependencies:
   http: ^1.5.0
   file_picker: ^10.3.10
   pdf: ^3.11.3
+  barcode: ^2.2.9
   printing: ^5.14.2
   image: ^4.8.0
   flutter_svg: ^2.2.3
@@ -75,6 +76,7 @@ flutter:
     - assets/branding/
     - assets/icons/saudi_riyal_symbol.svg
     - assets/fonts/
+    - assets/receipts/ar-receipt.html
     - assets/products/grocery.jpg
     - assets/products/beverages.jpg
     - assets/products/snacks.jpg

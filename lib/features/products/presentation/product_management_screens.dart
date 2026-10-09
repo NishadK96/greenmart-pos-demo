@@ -46,6 +46,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String _barcodeType = 'C128', _taxType = 'exclusive';
   final Set<String> _locationIds = {};
   bool _manageStock = true, _serialNumber = false, _notForSelling = false;
+  bool _quickAdvanced = false;
   bool _saving = false, _existingImageRemoved = false;
   List<int>? _imageBytes, _brochureBytes;
   String? _imageName, _brochureName;
@@ -157,12 +158,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 return SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
                     desktop ? 22 : 14,
-                    18,
+                    widget.quick ? 12 : 18,
                     desktop ? 22 : 14,
-                    100,
+                    widget.quick ? 16 : 100,
                   ),
                   child: widget.quick
-                      ? content
+                      ? Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1200),
+                            child: content,
+                          ),
+                        )
                       : desktop
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +256,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 ],
               ),
             ),
-            if (!compact) ...[
+            if (widget.quick) ...[
+              Text(
+                context.tr('Advanced'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              Switch.adaptive(
+                value: _quickAdvanced,
+                onChanged: (value) => setState(() => _quickAdvanced = value),
+              ),
+            ] else if (!compact) ...[
               if (!widget.quick) ...[
                 OutlinedButton(
                   onPressed: _saving ? null : () => _save(_SaveMode.save),
@@ -270,112 +285,155 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     },
   );
 
-  Widget _quickProductFormContent(AppState state) => Column(
-    children: [
-      _productSection(
-        1,
-        'Basic details',
-        'Only the information required to create and sell this product.',
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final twoColumns = constraints.maxWidth >= 620;
-            final width = twoColumns
-                ? (constraints.maxWidth - 12) / 2
-                : constraints.maxWidth;
-            return Wrap(
+  Widget _quickProductFormContent(AppState state) => Surface(
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 840
+            ? 3
+            : constraints.maxWidth >= 560
+            ? 2
+            : 1;
+        final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+        final sellingIncludesTax = _taxType == 'inclusive';
+        Widget cell(Widget child, {int span = 1}) =>
+            SizedBox(width: width * span + 12 * (span - 1), child: child);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.tr('Create new product'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              context.tr('Fill in the essentials, then save or add another.'),
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
-                SizedBox(
-                  width: width,
-                  child: _field(
-                    _name,
-                    'Product name (English)',
-                    required: true,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _field(
-                    _nameAr,
-                    'Product name (Arabic)',
-                    textDirection: TextDirection.rtl,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: TextFormField(
+                cell(_field(_name, 'Product name', required: true)),
+                cell(
+                  TextFormField(
                     controller: _sku,
                     decoration: InputDecoration(
-                      labelText: context.tr('SKU'),
+                      labelText: context.tr('Barcode / SKU'),
                       hintText: context.tr('Leave blank to auto-generate'),
                       suffixIcon: _sku.text.trim().isEmpty
                           ? null
                           : IconButton(
-                              tooltip: context.tr('Check SKU availability'),
+                              tooltip: context.tr('Check availability'),
                               onPressed: _checkSkuAvailability,
                               icon: const Icon(Icons.fact_check_outlined),
                             ),
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: width,
-                  child: _dropdown(
-                    'Unit',
-                    _unitId,
-                    state.units,
-                    (v) => setState(() => _unitId = v),
-                    required: true,
-                  ),
-                ),
-                SizedBox(
-                  width: width,
-                  child: _dropdown(
+                cell(
+                  _dropdown(
                     'Category',
                     _categoryId,
                     state.categories
                         .map((e) => LookupOption(id: e.id, name: e.name))
                         .toList(),
-                    (v) => setState(() => _categoryId = v),
+                    (value) => setState(() => _categoryId = value),
                   ),
                 ),
+                cell(
+                  _field(
+                    _nameAr,
+                    'Product name (Arabic)',
+                    textDirection: TextDirection.rtl,
+                  ),
+                  span: columns,
+                ),
+                cell(
+                  _dropdown(
+                    'Unit',
+                    _unitId,
+                    state.units,
+                    (value) => setState(() => _unitId = value),
+                    required: true,
+                  ),
+                ),
+                cell(
+                  _priceField(
+                    _purchase,
+                    'Purchase price',
+                    () => _recalculatePrices(state),
+                    required: false,
+                  ),
+                ),
+                cell(
+                  _priceField(
+                    sellingIncludesTax ? _sellingInc : _selling,
+                    sellingIncludesTax
+                        ? 'Selling price (incl. tax)'
+                        : 'Selling price',
+                    sellingIncludesTax
+                        ? () => _recalculateSellingExcludingTax(state)
+                        : () => _recalculateSellingInc(state),
+                  ),
+                ),
+                cell(_field(_opening, 'Opening quantity', number: true)),
               ],
-            );
-          },
-        ),
-      ),
-      const SizedBox(height: 14),
-      _productSection(
-        2,
-        'Stock and location',
-        'Choose where the product is sold and whether stock is tracked.',
-        Column(
-          children: [
-            _settingRow(
-              Icons.inventory_2_outlined,
-              'Track inventory',
-              'Track quantities and receive low-stock alerts.',
-              _manageStock,
-              (v) => setState(() => _manageStock = v),
-              trailing: _manageStock
-                  ? SizedBox(
-                      width: 210,
-                      child: _field(
-                        _minimum,
-                        'Low-stock alert quantity',
-                        number: true,
-                      ),
-                    )
-                  : null,
             ),
-            if (state.locations.length > 1) ...[
+            if (_quickAdvanced) ...[
+              const SizedBox(height: 18),
+              const Divider(),
+              const SizedBox(height: 10),
+              Text(
+                context.tr('Advanced options'),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  cell(
+                    _dropdown('Applicable tax', _taxId, state.taxes, (value) {
+                      setState(() => _taxId = value);
+                      _recalculatePrices(state);
+                      _recalculateSellingInc(state);
+                    }),
+                  ),
+                  cell(
+                    _choice(
+                      'Selling price tax type',
+                      _taxType,
+                      const [
+                        LookupOption(id: 'exclusive', name: 'Exclusive'),
+                        LookupOption(id: 'inclusive', name: 'Inclusive'),
+                      ],
+                      (value) => setState(() => _taxType = value!),
+                    ),
+                  ),
+                  cell(_field(_margin, 'Margin (%)', number: true)),
+                  cell(
+                    _field(_minimum, 'Low-stock alert quantity', number: true),
+                  ),
+                ],
+              ),
+              _settingRow(
+                Icons.inventory_2_outlined,
+                'Track inventory',
+                'Track quantities and receive low-stock alerts.',
+                _manageStock,
+                (value) => setState(() => _manageStock = value),
+              ),
+              if (state.locations.length > 1) ...[
+                const SizedBox(height: 10),
+                Text(context.tr('Available locations')),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: state.locations
                       .map(
                         (location) => _locationCard(
@@ -384,66 +442,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       )
                       .toList(),
                 ),
-              ),
+              ],
             ],
           ],
-        ),
-      ),
-      const SizedBox(height: 14),
-      _productSection(
-        3,
-        'Tax and pricing',
-        'Enter either inclusive or exclusive prices; linked values update automatically.',
-        Column(
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final twoColumns = constraints.maxWidth >= 620;
-                final width = twoColumns
-                    ? (constraints.maxWidth - 12) / 2
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    SizedBox(
-                      width: width,
-                      child: _dropdown('Applicable tax', _taxId, state.taxes, (
-                        v,
-                      ) {
-                        setState(() => _taxId = v);
-                        _recalculatePrices(state);
-                      }),
-                    ),
-                    SizedBox(
-                      width: width,
-                      child: _choice(
-                        'Selling price tax type',
-                        _taxType,
-                        const [
-                          LookupOption(id: 'exclusive', name: 'Exclusive'),
-                          LookupOption(id: 'inclusive', name: 'Inclusive'),
-                        ],
-                        (v) {
-                          setState(() => _taxType = v!);
-                          _recalculateSellingInc(state);
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return _pricingInputs(state, constraints.maxWidth);
-              },
-            ),
-          ],
-        ),
-      ),
-    ],
+        );
+      },
+    ),
   );
 
   Widget _productFormContent(AppState state) => Column(
@@ -1169,6 +1173,45 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     builder: (context, constraints) {
       final compact = constraints.maxWidth < 900;
       if (compact) {
+        if (widget.quick) {
+          return SafeArea(
+            top: false,
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: _saving
+                        ? null
+                        : () => context.go(widget.returnRoute),
+                    child: Text(context.tr('Cancel')),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.tonal(
+                      onPressed: _saving
+                          ? null
+                          : () => _save(_SaveMode.addAnother),
+                      child: Text(
+                        context.tr('Save + new'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _saving ? null : () => _save(_SaveMode.save),
+                      child: Text(context.tr('Save')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         return SafeArea(
           top: false,
           child: Container(
@@ -2032,6 +2075,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _save(_SaveMode mode) async {
     if (!_formKey.currentState!.validate() || _unitId == null) return;
+    if (widget.quick &&
+        (double.tryParse(_opening.text) ?? 0) > 0 &&
+        _locationIds.isEmpty) {
+      setState(() => _quickAdvanced = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Select a location for opening stock.')),
+        ),
+      );
+      return;
+    }
     final sku = _sku.text.trim();
     if (sku.isNotEmpty) {
       try {
@@ -2165,6 +2219,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   void _resetForAnother() {
     for (final controller in [
       _name,
+      _nameAr,
       _sku,
       _purchase,
       _purchaseInc,

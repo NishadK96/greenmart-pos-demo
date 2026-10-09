@@ -190,6 +190,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final _quantityController = TextEditingController(text: '1');
   final _unitPriceController = TextEditingController(text: '0.00');
   final _searchFocus = FocusNode();
+  final _searchOptionsScrollController = ScrollController();
   final _barcodeFocus = FocusNode();
   final _posFocus = FocusNode(debugLabel: 'POS keyboard controller');
   final Set<String> _favorites = {};
@@ -216,6 +217,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _quantityController.dispose();
     _unitPriceController.dispose();
     _searchFocus.dispose();
+    _searchOptionsScrollController.dispose();
     _barcodeFocus.dispose();
     _posFocus.dispose();
     super.dispose();
@@ -259,9 +261,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             _openCustomerSelector(context, state),
         const SingleActivator(LogicalKeyboardKey.digit4, control: true): () =>
             _openCustomerSelector(context, state),
-        const SingleActivator(LogicalKeyboardKey.f6): _editLatestCartPrice,
+        const SingleActivator(LogicalKeyboardKey.f6): _holdRetailSale,
         const SingleActivator(LogicalKeyboardKey.digit6, control: true):
-            _editLatestCartPrice,
+            _holdRetailSale,
         const SingleActivator(LogicalKeyboardKey.f7): () =>
             _openRecentSales(context, state),
         const SingleActivator(LogicalKeyboardKey.digit7, control: true): () =>
@@ -334,6 +336,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         .where((line) => line.lineId == selectedId)
         .firstOrNull;
     _showUnitPriceEditor(context, ref, selected ?? state.cart.last);
+  }
+
+  void _holdRetailSale() {
+    if (ref.read(appStoreProvider).cart.isEmpty) return;
+    ref.read(appStoreProvider.notifier).holdCart();
   }
 
   void _triggerPaymentShortcut([String? preferredCode]) {
@@ -1434,77 +1441,115 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   isDense: true,
                 ),
               ),
-          optionsViewBuilder: (context, onSelected, options) => Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 8,
-              borderRadius: BorderRadius.circular(8),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: 340,
-                  maxWidth: 480,
-                  maxHeight: 300,
-                ),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (_, index) {
-                    final product = options.elementAt(index);
-                    return Builder(
-                      builder: (rowContext) {
-                        final highlighted =
-                            AutocompleteHighlightedOption.of(rowContext) ==
-                            index;
-                        return InkWell(
-                          onTap: () => onSelected(product),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 90),
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            color: highlighted
-                                ? AppColors.primary.withValues(alpha: .11)
-                                : Colors.white,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    product.displayName(context.isArabic),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: highlighted
-                                          ? FontWeight.w800
-                                          : FontWeight.w500,
-                                      color: highlighted
-                                          ? AppColors.primary
-                                          : AppColors.ink,
+          optionsViewBuilder: (context, onSelected, options) => Builder(
+            builder: (optionsContext) {
+              final highlightedIndex = AutocompleteHighlightedOption.of(
+                optionsContext,
+              );
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted ||
+                    !_searchOptionsScrollController.hasClients ||
+                    highlightedIndex < 0 ||
+                    highlightedIndex >= options.length) {
+                  return;
+                }
+                final position = _searchOptionsScrollController.position;
+                const rowHeight = 48.0;
+                const topPadding = 5.0;
+                final rowTop = topPadding + highlightedIndex * rowHeight;
+                final rowBottom = rowTop + rowHeight;
+                final viewportBottom =
+                    position.pixels + position.viewportDimension;
+                final target = rowTop < position.pixels
+                    ? rowTop
+                    : rowBottom > viewportBottom
+                    ? rowBottom - position.viewportDimension
+                    : null;
+                if (target != null) {
+                  _searchOptionsScrollController.jumpTo(
+                    target.clamp(
+                      position.minScrollExtent,
+                      position.maxScrollExtent,
+                    ),
+                  );
+                }
+              });
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(8),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 340,
+                      maxWidth: 480,
+                      maxHeight: 300,
+                    ),
+                    child: ListView.builder(
+                      controller: _searchOptionsScrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (_, index) {
+                        final product = options.elementAt(index);
+                        return Builder(
+                          builder: (rowContext) {
+                            final highlighted =
+                                AutocompleteHighlightedOption.of(rowContext) ==
+                                index;
+                            return InkWell(
+                              onTap: () => onSelected(product),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 90),
+                                height: 48,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                color: highlighted
+                                    ? AppColors.primary.withValues(alpha: .11)
+                                    : Colors.white,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        product.displayName(context.isArabic),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: highlighted
+                                              ? FontWeight.w800
+                                              : FontWeight.w500,
+                                          color: highlighted
+                                              ? AppColors.primary
+                                              : AppColors.ink,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 18),
+                                    Text(
+                                      money(product.sellingPrice),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: highlighted
+                                            ? AppColors.primary
+                                            : AppColors.ink,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 18),
-                                Text(
-                                  money(product.sellingPrice),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: highlighted
-                                        ? AppColors.primary
-                                        : AppColors.ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -2320,9 +2365,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             Icons.pause_rounded,
             'Hold Sale',
             'F6',
-            state.cart.isEmpty
-                ? null
-                : () => ref.read(appStoreProvider.notifier).holdCart(),
+            state.cart.isEmpty ? null : _holdRetailSale,
           ),
           _bottomAction(
             Icons.history_rounded,
@@ -2350,12 +2393,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             () => _openProductSelector(state),
           ),
           _bottomAction(
-            Icons.price_check_outlined,
-            'Price Check',
-            '',
-            () => _openProductSelector(state),
-          ),
-          _bottomAction(
             Icons.edit_outlined,
             'Edit Price',
             '',
@@ -2366,12 +2403,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             'Quick Product',
             '',
             () => context.go('/products/quick?return=%2Fpos'),
-          ),
-          _bottomAction(
-            Icons.more_horiz_rounded,
-            'More',
-            '',
-            () => _noteFromRetail(),
           ),
         ],
       ),
@@ -2409,14 +2440,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             ),
           ],
         ],
-      ),
-    ),
-  );
-
-  void _noteFromRetail() => ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        context.tr('More sale actions are available from the payment panel.'),
       ),
     ),
   );
@@ -4103,8 +4126,12 @@ class _KeyboardPaymentGridState extends State<_KeyboardPaymentGrid> {
                 ),
                 child: Text(
                   _armed
-                      ? '${context.tr(selected.label)} selected for ${money(widget.paymentTotal)}. Press Enter again to complete the sale, or use an arrow key to change.'
-                      : 'Keyboard: use arrow keys to select a payment method, then press Enter twice to confirm.',
+                      ? context.isArabic
+                            ? 'تم اختيار ${context.tr(selected.label)} بمبلغ ${money(widget.paymentTotal)}. اضغط إدخال مرة أخرى لإتمام البيع، أو استخدم الأسهم لتغيير الاختيار.'
+                            : '${context.tr(selected.label)} selected for ${money(widget.paymentTotal)}. Press Enter again to complete the sale, or use an arrow key to change.'
+                      : context.tr(
+                          'Keyboard: use arrow keys to select a payment method, then press Enter twice to confirm.',
+                        ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: _armed ? AppColors.primary : AppColors.muted,
@@ -4931,7 +4958,7 @@ class _CurrentOrder extends ConsumerWidget {
               children: [
                 _panelTotal(
                   context,
-                  'Subtotal (${state.itemCount} items)',
+                  '${context.tr('Subtotal')} (${state.itemCount} ${context.tr('items')})',
                   state.cartSubtotal,
                 ),
                 _panelTotal(

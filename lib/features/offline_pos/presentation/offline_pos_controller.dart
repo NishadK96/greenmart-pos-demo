@@ -5,6 +5,7 @@ import '../../../core/network/api_provider.dart';
 import '../../../shared/models/entities.dart';
 import '../../auth/auth_controller.dart';
 import '../../kitchen/presentation/kitchen_printing_controller.dart';
+import '../../pos/domain/client_sale_calculation.dart';
 import '../../store/app_store.dart';
 import '../data/offline_pos_storage.dart';
 import '../domain/offline_pos_entities.dart';
@@ -551,6 +552,11 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
               ],
           },
       ],
+      'client_calculation': ClientSaleCalculation.fromCart(
+        lines: sale.items,
+        orderDiscount: grossDiscount,
+        finalTotal: sale.total,
+      ),
       'payments': paymentMethod == 'due'
           ? <Map<String, dynamic>>[]
           : [

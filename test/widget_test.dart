@@ -244,7 +244,7 @@ void main() {
     expect(find.byType(PosScreen), findsOneWidget);
   });
 
-  testWidgets('F6 opens price editor for the latest cart item', (tester) async {
+  testWidgets('F6 holds the current retail sale', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     const product = Product(
@@ -272,8 +272,8 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.f6);
     await tester.pumpAndSettle();
 
-    expect(find.text('Edit unit price'), findsOneWidget);
-    expect(find.text('Unit price'), findsOneWidget);
+    expect(container.read(appStoreProvider).cart, isEmpty);
+    expect(container.read(appStoreProvider).heldCarts, hasLength(1));
   });
 
   testWidgets('F8 opens gross discount editor for the current cart', (
@@ -588,6 +588,58 @@ void main() {
     expect(find.text('Product name (Arabic)'), findsOneWidget);
     expect(find.text('Save product'), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quick add keeps essential fields on one page', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: [AppLocalizations.delegate],
+          supportedLocales: [Locale('en'), Locale('ar')],
+          home: ProductFormScreen(quick: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Product name'), findsOneWidget);
+    expect(find.text('Barcode / SKU'), findsOneWidget);
+    expect(find.text('Opening quantity'), findsOneWidget);
+    expect(find.text('Advanced options'), findsNothing);
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Advanced options'), findsOneWidget);
+    expect(find.text('Applicable tax'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Quick add exposes save and add another on mobile', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: [AppLocalizations.delegate],
+          supportedLocales: [Locale('en'), Locale('ar')],
+          home: ProductFormScreen(quick: true),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Save + new'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

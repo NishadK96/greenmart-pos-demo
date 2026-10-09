@@ -16,7 +16,13 @@ class ZatcaController extends AsyncNotifier<ZatcaIntegrationStatus> {
   static const _statusTimeout = Duration(seconds: 12);
 
   @override
-  Future<ZatcaIntegrationStatus> build() => _loadStatus();
+  Future<ZatcaIntegrationStatus> build() async {
+    // ZATCA configuration belongs to the active business session. Watching
+    // authentication here prevents a status loaded for one saved account from
+    // remaining visible after the cashier logs in to or switches businesses.
+    await ref.watch(authControllerProvider.future);
+    return _loadStatus();
+  }
 
   Future<ZatcaIntegrationStatus> _loadStatus() async {
     try {

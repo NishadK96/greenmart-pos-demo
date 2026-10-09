@@ -147,6 +147,11 @@ void main() {
       {'method': 'card', 'amount': provisional.total / 100},
     ]);
     expect(
+      queuedPayload['client_calculation']['final_total'],
+      (provisional.total / 100).toStringAsFixed(2),
+    );
+    expect(queuedPayload['client_calculation']['lines'], hasLength(1));
+    expect(
       firstRun.read(offlinePosControllerProvider).requireValue.pendingCount,
       1,
     );

@@ -1025,6 +1025,19 @@ void main() {
     expect(line['quantity'], '1.0000');
     expect(line['tax_rate_id'], isNull);
     expect(line['discount_amount'], 1.5);
+    expect(sale['client_calculation'], {
+      'lines': [
+        {
+          'line_total': '44.00',
+          'order_discount': '2.00',
+          'payable_total': '42.00',
+        },
+      ],
+      'subtotal': '44.00',
+      'discount_total': '2.00',
+      'order_tax_total': '0.00',
+      'final_total': '42.00',
+    });
     expect((sale['payments'] as List).single['amount'], 42);
     expect((sale['payments'] as List).single['method'], 'cash');
   });
@@ -1071,6 +1084,8 @@ void main() {
       final line = (sale['products'] as List).single as Map<String, dynamic>;
       expect(line['unit_price_inc_tax'], '15.00');
       expect(line['tax_rate_id'], 3);
+      expect(sale['client_calculation']['lines'][0]['line_total'], '15.00');
+      expect(sale['client_calculation']['final_total'], '15.00');
       expect(line.containsKey('unit_price'), isFalse);
       expect((sale['payments'] as List).single['amount'], 15);
     },

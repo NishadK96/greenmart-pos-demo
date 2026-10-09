@@ -8,6 +8,7 @@ import '../../../shared/models/entities.dart';
 import '../domain/printer_settings.dart';
 import '../../offline_pos/domain/provisional_receipt_qr.dart';
 import '../../../core/utils/pdf_fonts.dart';
+import 'android_bluetooth_printer.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
 import '../../kitchen/domain/kitchen_entities.dart';
 
@@ -58,16 +59,23 @@ class PrinterDocumentService {
       final results = await Future.wait(
         destinations.map((destination) async {
           try {
-            final printed = await Printing.directPrintPdf(
-              printer: destination,
-              name: name,
-              format: printableFormat,
-              usePrinterSettings: _usesExternalWindowsPreview,
-              onLayout: (_) async => printableBytes,
-            );
+            final printed =
+                destination.url.startsWith(AndroidBluetoothPrinter.urlPrefix)
+                ? await AndroidBluetoothPrinter.printPdf(
+                    destination,
+                    printableBytes,
+                    format: printableFormat,
+                  )
+                : await Printing.directPrintPdf(
+                    printer: destination,
+                    name: name,
+                    format: printableFormat,
+                    usePrinterSettings: _usesExternalWindowsPreview,
+                    onLayout: (_) async => printableBytes,
+                  );
             return (printer: destination, error: printed ? null : 'rejected');
-          } catch (_) {
-            return (printer: destination, error: 'unavailable');
+          } catch (error) {
+            return (printer: destination, error: error.toString());
           }
         }),
       );
@@ -77,7 +85,7 @@ class PrinterDocumentService {
           .where((result) => result.error == null)
           .toList();
       final failedNames = failures
-          .map((result) => result.printer.name)
+          .map((result) => '${result.printer.name} (${result.error})')
           .join(', ');
       if (successes.isNotEmpty) {
         final successfulNames = successes

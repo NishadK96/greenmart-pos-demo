@@ -48,8 +48,6 @@ class _ZatcaPhaseBadge extends StatelessWidget {
         data?.installed == true &&
         data?.subscriptionEnabled == true &&
         configured;
-    final setupRequired =
-        data?.installed == true && data?.subscriptionEnabled == true;
     final loading = status.isLoading;
     final unavailable = status.hasError;
     final label = loading
@@ -58,20 +56,14 @@ class _ZatcaPhaseBadge extends StatelessWidget {
         ? 'ZATCA status'
         : phaseTwo
         ? (compact ? 'ZATCA P2' : 'ZATCA Phase 2')
-        : setupRequired
-        ? (compact ? 'ZATCA setup' : 'ZATCA Phase 2 setup')
         : (compact ? 'ZATCA P1' : 'ZATCA Phase 1');
     final color = phaseTwo
         ? AppColors.primary
-        : setupRequired
-        ? const Color(0xFFB7791F)
         : unavailable
         ? AppColors.muted
         : const Color(0xFF356A8A);
     final detail = phaseTwo
         ? 'Phase 2 integrated'
-        : setupRequired
-        ? 'Device onboarding required'
         : unavailable
         ? 'Status unavailable'
         : 'Phase 1 QR invoicing';
@@ -206,10 +198,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         : const AsyncData(null);
     final register = registerState.asData?.value;
     final registerLabel = registerState.isLoading
-        ? 'Register…'
+        ? context.tr('Register…')
         : register == null
-        ? 'Open register'
-        : 'Register ${register.id}';
+        ? context.tr('Open register')
+        : '${context.tr('Register')} ${register.id}';
     if (!desktop) {
       final mobile = [
         shellDestinations[0],

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../apis/api.dart';
 import '../../core/theme/app_theme.dart';
 import 'auth_controller.dart';
+import 'remembered_login_storage.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -15,13 +16,33 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  bool remember = true;
+  bool remember = false;
+  bool _rememberChoiceChanged = false;
   bool obscure = true;
   bool resettingDevice = false;
   bool deviceBusinessMismatch = false;
   String? error;
   final email = TextEditingController();
   final password = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedLogin();
+  }
+
+  Future<void> _loadRememberedLogin() async {
+    try {
+      final saved = await RememberedLoginStorage().read();
+      if (!mounted || saved == null || _rememberChoiceChanged) return;
+      if (email.text.isNotEmpty || password.text.isNotEmpty) return;
+      email.text = saved.username;
+      password.text = saved.password;
+      setState(() => remember = true);
+    } catch (_) {
+      // Secure storage may be unavailable in a private browser session.
+    }
+  }
 
   @override
   void dispose() {
@@ -216,7 +237,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     error: error,
     showDeviceReset: deviceBusinessMismatch,
     resettingDevice: resettingDevice,
-    onRememberChanged: (value) => setState(() => remember = value),
+    onRememberChanged: (value) => setState(() {
+      _rememberChoiceChanged = true;
+      remember = value;
+    }),
     onObscureChanged: () => setState(() => obscure = !obscure),
     onSubmit: _submit,
     onResetDevice: _resetDeviceAndRetry,

@@ -9,6 +9,7 @@ import '../features/purchases/domain/purchase_entities.dart';
 import '../features/zatca/domain/zatca_entities.dart';
 import '../features/invoice_layouts/domain/invoice_layout_entities.dart';
 import '../features/kitchen/domain/kitchen_entities.dart';
+import '../features/pos/domain/client_sale_calculation.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -2477,6 +2478,12 @@ class Api {
                   ],
               },
           ],
+          if (!isKitchenOrder)
+            'client_calculation': ClientSaleCalculation.fromCart(
+              lines: lines,
+              orderDiscount: grossDiscount,
+              finalTotal: total,
+            ),
           // Kitchen orders sent without a payment method stay due and do not
           // require a register. Bill & Pay supplies a method and register, so
           // its payment must be recorded just like a normal POS sale.

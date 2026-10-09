@@ -472,7 +472,7 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
-                          'Default: ${selectedLayout.name}',
+                          '${context.tr('Default')}: ${context.tr(selectedLayout.name)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -869,41 +869,10 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
                         defaultTargetPlatform == TargetPlatform.windows) {
                       return _WindowsErpPreview(file: file);
                     }
-                    return PdfPreview(
-                      build: (_) async => file.bytes,
-                      pdfFileName: file.fileName,
-                      allowPrinting: false,
-                      allowSharing: false,
-                      canChangeOrientation: false,
-                      canChangePageFormat: false,
-                      canDebug: false,
-                      useActions: false,
-                      dynamicLayout: false,
-                      maxPageWidth: 940,
-                      padding: EdgeInsets.all(compact ? 12 : 24),
-                      previewPageMargin: EdgeInsets.symmetric(
-                        horizontal: compact ? 4 : 14,
-                        vertical: 10,
-                      ),
-                      scrollViewDecoration: const BoxDecoration(
-                        color: Color(0xFF555B59),
-                      ),
-                      pdfPreviewPageDecoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x59000000),
-                            blurRadius: 14,
-                            offset: Offset(0, 5),
-                          ),
-                        ],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                      loadingWidget: const _InvoicePreviewLoading(),
-                      onError: (_, error) => _InvoicePreviewError(
-                        message: error.toString(),
-                        onRetry: _retry,
-                      ),
+                    return _EmbeddedInvoicePreview(
+                      bytes: file.bytes,
+                      compact: compact,
+                      onRetry: _retry,
                     );
                   },
                 ),
@@ -914,6 +883,97 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
       ),
     );
   }
+}
+
+class _EmbeddedInvoicePreview extends StatefulWidget {
+  const _EmbeddedInvoicePreview({
+    required this.bytes,
+    required this.compact,
+    required this.onRetry,
+  });
+
+  final Uint8List bytes;
+  final bool compact;
+  final VoidCallback onRetry;
+
+  @override
+  State<_EmbeddedInvoicePreview> createState() =>
+      _EmbeddedInvoicePreviewState();
+}
+
+class _EmbeddedInvoicePreviewState extends State<_EmbeddedInvoicePreview> {
+  late Future<List<Uint8List>> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = _renderPages();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EmbeddedInvoicePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.bytes, widget.bytes)) _pages = _renderPages();
+  }
+
+  Future<List<Uint8List>> _renderPages() async {
+    final pages = <Uint8List>[];
+    await for (final page in Printing.raster(widget.bytes, dpi: 120)) {
+      pages.add(await page.toPng());
+    }
+    if (pages.isEmpty) {
+      throw StateError('The invoice PDF does not contain any pages.');
+    }
+    return pages;
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Uint8List>>(
+    future: _pages,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const _InvoicePreviewLoading();
+      }
+      if (snapshot.hasError || !snapshot.hasData) {
+        return _InvoicePreviewError(
+          message:
+              snapshot.error?.toString() ??
+              'The invoice pages could not be rendered.',
+          onRetry: widget.onRetry,
+        );
+      }
+      final pages = snapshot.requireData;
+      return ListView.separated(
+        padding: EdgeInsets.all(widget.compact ? 12 : 24),
+        itemCount: pages.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 18),
+        itemBuilder: (_, index) => Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 940),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x59000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Image.memory(
+              pages[index],
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (_, error, __) => _InvoicePreviewError(
+                message: error.toString(),
+                onRetry: widget.onRetry,
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _WindowsErpPreview extends StatefulWidget {

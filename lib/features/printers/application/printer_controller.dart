@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
+import 'android_bluetooth_printer.dart';
 import '../data/printer_settings_repository.dart';
 import '../domain/printer_settings.dart';
 
@@ -119,29 +120,45 @@ class PrinterController extends Notifier<PrinterState> {
       );
       return;
     }
+    final printers = <Printer>[];
+    String? message;
     try {
       final info = await Printing.info();
-      final printers = info.canListPrinters
-          ? await Printing.listPrinters()
-          : const <Printer>[];
-      state = state.copyWith(
-        scanning: false,
-        printers: printers.where((printer) => printer.isAvailable).toList(),
-        message: printers.isEmpty
-            ? state.settings.defaultPrinterUrl == null
-                  ? 'No available printer was found. Connect a printer, scan again, and set it as default.'
-                  : 'Printer discovery returned no devices. The saved default printer will still be used for direct printing.'
-            : null,
-      );
+      if (info.canListPrinters) {
+        printers.addAll(
+          (await Printing.listPrinters()).where((p) => p.isAvailable),
+        );
+      }
     } catch (_) {
-      state = state.copyWith(
-        scanning: false,
-        printers: const [],
-        message: state.settings.defaultPrinterUrl == null
-            ? 'Could not discover printers. Connect a printer and scan again.'
-            : 'Could not refresh printers. The saved default printer will still be used for direct printing.',
-      );
+      message = 'Could not discover system printers.';
     }
+    if (AndroidBluetoothPrinter.supported) {
+      try {
+        printers.insertAll(0, await AndroidBluetoothPrinter.pairedPrinters());
+      } catch (error) {
+        message =
+            'Bluetooth printers unavailable: $error. Pair the printer in Android Settings, allow Nearby devices, then scan again.';
+      }
+      printers.add(
+        const Printer(
+          url: 'system-print-dialog',
+          name: 'Android print service',
+          model: 'Choose a printer in the Android print dialog',
+        ),
+      );
+      message ??= printers.length == 1
+          ? 'No paired Bluetooth printer found. Pair your printer in Android Settings, then scan again.'
+          : null;
+    } else if (printers.isEmpty) {
+      message ??= state.settings.defaultPrinterUrl == null
+          ? 'No available printer was found. Connect a printer, scan again, and set it as default.'
+          : 'Printer discovery returned no devices. The saved default printer will still be used for direct printing.';
+    }
+    state = state.copyWith(
+      scanning: false,
+      printers: printers,
+      message: message,
+    );
   }
 
   Future<void> selectPrinter(Printer printer) async {

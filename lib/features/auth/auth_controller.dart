@@ -6,6 +6,7 @@ import '../../apis/api.dart';
 import '../../core/network/api_provider.dart';
 import 'device_session_storage.dart';
 import 'offline_credential_storage.dart';
+import 'remembered_login_storage.dart';
 import '../offline_pos/data/offline_pos_storage.dart';
 
 final authControllerProvider = AsyncNotifierProvider<AuthController, String?>(
@@ -16,6 +17,7 @@ class AuthController extends AsyncNotifier<String?> {
   final DeviceSessionStorage _sessions = DeviceSessionStorage();
   final OfflineCredentialStorage _offlineCredentials =
       OfflineCredentialStorage();
+  final RememberedLoginStorage _rememberedLogin = RememberedLoginStorage();
   String? _webCsrfToken;
   Future<void>? _webBootstrapInFlight;
   Future<String>? _refreshInFlight;
@@ -73,8 +75,10 @@ class AuthController extends AsyncNotifier<String?> {
       }
       if (remember) {
         await _offlineCredentials.save(username, password);
+        await _rememberedLogin.save(username, password);
       } else {
         await _offlineCredentials.clear();
+        await _rememberedLogin.clear();
       }
       state = AsyncData(session.accessToken);
       return LoginResult.success(session.accessToken);
@@ -202,6 +206,7 @@ class AuthController extends AsyncNotifier<String?> {
   Future<void> resetSavedDevice() async {
     await OfflinePosStorage().disableOfflineResume();
     await _offlineCredentials.clear();
+    await _rememberedLogin.clear();
     if (kIsWeb) {
       await _bootstrapWeb();
       await ref.read(apiProvider).logoutWebDevice(_webCsrfToken!);

@@ -72,8 +72,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     final message = _errorMessage(result);
+    final diagnosticCode = result.diagnosticCode;
     setState(() {
-      error = message;
+      error = diagnosticCode == null
+          ? message
+          : '$message\nDiagnostic code: $diagnosticCode';
       deviceBusinessMismatch = _isDeviceBusinessMismatch(result);
     });
   }

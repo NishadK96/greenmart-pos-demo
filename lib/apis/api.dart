@@ -61,13 +61,18 @@ class _RefreshingClient extends http.BaseClient {
 }
 
 class LoginResult {
-  const LoginResult.success(this.accessToken) : failure = null, message = null;
+  const LoginResult.success(this.accessToken)
+    : failure = null,
+      message = null,
+      diagnosticCode = null;
 
-  const LoginResult.failure(this.failure, {this.message}) : accessToken = null;
+  const LoginResult.failure(this.failure, {this.message, this.diagnosticCode})
+    : accessToken = null;
 
   final String? accessToken;
   final LoginFailure? failure;
   final String? message;
+  final String? diagnosticCode;
   bool get isSuccess => accessToken != null;
 }
 

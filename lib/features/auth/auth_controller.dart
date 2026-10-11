@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../../apis/api.dart';
 import '../../core/network/api_provider.dart';
 import 'device_session_storage.dart';
@@ -62,17 +64,22 @@ class AuthController extends AsyncNotifier<String?> {
     required bool remember,
   }) async {
     state = const AsyncLoading();
+    var stage = kIsWeb ? 'WEB-LOGIN' : 'WIN-DEVICE';
     try {
       final SessionLoginResult session;
       if (kIsWeb) {
         session = await _webLogin(username, password);
         _activeSessionId = session.sessionId;
       } else {
+        final headers = await _sessions.deviceHeaders();
+        stage = 'WIN-REQUEST';
         session = await ref
             .read(apiProvider)
-            .sessionLogin(username, password, await _sessions.deviceHeaders());
+            .sessionLogin(username, password, headers);
+        stage = 'WIN-SESSION';
         await _sessions.saveSession(session.sessionId, session.refreshToken!);
       }
+      stage = kIsWeb ? 'WEB-REMEMBER' : 'WIN-REMEMBER';
       if (remember) {
         await _offlineCredentials.save(username, password);
         await _rememberedLogin.save(username, password);
@@ -84,7 +91,7 @@ class AuthController extends AsyncNotifier<String?> {
       return LoginResult.success(session.accessToken);
     } on ApiException catch (error) {
       if (error.statusCode == null || error.statusCode! >= 500) {
-        final offline = await _offlineLogin(username, password);
+        final offline = await _tryOfflineLogin(username, password);
         if (offline != null) return offline;
       }
       state = const AsyncData(null);
@@ -93,13 +100,46 @@ class AuthController extends AsyncNotifier<String?> {
             ? LoginFailure.invalidCredentials
             : LoginFailure.server,
         message: error.message,
+        diagnosticCode: '$stage-HTTP-${error.statusCode ?? 'UNKNOWN'}',
       );
-    } catch (_) {
-      final offline = await _offlineLogin(username, password);
+    } catch (failure) {
+      final offline = await _tryOfflineLogin(username, password);
       if (offline != null) return offline;
       state = const AsyncData(null);
-      return const LoginResult.failure(LoginFailure.network);
+      return LoginResult.failure(
+        LoginFailure.network,
+        diagnosticCode: '$stage-${_safeFailureKind(failure)}',
+      );
     }
+  }
+
+  Future<LoginResult?> _tryOfflineLogin(
+    String username,
+    String password,
+  ) async {
+    try {
+      return await _offlineLogin(username, password);
+    } catch (_) {
+      // A local fallback error must not conceal the original login stage.
+      return null;
+    }
+  }
+
+  // Only fixed categories are shown to support. Exception messages can contain
+  // URLs, credentials, device secrets, or other customer information.
+  String _safeFailureKind(Object failure) {
+    if (failure is TimeoutException) return 'TIMEOUT';
+    if (failure is PlatformException) return 'PLATFORM';
+    if (failure.runtimeType.toString() == '_ClientSocketException') {
+      return 'SOCKET';
+    }
+    if (failure is http.ClientException) return 'HTTP-CLIENT';
+    return switch (failure.runtimeType.toString()) {
+      'HandshakeException' => 'TLS',
+      'SocketException' => 'SOCKET',
+      'FormatException' => 'RESPONSE-FORMAT',
+      _ => 'UNEXPECTED',
+    };
   }
 
   Future<List<SavedAccountSession>> savedAccounts() async {

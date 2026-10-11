@@ -144,6 +144,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     LoginFailure.invalidCredentials => context.tr(
       'The username or password is incorrect.',
     ),
+    LoginFailure.network when _isLocalDiagnostic(result.diagnosticCode) =>
+      context.tr(
+        'Unable to access secure data on this device. Please contact support.',
+      ),
     LoginFailure.network => context.tr(
       'Unable to reach the server. Check your connection.',
     ),
@@ -152,6 +156,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ? result.message!
           : context.tr('Login failed. Please try again.'),
   };
+
+  bool _isLocalDiagnostic(String? code) =>
+      code?.startsWith('DEVICE-IDENTITY-') == true ||
+      code?.startsWith('SESSION-SAVE-') == true ||
+      code?.startsWith('REMEMBERED-LOGIN-') == true;
 
   @override
   Widget build(BuildContext context) {

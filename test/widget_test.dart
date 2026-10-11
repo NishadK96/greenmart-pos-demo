@@ -41,6 +41,36 @@ void main() {
     expect(find.text('Continue to Eazy POS'), findsOneWidget);
   });
 
+  testWidgets('login diagnostic identifies local secure storage failures', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(
+            _DiagnosticAuthController.new,
+          ),
+        ],
+        child: const EazyPosApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'cashier');
+    await tester.enterText(find.byType(TextField).at(1), 'password');
+    await tester.ensureVisible(find.text('Continue to Eazy POS'));
+    await tester.tap(find.text('Continue to Eazy POS'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Unable to access secure data on this device.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Diagnostic code: DEVICE-IDENTITY-PLATFORM'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a restored native session skips the login screen', (
     tester,
   ) async {
@@ -930,6 +960,24 @@ void main() {
 class _SignedOutAuthController extends AuthController {
   @override
   Future<String?> build() async => null;
+}
+
+class _DiagnosticAuthController extends AuthController {
+  @override
+  Future<String?> build() async => null;
+
+  @override
+  Future<LoginResult> login(
+    String username,
+    String password, {
+    required bool remember,
+  }) async {
+    state = const AsyncData(null);
+    return const LoginResult.failure(
+      LoginFailure.network,
+      diagnosticCode: 'DEVICE-IDENTITY-PLATFORM',
+    );
+  }
 }
 
 class _BusinessMismatchAuthController extends AuthController {

@@ -54,9 +54,13 @@ void main() {
     expect(find.text('POS operating mode'), findsOneWidget);
     expect(find.text('Retail POS'), findsOneWidget);
     expect(find.text('Kitchen POS'), findsOneWidget);
+    expect(find.text('Fuel POS'), findsOneWidget);
     await tester.tap(find.text('Kitchen POS'));
     await tester.pumpAndSettle();
     expect(container.read(posOperatingModeProvider), PosOperatingMode.kitchen);
+    await tester.tap(find.text('Fuel POS'));
+    await tester.pumpAndSettle();
+    expect(container.read(posOperatingModeProvider), PosOperatingMode.fuel);
     expect(tester.takeException(), isNull);
   });
 }

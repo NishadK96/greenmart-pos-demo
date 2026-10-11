@@ -6635,6 +6635,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 10),
           _PaymentMethodSettings(options: state.posPaymentOptions),
           const SizedBox(height: 10),
+          const _UpiIdSettings(),
+          const SizedBox(height: 10),
           const _OrderTypeSettings(),
           const SizedBox(height: 10),
           for (final section in sections)
@@ -6880,6 +6882,118 @@ class _PaymentMethodSettings extends ConsumerWidget {
   }
 }
 
+class _UpiIdSettings extends ConsumerWidget {
+  const _UpiIdSettings();
+
+  Future<void> _edit(
+    BuildContext context,
+    WidgetRef ref,
+    String current,
+  ) async {
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => _UpiIdDialog(current: current),
+    );
+    if (value != null) {
+      await ref.read(paymentMethodSettingsProvider.notifier).setUpiId(value);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final upiId = ref.watch(paymentMethodSettingsProvider).upiId;
+    return Surface(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const CircleAvatar(child: Icon(Icons.qr_code_2)),
+        title: Text(
+          context.tr('UPI payment QR'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          upiId.isEmpty ? context.tr('Not configured') : upiId,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _edit(context, ref, upiId),
+      ),
+    );
+  }
+}
+
+class _UpiIdDialog extends StatefulWidget {
+  const _UpiIdDialog({required this.current});
+
+  final String current;
+
+  @override
+  State<_UpiIdDialog> createState() => _UpiIdDialogState();
+}
+
+class _UpiIdDialogState extends State<_UpiIdDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.current);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(context.tr('UPI payment QR')),
+    content: SizedBox(
+      width: 440,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.tr(
+              'Add the UPI ID used to generate payment QR codes. UPI supports INR payments only.',
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: context.tr('UPI ID'),
+              hintText: 'merchant@bank',
+              prefixIcon: const Icon(Icons.qr_code_2),
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (value) => Navigator.pop(context, value.trim()),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(context.tr('Cancel')),
+      ),
+      if (widget.current.isNotEmpty)
+        TextButton(
+          onPressed: () => Navigator.pop(context, ''),
+          child: Text(context.tr('Remove')),
+        ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: Text(context.tr('Save')),
+      ),
+    ],
+  );
+}
+
 class _PaymentMethodSettingsDialog extends ConsumerWidget {
   const _PaymentMethodSettingsDialog({
     required this.options,
@@ -7112,21 +7226,32 @@ class _PosOperatingModeSettings extends StatelessWidget {
                 subtitle: 'Tables, guests, modifiers, KOT and kitchen routing',
                 onTap: onChanged,
               ),
+              if (fuelPosEnabled)
+                _PosModeOption(
+                  mode: PosOperatingMode.fuel,
+                  selected: mode == PosOperatingMode.fuel,
+                  icon: Icons.local_gas_station_outlined,
+                  title: 'Fuel POS',
+                  subtitle: 'Litres or amount billing for fuel stations',
+                  onTap: onChanged,
+                ),
             ];
             if (compact) {
               return Column(
                 children: [
-                  options.first,
-                  const SizedBox(height: 8),
-                  options.last,
+                  for (final option in options) ...[
+                    option,
+                    const SizedBox(height: 8),
+                  ],
                 ],
               );
             }
             return Row(
               children: [
-                Expanded(child: options.first),
-                const SizedBox(width: 10),
-                Expanded(child: options.last),
+                for (final option in options) ...[
+                  Expanded(child: option),
+                  const SizedBox(width: 10),
+                ],
               ],
             );
           },

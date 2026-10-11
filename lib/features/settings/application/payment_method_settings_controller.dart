@@ -15,11 +15,13 @@ class PaymentMethodSettings {
     this.disabledCodes = const {},
     this.order = const [],
     this.labels = const {},
+    this.upiId = '',
   });
 
   final Set<String> disabledCodes;
   final List<String> order;
   final Map<String, String> labels;
+  final String upiId;
 
   List<PaymentOption> apply(List<PaymentOption> options) {
     final byCode = <String, PaymentOption>{
@@ -46,16 +48,19 @@ class PaymentMethodSettings {
     Set<String>? disabledCodes,
     List<String>? order,
     Map<String, String>? labels,
+    String? upiId,
   }) => PaymentMethodSettings(
     disabledCodes: disabledCodes ?? this.disabledCodes,
     order: order ?? this.order,
     labels: labels ?? this.labels,
+    upiId: upiId ?? this.upiId,
   );
 
   Map<String, Object> toJson() => {
     'disabled_codes': disabledCodes.toList(),
     'order': order,
     'labels': labels,
+    'upi_id': upiId,
   };
 
   factory PaymentMethodSettings.fromJson(Map<String, dynamic> json) =>
@@ -70,6 +75,7 @@ class PaymentMethodSettings {
           (key, value) =>
               MapEntry(key.toString().toLowerCase(), value.toString()),
         ),
+        upiId: json['upi_id']?.toString().trim() ?? '',
       );
 }
 
@@ -111,6 +117,10 @@ class PaymentMethodSettingsController extends Notifier<PaymentMethodSettings> {
     final value = label?.trim() ?? '';
     value.isEmpty ? labels.remove(normalized) : labels[normalized] = value;
     await _save(state.copyWith(labels: labels));
+  }
+
+  Future<void> setUpiId(String value) async {
+    await _save(state.copyWith(upiId: value.trim()));
   }
 
   Future<void> move(List<PaymentOption> available, int from, int to) async {

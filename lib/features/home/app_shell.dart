@@ -190,9 +190,11 @@ class _AppShellState extends ConsumerState<AppShell> {
       sidebarInitialized = true;
     }
     final path = GoRouterState.of(context).uri.path;
-    final compactPosSidebar = path == '/pos' || path == '/kitchen-pos';
+    final compactPosSidebar =
+        path == '/pos' || path == '/kitchen-pos' || path == '/fuel-pos';
     final navExpanded = !compactPosSidebar && expanded;
-    final usesCashRegister = path == '/pos' || path == '/kitchen-pos';
+    final usesCashRegister =
+        path == '/pos' || path == '/kitchen-pos' || path == '/fuel-pos';
     final AsyncValue<CashRegister?> registerState = usesCashRegister
         ? ref.watch(cashRegisterControllerProvider)
         : const AsyncData(null);
@@ -437,7 +439,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 12, 18),
+                    padding: compactPosSidebar
+                        ? const EdgeInsets.fromLTRB(11, 16, 11, 18)
+                        : const EdgeInsets.fromLTRB(16, 16, 12, 18),
                     child: Row(
                       children: [
                         const _EazyPosIcon(size: 42, radius: 13),
@@ -569,12 +573,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(compactPosSidebar ? 8 : 12),
                     child: InkWell(
                       onTap: () => showAccountMenu(context, ref),
                       borderRadius: BorderRadius.circular(13),
                       child: Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: EdgeInsets.all(compactPosSidebar ? 5 : 10),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: .06),
                           borderRadius: BorderRadius.circular(13),

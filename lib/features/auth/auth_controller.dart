@@ -64,7 +64,7 @@ class AuthController extends AsyncNotifier<String?> {
     required bool remember,
   }) async {
     state = const AsyncLoading();
-    var stage = kIsWeb ? 'WEB-LOGIN' : 'WIN-DEVICE';
+    var stage = kIsWeb ? 'WEB-AUTH' : 'DEVICE-IDENTITY';
     try {
       final SessionLoginResult session;
       if (kIsWeb) {
@@ -72,14 +72,14 @@ class AuthController extends AsyncNotifier<String?> {
         _activeSessionId = session.sessionId;
       } else {
         final headers = await _sessions.deviceHeaders();
-        stage = 'WIN-REQUEST';
+        stage = 'AUTH-REQUEST';
         session = await ref
             .read(apiProvider)
             .sessionLogin(username, password, headers);
-        stage = 'WIN-SESSION';
+        stage = 'SESSION-SAVE';
         await _sessions.saveSession(session.sessionId, session.refreshToken!);
       }
-      stage = kIsWeb ? 'WEB-REMEMBER' : 'WIN-REMEMBER';
+      stage = 'REMEMBERED-LOGIN';
       if (remember) {
         await _offlineCredentials.save(username, password);
         await _rememberedLogin.save(username, password);
@@ -100,7 +100,9 @@ class AuthController extends AsyncNotifier<String?> {
             ? LoginFailure.invalidCredentials
             : LoginFailure.server,
         message: error.message,
-        diagnosticCode: '$stage-HTTP-${error.statusCode ?? 'UNKNOWN'}',
+        diagnosticCode: error.statusCode == null
+            ? '$stage-API'
+            : '$stage-HTTP-${error.statusCode}',
       );
     } catch (failure) {
       final offline = await _tryOfflineLogin(username, password);

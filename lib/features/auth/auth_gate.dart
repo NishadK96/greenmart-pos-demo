@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../home/app_shell.dart';
 import 'auth_controller.dart';
 import '../backend/presentation/backend_controller.dart';
+import '../app_update/presentation/windows_update_gate.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key, required this.child});
@@ -45,7 +46,10 @@ class AuthGate extends ConsumerWidget {
               ),
             ),
           ),
-          data: (_) => AppShell(child: child),
+          data: (_) => WindowsUpdateGate(
+            accessToken: token,
+            child: AppShell(child: child),
+          ),
         );
       },
     );

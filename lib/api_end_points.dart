@@ -12,6 +12,8 @@ abstract final class ApiEndPoints {
   static const authLogoutUrl = '${Config.baseUrl}/connector/api/auth/logout';
   static const authLogoutDeviceUrl =
       '${Config.baseUrl}/connector/api/auth/logout-device';
+  static const windowsAppUpdateUrl =
+      '${Config.baseUrl}/connector/api/app-updates/windows';
   static const webAuthBootstrapUrl =
       '${Config.baseUrl}/connector/web-auth/bootstrap';
   static const webAuthLoginUrl = '${Config.baseUrl}/connector/web-auth/login';

@@ -10,6 +10,7 @@ import '../features/zatca/domain/zatca_entities.dart';
 import '../features/invoice_layouts/domain/invoice_layout_entities.dart';
 import '../features/kitchen/domain/kitchen_entities.dart';
 import '../features/pos/domain/client_sale_calculation.dart';
+import '../features/app_update/domain/app_update_info.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -154,6 +155,25 @@ class Api {
 
   void setAccessTokenRefresher(Future<String> Function() refresh) {
     _client.accessTokenRefresher = refresh;
+  }
+
+  Future<AppUpdateInfo> windowsAppUpdate({
+    required String accessToken,
+    required String currentVersion,
+    String channel = 'stable',
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.windowsAppUpdateUrl).replace(
+      queryParameters: {'current_version': currentVersion, 'channel': channel},
+    );
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'Windows app update');
+    final data = payload['data'];
+    if (data is! Map) {
+      throw const ApiException('The update server returned invalid data.');
+    }
+    return AppUpdateInfo.fromJson(Map<String, dynamic>.from(data));
   }
 
   Future<LoginResult> login(String username, String password) async {

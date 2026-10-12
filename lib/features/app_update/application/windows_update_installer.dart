@@ -1,0 +1,2 @@
+export 'windows_update_installer_stub.dart'
+    if (dart.library.io) 'windows_update_installer_io.dart';

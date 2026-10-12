@@ -206,7 +206,9 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFB54747),
             ),
-            onPressed: () => _close(snapshot.data),
+            onPressed: snapshot.data == null
+                ? null
+                : () => _close(snapshot.data!),
             icon: const Icon(Icons.lock_outline),
             label: const Text('Close and reconcile register'),
           ),
@@ -294,98 +296,19 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
     return result;
   }
 
-  Future<void> _close(CashRegisterSummary? summary) async {
-    final cash = TextEditingController(
-      text: (summary?.expectedTotals['cash'] ?? summary?.expectedTotal ?? 0)
-          .toStringAsFixed(2),
-    );
-    final card = TextEditingController(text: '0.00');
-    final cheque = TextEditingController(text: '0.00');
-    final note = TextEditingController();
+  Future<void> _close(CashRegisterSummary summary) async {
+    final paymentLabels = {
+      for (final option in ref.read(appStoreProvider).paymentOptions)
+        option.code: option.label,
+    };
     final payload = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Close and reconcile'),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Count the actual drawer and payment slips. Variances will be recorded in the register summary.',
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: cash,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: context.tr('Actual cash *'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: card,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: context.tr('Actual card total'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: cheque,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: context.tr('Actual cheque total'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: note,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: context.tr('Closing note'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final actualCash = double.tryParse(cash.text.trim());
-              if (actualCash == null || actualCash < 0) return;
-              Navigator.pop(dialogContext, {
-                'closing_amount': actualCash,
-                'actual_totals': {
-                  'cash': actualCash,
-                  'card': double.tryParse(card.text.trim()) ?? 0,
-                  'cheque': double.tryParse(cheque.text.trim()) ?? 0,
-                },
-                if (note.text.trim().isNotEmpty)
-                  'closing_note': note.text.trim(),
-              });
-            },
-            child: const Text('Close register'),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (_) => _RegisterReconciliationDialog(
+        summary: summary,
+        paymentLabels: paymentLabels,
       ),
     );
-    cash.dispose();
-    card.dispose();
-    cheque.dispose();
-    note.dispose();
     if (payload == null) return;
     try {
       final result = await ref
@@ -408,6 +331,611 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
+
+class _RegisterReconciliationDialog extends StatefulWidget {
+  const _RegisterReconciliationDialog({
+    required this.summary,
+    required this.paymentLabels,
+  });
+
+  final CashRegisterSummary summary;
+  final Map<String, String> paymentLabels;
+
+  @override
+  State<_RegisterReconciliationDialog> createState() =>
+      _RegisterReconciliationDialogState();
+}
+
+class _RegisterReconciliationDialogState
+    extends State<_RegisterReconciliationDialog> {
+  late final Map<String, TextEditingController> _actualControllers;
+  final _noteController = TextEditingController();
+
+  List<String> get _methods {
+    const preferred = [
+      'cash',
+      'card',
+      'cheque',
+      'bank_transfer',
+      'other',
+      'custom_pay_1',
+      'custom_pay_2',
+      'custom_pay_3',
+      'custom_pay_4',
+      'custom_pay_5',
+      'custom_pay_6',
+      'custom_pay_7',
+    ];
+    final available = <String>{
+      ...widget.summary.expectedTotals.keys,
+      ...widget.summary.actualTotals.keys,
+    };
+    final visible = available.where(_shouldShowMethod).toSet();
+    return [
+      ...preferred.where(visible.contains),
+      ...visible.where((method) => !preferred.contains(method)),
+    ];
+  }
+
+  bool _shouldShowMethod(String method) {
+    if (!method.toLowerCase().startsWith('custom_pay_')) return true;
+
+    const tolerance = 0.000001;
+    return (widget.summary.expectedTotals[method] ?? 0).abs() > tolerance ||
+        (widget.summary.actualTotals[method] ?? 0).abs() > tolerance ||
+        (widget.summary.variance[method] ?? 0).abs() > tolerance;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _actualControllers = {
+      for (final method in _methods)
+        method: TextEditingController(
+          text:
+              (widget.summary.actualTotals[method] ??
+                      (method == 'cash'
+                          ? widget.summary.expectedTotals[method]
+                          : 0) ??
+                      0)
+                  .toStringAsFixed(2),
+        )..addListener(_changed),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _actualControllers.values) {
+      controller
+        ..removeListener(_changed)
+        ..dispose();
+    }
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  double _actual(String method) =>
+      double.tryParse(_actualControllers[method]?.text.trim() ?? '') ?? 0;
+
+  double get _actualTotal =>
+      _methods.fold(0, (total, method) => total + _actual(method));
+
+  double _variance(String method) =>
+      _actual(method) - (widget.summary.expectedTotals[method] ?? 0);
+
+  @override
+  Widget build(BuildContext context) {
+    final totalVariance = _actualTotal - widget.summary.expectedTotal;
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 16, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F3EF),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(
+              Icons.fact_check_outlined,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Close and reconcile',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (widget.summary.registerId.isNotEmpty)
+                      'Register #${widget.summary.registerId}',
+                    if (widget.summary.status.isNotEmpty)
+                      _statusLabel(widget.summary.status),
+                    'Review expected totals and enter the amounts counted.',
+                  ].join(' • '),
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: context.tr('Close'),
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .78,
+        ),
+        child: SizedBox(
+          width: 780,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ReconciliationTotals(
+                expected: widget.summary.expectedTotal,
+                actual: _actualTotal,
+                variance: totalVariance,
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFDDE5E1)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (constraints.maxWidth >= 650)
+                          const _ReconciliationTableHeader(),
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _methods.length,
+                            separatorBuilder: (_, __) => const Divider(
+                              height: 1,
+                              color: Color(0xFFE7ECE9),
+                            ),
+                            itemBuilder: (_, index) {
+                              final method = _methods[index];
+                              return _ReconciliationRow(
+                                method: method,
+                                label: _paymentLabel(method),
+                                expected:
+                                    widget.summary.expectedTotals[method] ?? 0,
+                                variance: _variance(method),
+                                controller: _actualControllers[method]!,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  context.tr('Closing note'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _noteController,
+                minLines: 1,
+                maxLines: 2,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  hintText: context.tr(
+                    'Add a note about this register closing (optional)',
+                  ),
+                  prefixIcon: const Icon(Icons.notes_rounded),
+                  counterText: '',
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: _submit,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          ),
+          icon: const Icon(Icons.lock_outline),
+          label: const Text('Confirm and close register'),
+        ),
+      ],
+    );
+  }
+
+  String _paymentLabel(String method) {
+    final configured = widget.paymentLabels[method];
+    if (configured != null && configured.trim().isNotEmpty) return configured;
+    const labels = {
+      'cash': 'Cash',
+      'card': 'Card',
+      'cheque': 'Cheque',
+      'bank_transfer': 'Bank transfer',
+      'other': 'Other',
+    };
+    if (labels[method] case final label?) return label;
+    final custom = RegExp(r'^custom_pay_(\d+)$').firstMatch(method);
+    return custom == null
+        ? method.replaceAll('_', ' ')
+        : 'Custom payment ${custom.group(1)}';
+  }
+
+  String _statusLabel(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized == 'close' || normalized == 'closed'
+        ? 'Closed'
+        : normalized == 'open'
+        ? 'Open'
+        : status;
+  }
+
+  void _submit() {
+    final actuals = {for (final method in _methods) method: _actual(method)};
+    if (actuals.values.any((amount) => amount < 0)) return;
+    Navigator.pop(context, {
+      'closing_amount': actuals['cash'] ?? 0,
+      'actual_totals': actuals,
+      if (_noteController.text.trim().isNotEmpty)
+        'closing_note': _noteController.text.trim(),
+    });
+  }
+}
+
+class _ReconciliationTotals extends StatelessWidget {
+  const _ReconciliationTotals({
+    required this.expected,
+    required this.actual,
+    required this.variance,
+  });
+
+  final double expected;
+  final double actual;
+  final double variance;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final cards = [
+        _SummaryMetric(
+          label: 'Expected',
+          value: expected,
+          icon: Icons.toll_outlined,
+        ),
+        _SummaryMetric(
+          label: 'Counted',
+          value: actual,
+          icon: Icons.calculate_outlined,
+        ),
+        _SummaryMetric(
+          label: 'Variance',
+          value: variance,
+          icon: Icons.warning_amber_rounded,
+          variance: true,
+        ),
+      ];
+      if (constraints.maxWidth < 520) {
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: cards[0]),
+                const SizedBox(width: 8),
+                Expanded(child: cards[1]),
+              ],
+            ),
+            const SizedBox(height: 8),
+            cards[2],
+          ],
+        );
+      }
+      return Row(
+        children: [
+          for (var index = 0; index < cards.length; index++) ...[
+            if (index > 0) const SizedBox(width: 10),
+            Expanded(child: cards[index]),
+          ],
+        ],
+      );
+    },
+  );
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.variance = false,
+  });
+
+  final String label;
+  final double value;
+  final IconData icon;
+  final bool variance;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = !variance || value == 0
+        ? AppColors.primary
+        : value < 0
+        ? const Color(0xFFB54747)
+        : const Color(0xFFB7791F);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .07),
+        border: Border.all(color: color.withValues(alpha: .18)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _money(value),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .09),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconciliationRow extends StatelessWidget {
+  const _ReconciliationRow({
+    required this.method,
+    required this.label,
+    required this.expected,
+    required this.variance,
+    required this.controller,
+  });
+
+  final String method;
+  final String label;
+  final double expected;
+  final double variance;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final input = SizedBox(
+        width: constraints.maxWidth < 650 ? double.infinity : 170,
+        child: TextField(
+          controller: controller,
+          textAlign: TextAlign.end,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            prefixText: 'SAR ',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+          ),
+        ),
+      );
+      final details = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _money(expected),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 12),
+          _VarianceChip(value: variance),
+        ],
+      );
+      final identity = Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF5F1),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              _paymentIcon(method),
+              size: 19,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      );
+      if (constraints.maxWidth < 650) {
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: identity),
+                  details,
+                ],
+              ),
+              const SizedBox(height: 10),
+              input,
+            ],
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        child: Row(
+          children: [
+            Expanded(flex: 3, child: identity),
+            Expanded(
+              flex: 2,
+              child: Text(
+                _money(expected),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            Expanded(flex: 2, child: _VarianceChip(value: variance)),
+            Expanded(
+              flex: 2,
+              child: Align(alignment: Alignment.centerRight, child: input),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _ReconciliationTableHeader extends StatelessWidget {
+  const _ReconciliationTableHeader();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+    color: const Color(0xFFF7F9F8),
+    child: const Row(
+      children: [
+        Expanded(flex: 3, child: _TableHeading('PAYMENT METHOD')),
+        Expanded(flex: 2, child: _TableHeading('EXPECTED')),
+        Expanded(flex: 2, child: _TableHeading('VARIANCE')),
+        Expanded(flex: 2, child: _TableHeading('COUNTED')),
+      ],
+    ),
+  );
+}
+
+class _TableHeading extends StatelessWidget {
+  const _TableHeading(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: const TextStyle(
+      color: AppColors.muted,
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
+      letterSpacing: .7,
+    ),
+  );
+}
+
+class _VarianceChip extends StatelessWidget {
+  const _VarianceChip({required this.value});
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = value == 0
+        ? AppColors.primary
+        : value < 0
+        ? const Color(0xFFB54747)
+        : const Color(0xFFB7791F);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 92),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            '${value > 0 ? '+' : ''}${_money(value)}',
+            maxLines: 1,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _paymentIcon(String method) => switch (method) {
+  'cash' => Icons.payments_outlined,
+  'card' => Icons.credit_card_outlined,
+  'cheque' => Icons.receipt_long_outlined,
+  'bank_transfer' => Icons.account_balance_outlined,
+  _ => Icons.more_horiz_rounded,
+};
 
 class _Header extends StatelessWidget {
   const _Header({required this.onRefresh});
@@ -589,7 +1117,17 @@ class _ErrorState extends StatelessWidget {
   );
 }
 
-String _money(double value) => '₹${value.toStringAsFixed(2)}';
+String _money(double value) {
+  final negative = value < 0;
+  final parts = value.abs().toStringAsFixed(2).split('.');
+  final digits = parts.first;
+  final grouped = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    if (index > 0 && (digits.length - index) % 3 == 0) grouped.write(',');
+    grouped.write(digits[index]);
+  }
+  return 'SAR ${negative ? '-' : ''}$grouped.${parts.last}';
+}
 
 String _dateTime(DateTime value) {
   final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;

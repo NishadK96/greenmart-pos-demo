@@ -79,6 +79,8 @@ class CashRegister {
 
 class CashRegisterSummary {
   const CashRegisterSummary({
+    required this.registerId,
+    required this.status,
     required this.expectedTotals,
     required this.actualTotals,
     required this.variance,
@@ -88,6 +90,8 @@ class CashRegisterSummary {
 
   factory CashRegisterSummary.fromJson(Map<String, dynamic> json) =>
       CashRegisterSummary(
+        registerId: '${json['register_id'] ?? ''}',
+        status: '${json['status'] ?? ''}',
         expectedTotals: _amountMap(json['expected_totals']),
         actualTotals: _amountMap(json['actual_totals']),
         variance: _amountMap(json['variance']),
@@ -97,6 +101,8 @@ class CashRegisterSummary {
             : _asDouble(json['actual_total']),
       );
 
+  final String registerId;
+  final String status;
   final Map<String, double> expectedTotals;
   final Map<String, double> actualTotals;
   final Map<String, double> variance;

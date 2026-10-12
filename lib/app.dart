@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +20,8 @@ import 'features/sales/receipt_screen.dart';
 import 'features/zatca/presentation/zatca_screen.dart';
 import 'features/subscription/presentation/subscription_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
+import 'features/app_update/presentation/windows_update_gate.dart';
+import 'features/app_update/presentation/app_update_settings_preview_screen.dart';
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
     NoTransitionPage<void>(key: state.pageKey, child: child);
@@ -26,6 +29,18 @@ Page<void> _instantPage(GoRouterState state, Widget child) =>
 final _router = GoRouter(
   initialLocation: '/login',
   routes: [
+    if (kDebugMode)
+      GoRoute(
+        path: '/update-preview',
+        pageBuilder: (_, state) =>
+            _instantPage(state, const UpdateDialogPreviewScreen()),
+      ),
+    if (kDebugMode)
+      GoRoute(
+        path: '/settings-update-preview',
+        pageBuilder: (_, state) =>
+            _instantPage(state, const AppUpdateSettingsPreviewScreen()),
+      ),
     GoRoute(
       path: '/login',
       pageBuilder: (_, state) => _instantPage(state, const LoginScreen()),

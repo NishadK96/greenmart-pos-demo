@@ -684,6 +684,8 @@ const Map<String, String> _ar = {
   'Sync': 'المزامنة',
   'Settings': 'الإعدادات',
   'Add customer': 'إضافة عميل',
+  'Select or add customer': 'اختر عميلاً أو أضف عميلاً',
+  'Business': 'شركة',
   'Edit customer': 'تعديل العميل',
   'Customer name': 'اسم العميل',
   'Mobile': 'رقم الجوال',
@@ -888,6 +890,8 @@ const Map<String, String> _ar = {
   'Add a note for this sale...': 'أضف ملاحظة لهذا البيع...',
   'Save note': 'حفظ الملاحظة',
   'Search name, phone or email': 'ابحث بالاسم أو الهاتف أو البريد',
+  'Search name, business, phone or email':
+      'ابحث بالاسم أو الشركة أو الهاتف أو البريد',
   'Sync now': 'مزامنة الآن',
   'Start a sale': 'بدء عملية بيع',
   'Start new sale': 'بدء عملية بيع جديدة',

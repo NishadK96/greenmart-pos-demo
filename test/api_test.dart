@@ -9,6 +9,23 @@ import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/zatca/domain/zatca_entities.dart';
 
 void main() {
+  test('customer list keeps Arabic names when name is empty', () async {
+    final api = Api(
+      client: MockClient(
+        (request) async => http.Response(
+          '{"data":[{"id":42,"name":"","first_name":"أحمد","last_name":"علي","mobile":"0501234567"}]}',
+          200,
+          headers: const {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    final customers = await api.customers('token');
+
+    expect(customers.single.name, 'أحمد علي');
+    expect(customers.single.phone, '0501234567');
+  });
+
   test('tax mutations use connector CRUD endpoints and payloads', () async {
     final requests = <http.Request>[];
     final api = Api(

@@ -41,6 +41,12 @@ final _router = GoRouter(
         pageBuilder: (_, state) =>
             _instantPage(state, const AppUpdateSettingsPreviewScreen()),
       ),
+    if (kDebugMode)
+      GoRoute(
+        path: '/pos-customer-preview',
+        pageBuilder: (_, state) =>
+            _instantPage(state, const PosCustomerSelectorPreviewScreen()),
+      ),
     GoRoute(
       path: '/login',
       pageBuilder: (_, state) => _instantPage(state, const LoginScreen()),

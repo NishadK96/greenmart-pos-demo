@@ -3,7 +3,7 @@ import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../apis/api.dart';
 import '../../core/theme/app_theme.dart';
@@ -449,7 +449,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (_quickActionOpen || !mounted) return;
     _quickActionOpen = true;
     try {
-      await _selectCustomer(context, ref, state);
+      await showPosCustomerSelector(context, ref, state);
     } finally {
       _quickActionOpen = false;
     }
@@ -5556,7 +5556,7 @@ class _CurrentOrder extends ConsumerWidget {
           const StatusBadge('Dine In'),
           const SizedBox(width: 8),
           IconButton.filledTonal(
-            onPressed: () => _selectCustomer(context, ref, state),
+            onPressed: () => showPosCustomerSelector(context, ref, state),
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
           ),
         ],
@@ -6805,7 +6805,7 @@ class _CurrentOrder extends ConsumerWidget {
       );
       if (selectCustomer == true && sheetContext.mounted) {
         Navigator.pop(sheetContext);
-        await _selectCustomer(pageContext, ref, state);
+        await showPosCustomerSelector(pageContext, ref, state);
       }
       return;
     }
@@ -7002,7 +7002,7 @@ class _CurrentOrder extends ConsumerWidget {
   };
 }
 
-Future<void> _selectCustomer(
+Future<void> showPosCustomerSelector(
   BuildContext context,
   WidgetRef ref,
   AppState state,
@@ -7064,14 +7064,23 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
-    final customers = _customers
-        .where((customer) {
-          if (query.isEmpty) return true;
-          return customer.name.toLowerCase().contains(query) ||
-              customer.phone.toLowerCase().contains(query) ||
-              customer.email.toLowerCase().contains(query);
-        })
-        .toList(growable: false);
+    final customers =
+        _customers
+            .where((customer) {
+              if (query.isEmpty) return true;
+              return customer.name.toLowerCase().contains(query) ||
+                  customer.businessName.toLowerCase().contains(query) ||
+                  customer.phone.toLowerCase().contains(query) ||
+                  customer.email.toLowerCase().contains(query);
+            })
+            .toList(growable: false)
+          ..sort((a, b) {
+            if (a.id == widget.selectedCustomer?.id) return -1;
+            if (b.id == widget.selectedCustomer?.id) return 1;
+            if (a.id == 'walkin') return -1;
+            if (b.id == 'walkin') return 1;
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
     final size = MediaQuery.sizeOf(context);
     final mobile = size.width < 700;
 
@@ -7144,8 +7153,15 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                     ),
                   ),
                   if (!mobile) ...[
-                    const StatusBadge('F4'),
-                    const SizedBox(width: 4),
+                    FilledButton.icon(
+                      onPressed: _createCustomer,
+                      icon: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 18,
+                      ),
+                      label: Text(context.tr('Add customer')),
+                    ),
+                    const SizedBox(width: 8),
                   ],
                   if (!mobile)
                     IconButton(
@@ -7156,6 +7172,15 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                 ],
               ),
             ),
+            if (mobile)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: FilledButton.icon(
+                  onPressed: _createCustomer,
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: Text(context.tr('Add customer')),
+                ),
+              ),
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
@@ -7166,7 +7191,9 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                   autofocus: true,
                   onChanged: (value) => setState(() => _query = value),
                   decoration: InputDecoration(
-                    hintText: context.tr('Search name, phone or email'),
+                    hintText: context.tr(
+                      'Search name, business, phone or email',
+                    ),
                     prefixIcon: const Icon(Icons.search_rounded, size: 21),
                     suffixIcon: _query.isEmpty
                         ? null
@@ -7185,10 +7212,38 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
             ),
             Expanded(
               child: customers.isEmpty
-                  ? EmptyState(
-                      _customers.isEmpty
-                          ? 'No customers are available'
-                          : 'No customers match this search',
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.person_search_outlined,
+                              size: 42,
+                              color: AppColors.muted,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              context.tr(
+                                _customers.isEmpty
+                                    ? 'No customers are available'
+                                    : 'No customers match this search',
+                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _createCustomer,
+                              icon: const Icon(Icons.person_add_alt_1_rounded),
+                              label: Text(context.tr('Add customer')),
+                            ),
+                          ],
+                        ),
+                      ),
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -7217,18 +7272,10 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                     ),
                   ),
                   const Spacer(),
-                  FilledButton.icon(
-                    onPressed: _createCustomer,
-                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                    label: Text(context.tr(mobile ? 'New' : 'New customer')),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(context.tr('Done')),
                   ),
-                  if (!mobile) ...[
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(context.tr('Cancel')),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -7379,6 +7426,16 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
   Widget _customerRow(Customer customer) {
     final selected = widget.selectedCustomer?.id == customer.id;
     final walkIn = customer.id == 'walkin';
+    final preferredName =
+        customer.isBusiness && customer.businessName.trim().isNotEmpty
+        ? customer.businessName.trim()
+        : customer.name.trim();
+    final title = preferredName.isNotEmpty
+        ? preferredName
+        : customer.phone.trim().isNotEmpty
+        ? customer.phone.trim()
+        : '${context.tr('Customer')} #${customer.id}';
+    final hasArabicName = RegExp(r'[\u0600-\u06FF]').hasMatch(title);
     final initials = customer.name
         .trim()
         .split(RegExp(r'\s+'))
@@ -7413,11 +7470,16 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                       )
                     : Text(
                         initials.isEmpty ? '?' : initials,
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style:
+                            const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ).copyWith(
+                              fontFamily: hasArabicName
+                                  ? 'NotoSansArabic'
+                                  : null,
+                            ),
                       ),
               ),
               const SizedBox(width: 12),
@@ -7429,23 +7491,40 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                       children: [
                         Flexible(
                           child: Text(
-                            customer.name,
+                            title,
+                            textDirection: hasArabicName
+                                ? TextDirection.rtl
+                                : null,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontFamily: hasArabicName
+                                  ? 'NotoSansArabic'
+                                  : null,
+                            ),
                           ),
                         ),
                         if (walkIn) ...[
                           const SizedBox(width: 8),
                           const StatusBadge('Default'),
+                        ] else if (customer.isBusiness) ...[
+                          const SizedBox(width: 8),
+                          const StatusBadge('Business'),
                         ],
                       ],
                     ),
-                    if (customer.phone.isNotEmpty || customer.email.isNotEmpty)
+                    if (customer.phone.isNotEmpty ||
+                        customer.email.isNotEmpty ||
+                        (customer.isBusiness && customer.name.isNotEmpty))
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
                           [
+                            if (customer.isBusiness &&
+                                customer.businessName.isNotEmpty &&
+                                customer.name.isNotEmpty)
+                              customer.name,
                             if (customer.phone.isNotEmpty) customer.phone,
                             if (customer.email.isNotEmpty) customer.email,
                           ].join('  •  '),
@@ -7479,4 +7558,76 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
       ),
     );
   }
+}
+
+class PosCustomerSelectorPreviewScreen extends StatefulWidget {
+  const PosCustomerSelectorPreviewScreen({super.key});
+
+  @override
+  State<PosCustomerSelectorPreviewScreen> createState() =>
+      _PosCustomerSelectorPreviewScreenState();
+}
+
+class _PosCustomerSelectorPreviewScreenState
+    extends State<PosCustomerSelectorPreviewScreen> {
+  final _customers = <Customer>[
+    const Customer(id: 'walkin', name: 'Walk-in Customer'),
+    const Customer(id: '42', name: 'أحمد علي', phone: '0501234567'),
+    const Customer(id: '43', name: 'فاطمة محمد', phone: '0552345678'),
+    const Customer(
+      id: '44',
+      name: 'خالد حسن',
+      businessName: 'شركة النور للتجارة',
+      phone: '0533456789',
+    ),
+    const Customer(id: '45', name: 'Sarah Ahmed', phone: '0544567890'),
+  ];
+  Customer? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = _customers.first;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showSelector();
+    });
+  }
+
+  Future<void> _showSelector() => showDialog<void>(
+    context: context,
+    builder: (_) => _CustomerSelectorDialog(
+      customers: _customers,
+      selectedCustomer: _selected,
+      onSelected: (customer) => setState(() => _selected = customer),
+      onCreate: ({required name, required mobile, required email}) async {
+        final customer = Customer(
+          id: 'preview-${_customers.length + 1}',
+          name: name,
+          phone: mobile,
+          email: email,
+        );
+        setState(() => _customers.add(customer));
+        return customer;
+      },
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('POS customer preview')),
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Selected: ${_selected?.name ?? 'None'}'),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _showSelector,
+            icon: const Icon(Icons.people_outline),
+            label: const Text('Open customer list'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

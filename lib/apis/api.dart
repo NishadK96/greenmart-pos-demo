@@ -3432,9 +3432,22 @@ class Api {
 
   Customer _customerFromJson(Map<String, dynamic> json) => Customer(
     id: json['id'].toString(),
-    name: json['name']?.toString().trim().isNotEmpty == true
-        ? json['name'].toString()
-        : json['first_name']?.toString() ?? '',
+    name:
+        [
+              json['name'],
+              json['full_name'],
+              [
+                    json['prefix'],
+                    json['first_name'],
+                    json['middle_name'],
+                    json['last_name'],
+                  ]
+                  .where((part) => part?.toString().trim().isNotEmpty == true)
+                  .join(' '),
+              json['supplier_business_name'],
+            ]
+            .map((value) => value?.toString().trim() ?? '')
+            .firstWhere((value) => value.isNotEmpty, orElse: () => ''),
     phone: json['mobile']?.toString() ?? '',
     email: json['email']?.toString() ?? '',
     address: [

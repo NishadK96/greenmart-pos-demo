@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
-import '../../shared/models/entities.dart';
 import '../../shared/widgets/ui.dart';
 import '../cash_register/domain/cash_register_entities.dart';
 import '../cash_register/presentation/cash_register_controller.dart';
@@ -17,6 +16,7 @@ import '../kitchen/presentation/kitchen_printing_controller.dart';
 import '../settings/application/pos_operating_mode_controller.dart';
 import '../zatca/presentation/zatca_controller.dart';
 import '../zatca/domain/zatca_entities.dart';
+import '../pos/pos_screen.dart' show showPosCustomerSelector;
 
 const destinations = [
   ('/pos', 'POS', Icons.point_of_sale_outlined),
@@ -854,57 +854,53 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       if (path == '/pos') ...[
                         const SizedBox(width: 8),
-                        PopupMenuButton<Customer>(
-                          tooltip: context.tr('Customer'),
-                          onSelected: (customer) => ref
-                              .read(appStoreProvider.notifier)
-                              .selectCustomer(customer),
-                          itemBuilder: (_) => appState.customers
-                              .map(
-                                (customer) => PopupMenuItem<Customer>(
-                                  value: customer,
-                                  child: Text(customer.name),
-                                ),
-                              )
-                              .toList(growable: false),
-                          child: Container(
-                            height: 42,
-                            constraints: const BoxConstraints(maxWidth: 165),
-                            padding: const EdgeInsets.symmetric(horizontal: 11),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF2F7FF),
-                              border: Border.all(
-                                color: const Color(0xFFD7E2EF),
+                        InkWell(
+                          onTap: () =>
+                              showPosCustomerSelector(context, ref, appState),
+                          borderRadius: BorderRadius.circular(9),
+                          child: Tooltip(
+                            message: context.tr('Select or add customer'),
+                            child: Container(
+                              height: 42,
+                              constraints: const BoxConstraints(maxWidth: 165),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
                               ),
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.person_rounded,
-                                  size: 17,
-                                  color: Colors.blue.shade700,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF2F7FF),
+                                border: Border.all(
+                                  color: const Color(0xFFD7E2EF),
                                 ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    appState.customer?.name ??
-                                        context.tr('Walk-in Customer'),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.blue.shade700,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.person_rounded,
+                                    size: 17,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      appState.customer?.name ??
+                                          context.tr('Walk-in Customer'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const Icon(
-                                  Icons.arrow_drop_down_rounded,
-                                  size: 18,
-                                ),
-                              ],
+                                  const Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

@@ -86,7 +86,7 @@ class _AppUpdateSettingsCardState extends ConsumerState<AppUpdateSettingsCard> {
     final status =
         _status ??
         (_supportsInstaller
-            ? 'Updates are checked automatically after sign in.'
+            ? 'Required updates appear after sign in. Check here for optional updates.'
             : kIsWeb
             ? 'The web app is updated automatically.'
             : 'Automatic installers are currently available on Windows.');

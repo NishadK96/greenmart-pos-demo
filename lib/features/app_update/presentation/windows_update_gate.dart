@@ -44,7 +44,7 @@ class _WindowsUpdateGateState extends ConsumerState<WindowsUpdateGate> {
             accessToken: widget.accessToken,
             currentVersion: currentVersion,
           );
-      if (!mounted || !update.canInstall) return;
+      if (!mounted || !update.mandatory || !update.canInstall) return;
       await showWindowsUpdateDialog(context, update);
     } catch (error) {
       if (!mounted || kDebugMode) return;

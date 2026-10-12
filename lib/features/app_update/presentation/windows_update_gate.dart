@@ -74,17 +74,27 @@ Future<void> showWindowsUpdateDialog(
   BuildContext context,
   AppUpdateInfo update, {
   bool preview = false,
+  bool allowDismiss = false,
 }) => showDialog<void>(
   context: context,
-  barrierDismissible: preview || !update.mandatory,
-  builder: (_) => _WindowsUpdateDialog(update: update, preview: preview),
+  barrierDismissible: preview || allowDismiss || !update.mandatory,
+  builder: (_) => _WindowsUpdateDialog(
+    update: update,
+    preview: preview,
+    allowDismiss: allowDismiss,
+  ),
 );
 
 class _WindowsUpdateDialog extends StatefulWidget {
-  const _WindowsUpdateDialog({required this.update, required this.preview});
+  const _WindowsUpdateDialog({
+    required this.update,
+    required this.preview,
+    required this.allowDismiss,
+  });
 
   final AppUpdateInfo update;
   final bool preview;
+  final bool allowDismiss;
 
   @override
   State<_WindowsUpdateDialog> createState() => _WindowsUpdateDialogState();
@@ -121,10 +131,12 @@ class _WindowsUpdateDialogState extends State<_WindowsUpdateDialog> {
   @override
   Widget build(BuildContext context) {
     final update = widget.update;
+    final canDismiss =
+        widget.preview || widget.allowDismiss || !update.mandatory;
     final small = MediaQuery.sizeOf(context).width < 600;
     const dark = Color(0xFF17243A);
     return PopScope(
-      canPop: widget.preview || (!update.mandatory && !_downloading),
+      canPop: canDismiss && !_downloading,
       child: Dialog(
         insetPadding: EdgeInsets.symmetric(
           horizontal: small ? 16 : 32,
@@ -140,7 +152,7 @@ class _WindowsUpdateDialogState extends State<_WindowsUpdateDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.preview || !update.mandatory)
+                if (canDismiss)
                   Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
@@ -306,7 +318,7 @@ class _WindowsUpdateDialogState extends State<_WindowsUpdateDialog> {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    if (!update.mandatory)
+                    if (canDismiss)
                       OutlinedButton(
                         onPressed: _downloading
                             ? null

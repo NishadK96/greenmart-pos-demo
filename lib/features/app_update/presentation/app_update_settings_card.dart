@@ -67,7 +67,9 @@ class _AppUpdateSettingsCardState extends ConsumerState<AppUpdateSettingsCard> {
                   : 'An update is available, but its download details are incomplete.'
             : 'You are using the latest version.';
       });
-      if (update.canInstall) await showWindowsUpdateDialog(context, update);
+      if (update.canInstall) {
+        await showWindowsUpdateDialog(context, update, allowDismiss: true);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {

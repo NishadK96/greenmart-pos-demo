@@ -36,8 +36,7 @@ class _WindowsUpdateGateState extends ConsumerState<WindowsUpdateGate> {
 
   Future<void> _checkForUpdate() async {
     try {
-      final package = await PackageInfo.fromPlatform();
-      final currentVersion = _serverVersion(package);
+      final currentVersion = await installedAppVersion();
       final update = await ref
           .read(apiProvider)
           .windowsAppUpdate(
@@ -45,11 +44,7 @@ class _WindowsUpdateGateState extends ConsumerState<WindowsUpdateGate> {
             currentVersion: currentVersion,
           );
       if (!mounted || !update.canInstall) return;
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: !update.mandatory,
-        builder: (_) => _WindowsUpdateDialog(update: update),
-      );
+      await showWindowsUpdateDialog(context, update);
     } catch (error) {
       if (!mounted || kDebugMode) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,18 +55,28 @@ class _WindowsUpdateGateState extends ConsumerState<WindowsUpdateGate> {
     }
   }
 
-  String _serverVersion(PackageInfo package) {
-    final version = package.version.trim();
-    final build = package.buildNumber.trim();
-    if (build.isEmpty || build == '0' || version.endsWith('.$build')) {
-      return version;
-    }
-    return '$version.$build';
-  }
-
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+Future<String> installedAppVersion() async {
+  final package = await PackageInfo.fromPlatform();
+  final version = package.version.trim();
+  final build = package.buildNumber.trim();
+  if (build.isEmpty || build == '0' || version.endsWith('.$build')) {
+    return version;
+  }
+  return '$version.$build';
+}
+
+Future<void> showWindowsUpdateDialog(
+  BuildContext context,
+  AppUpdateInfo update,
+) => showDialog<void>(
+  context: context,
+  barrierDismissible: !update.mandatory,
+  builder: (_) => _WindowsUpdateDialog(update: update),
+);
 
 class _WindowsUpdateDialog extends StatefulWidget {
   const _WindowsUpdateDialog({required this.update});

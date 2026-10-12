@@ -27,6 +27,7 @@ import '../auth/auth_controller.dart';
 import '../settings/application/pos_operating_mode_controller.dart';
 import '../settings/application/payment_method_settings_controller.dart';
 import '../settings/application/order_type_settings_controller.dart';
+import '../app_update/presentation/app_update_settings_card.dart';
 
 final saleReturnsProvider = FutureProvider.autoDispose<List<SaleReturnRecord>>(
   (ref) => ref.watch(backendControllerProvider.notifier).saleReturns(),
@@ -6585,6 +6586,8 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Configure your business and connected services.',
           ),
           const SizedBox(height: 18),
+          const AppUpdateSettingsCard(),
+          const SizedBox(height: 10),
           _PosOperatingModeSettings(
             mode: posMode,
             onChanged: (mode) async {

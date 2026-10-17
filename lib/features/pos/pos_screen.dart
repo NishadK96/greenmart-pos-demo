@@ -7012,15 +7012,21 @@ class _CurrentOrder extends ConsumerWidget {
 Future<void> showPosCustomerSelector(
   BuildContext context,
   WidgetRef ref,
-  AppState state,
-) => showDialog<void>(
+  AppState state, {
+  Customer? selectedCustomer,
+  ValueChanged<Customer>? onSelected,
+}) => showDialog<void>(
   context: context,
   barrierDismissible: true,
   builder: (_) => _CustomerSelectorDialog(
     customers: state.customers,
-    selectedCustomer: state.customer,
+    selectedCustomer: selectedCustomer ?? state.customer,
     onSelected: (customer) {
-      ref.read(appStoreProvider.notifier).selectCustomer(customer);
+      if (onSelected != null) {
+        onSelected(customer);
+      } else {
+        ref.read(appStoreProvider.notifier).selectCustomer(customer);
+      }
     },
     onCreate: ({required name, required mobile, required email}) => ref
         .read(backendControllerProvider.notifier)

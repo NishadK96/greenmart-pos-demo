@@ -11,6 +11,8 @@ import 'features/home/module_screens.dart';
 import 'features/pos/pos_screen.dart';
 import 'features/kitchen/presentation/kitchen_pos_screen.dart';
 import 'features/fuel/presentation/fuel_pos_screen.dart';
+import 'features/van/presentation/van_pos_preview_screen.dart';
+import 'features/van/presentation/van_pos_screen.dart';
 import 'features/kitchen/presentation/restaurant_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
@@ -47,6 +49,12 @@ final _router = GoRouter(
         pageBuilder: (_, state) =>
             _instantPage(state, const PosCustomerSelectorPreviewScreen()),
       ),
+    if (kDebugMode)
+      GoRoute(
+        path: '/van-pos-preview',
+        pageBuilder: (_, state) =>
+            _instantPage(state, const VanPosPreviewScreen()),
+      ),
     GoRoute(
       path: '/login',
       pageBuilder: (_, state) => _instantPage(state, const LoginScreen()),
@@ -71,6 +79,10 @@ final _router = GoRouter(
         GoRoute(
           path: '/fuel-pos',
           pageBuilder: (_, state) => _instantPage(state, const FuelPosScreen()),
+        ),
+        GoRoute(
+          path: '/van-pos',
+          pageBuilder: (_, state) => _instantPage(state, const VanPosScreen()),
         ),
         GoRoute(
           path: '/products',

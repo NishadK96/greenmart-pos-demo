@@ -26,12 +26,17 @@ void main() {
     second.read(posOperatingModeProvider);
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(second.read(posOperatingModeProvider), PosOperatingMode.kitchen);
+    await second
+        .read(posOperatingModeProvider.notifier)
+        .setMode(PosOperatingMode.van);
+    expect(second.read(posOperatingModeProvider), PosOperatingMode.van);
+    expect(PosOperatingMode.van.route, '/van-pos');
   });
 
   testWidgets('settings exposes a responsive device mode selector', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -55,12 +60,17 @@ void main() {
     expect(find.text('Retail POS'), findsOneWidget);
     expect(find.text('Kitchen POS'), findsOneWidget);
     expect(find.text('Fuel POS'), findsOneWidget);
+    expect(find.text('Van POS'), findsOneWidget);
     await tester.tap(find.text('Kitchen POS'));
     await tester.pumpAndSettle();
     expect(container.read(posOperatingModeProvider), PosOperatingMode.kitchen);
     await tester.tap(find.text('Fuel POS'));
     await tester.pumpAndSettle();
     expect(container.read(posOperatingModeProvider), PosOperatingMode.fuel);
+    await tester.ensureVisible(find.text('Van POS'));
+    await tester.tap(find.text('Van POS'));
+    await tester.pumpAndSettle();
+    expect(container.read(posOperatingModeProvider), PosOperatingMode.van);
     expect(tester.takeException(), isNull);
   });
 }

@@ -7242,6 +7242,14 @@ class _PosOperatingModeSettings extends StatelessWidget {
                   subtitle: 'Litres or amount billing for fuel stations',
                   onTap: onChanged,
                 ),
+              _PosModeOption(
+                mode: PosOperatingMode.van,
+                selected: mode == PosOperatingMode.van,
+                icon: Icons.local_shipping_outlined,
+                title: 'Van POS',
+                subtitle: 'Mobile route sales from the selected van location',
+                onTap: onChanged,
+              ),
             ];
             if (compact) {
               return Column(

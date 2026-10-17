@@ -191,10 +191,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
     final path = GoRouterState.of(context).uri.path;
     final compactPosSidebar =
-        path == '/pos' || path == '/kitchen-pos' || path == '/fuel-pos';
+        path == '/pos' ||
+        path == '/kitchen-pos' ||
+        path == '/fuel-pos' ||
+        path == '/van-pos';
     final navExpanded = !compactPosSidebar && expanded;
     final usesCashRegister =
-        path == '/pos' || path == '/kitchen-pos' || path == '/fuel-pos';
+        path == '/pos' ||
+        path == '/kitchen-pos' ||
+        path == '/fuel-pos' ||
+        path == '/van-pos';
     final AsyncValue<CashRegister?> registerState = usesCashRegister
         ? ref.watch(cashRegisterControllerProvider)
         : const AsyncData(null);

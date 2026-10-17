@@ -34,6 +34,10 @@ void main() {
         expect(find.text('New Fuel Sale'), findsOneWidget);
         expect(find.textContaining('Complete sale'), findsNothing);
         expect(find.text('Configure fuel products'), findsOneWidget);
+        await tester.tap(find.bySemanticsLabel('Search or add customer'));
+        await tester.pumpAndSettle();
+        expect(find.text('Add customer'), findsWidgets);
+        expect(find.text('Search name, business, phone or email'), findsOneWidget);
       } else {
         expect(find.text('New fuel sale'), findsOneWidget);
         expect(find.textContaining('Complete sale'), findsOneWidget);

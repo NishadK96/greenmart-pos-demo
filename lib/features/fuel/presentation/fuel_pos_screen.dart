@@ -11,6 +11,7 @@ import '../../../shared/models/entities.dart';
 import '../../auth/auth_controller.dart';
 import '../../backend/presentation/backend_controller.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
+import '../../pos/pos_screen.dart' show showPosCustomerSelector;
 import '../../settings/application/payment_method_settings_controller.dart';
 import '../../store/app_store.dart';
 import '../../../shared/widgets/localized_text.dart';
@@ -42,6 +43,55 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
   String? _error;
   String? _pendingTransactionId;
   String? _pendingSaleFingerprint;
+
+  Future<void> _selectCustomer(AppState state) => showPosCustomerSelector(
+    context,
+    ref,
+    state,
+    selectedCustomer: state.customers
+        .where((customer) => customer.id == _customerId)
+        .firstOrNull ?? state.customers.firstOrNull,
+    onSelected: (customer) => setState(() {
+      _customerId = customer.id;
+      _pendingTransactionId = null;
+      _pendingSaleFingerprint = null;
+    }),
+  );
+
+  Widget _customerPicker(AppState state, {required bool mobile}) {
+    final selected = state.customers
+        .where((customer) => customer.id == _customerId)
+        .firstOrNull;
+    final name = selected?.name ?? state.customers.firstOrNull?.name;
+    return Semantics(
+      button: true,
+      label: 'Search or add customer',
+      child: OutlinedButton(
+        onPressed: _submitting ? null : () => _selectCustomer(state),
+        style: OutlinedButton.styleFrom(
+          padding: EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: mobile ? 11 : 15,
+          ),
+          alignment: AlignmentDirectional.centerStart,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_outline, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                name ?? context.tr('Select customer'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.search_rounded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -588,30 +638,7 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                key: ValueKey(_customerId),
-                initialValue:
-                    state.customers.any((item) => item.id == _customerId)
-                    ? _customerId
-                    : state.customers.firstOrNull?.id,
-                decoration: InputDecoration(
-                  labelText: context.tr('Customer'),
-                  prefixIcon: const Icon(Icons.person_outline, size: 20),
-                  filled: true,
-                  fillColor: colors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                items: [
-                  for (final customer in state.customers)
-                    DropdownMenuItem(
-                      value: customer.id,
-                      child: Text(customer.name),
-                    ),
-                ],
-                onChanged: (value) => setState(() => _customerId = value),
-              ),
+              _customerPicker(state, mobile: false),
               const SizedBox(height: 10),
               LayoutBuilder(
                 builder: (context, fieldConstraints) {
@@ -1476,53 +1503,7 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
                         ),
                 ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                key: ValueKey('mobile-$_customerId'),
-                isExpanded: true,
-                style: TextStyle(
-                  color: colors.onSurface,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                initialValue:
-                    state.customers.any((item) => item.id == _customerId)
-                    ? _customerId
-                    : state.customers.firstOrNull?.id,
-                decoration:
-                    fieldDecoration(
-                      'Customer (optional)',
-                      Icons.person_outline,
-                    ).copyWith(
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                    ),
-                items: [
-                  for (final customer in state.customers)
-                    DropdownMenuItem(
-                      value: customer.id,
-                      child: Text(
-                        customer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                selectedItemBuilder: (context) => [
-                  for (final customer in state.customers)
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        customer.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: (value) => setState(() => _customerId = value),
-              ),
+              _customerPicker(state, mobile: true),
               const SizedBox(height: 8),
               Row(
                 children: [

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum PosOperatingMode { retail, kitchen, fuel }
+enum PosOperatingMode { retail, kitchen, fuel, van }
 
 const fuelPosEnabled = true;
 
@@ -10,12 +10,14 @@ extension PosOperatingModeDetails on PosOperatingMode {
     PosOperatingMode.retail => '/pos',
     PosOperatingMode.kitchen => '/kitchen-pos',
     PosOperatingMode.fuel => '/fuel-pos',
+    PosOperatingMode.van => '/van-pos',
   };
 
   String get label => switch (this) {
     PosOperatingMode.retail => 'Retail POS',
     PosOperatingMode.kitchen => 'Kitchen POS',
     PosOperatingMode.fuel => 'Fuel POS',
+    PosOperatingMode.van => 'Van POS',
   };
 }
 

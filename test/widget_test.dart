@@ -930,8 +930,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Tax settings'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Tax settings'));
     await tester.pumpAndSettle();
     expect(find.text('Open POS'), findsOneWidget);

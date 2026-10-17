@@ -239,7 +239,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     if (modifiers == null || !mounted || _orderLocked) return;
     final newLine = CartLine(
       product: product,
-      quantity: _addQuantity,
+      quantity: _addQuantity.toDouble(),
       modifiers: modifiers,
       // A configured product added from the catalog is a distinct order line.
       // This lets the cashier add the same product again with its own choices.
@@ -344,7 +344,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           enteredQuantity > 0 &&
           enteredQuantity <= 999) {
         setState(() {
-          _lines[line.lineId] = line.copyWith(quantity: enteredQuantity);
+          _lines[line.lineId] = line.copyWith(
+            quantity: enteredQuantity.toDouble(),
+          );
           _keypadInput = '';
           _selectedLineId = line.lineId;
         });

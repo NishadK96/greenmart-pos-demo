@@ -104,7 +104,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${line.quantity} × ${line.product.displayName(context.isArabic)}',
+                                    '${formatQuantity(line.quantity)} × ${line.product.displayName(context.isArabic)}',
                                   ),
                                 ),
                                 RiyalAmount(line.total),

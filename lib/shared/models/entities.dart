@@ -1,5 +1,10 @@
 enum SyncStatus { pending, synced, failed, conflict }
 
+String formatQuantity(double value) {
+  if (value == value.truncateToDouble()) return value.toStringAsFixed(0);
+  return value.toStringAsFixed(4).replaceFirst(RegExp(r'0+$'), '');
+}
+
 class Category {
   const Category({
     required this.id,
@@ -51,7 +56,8 @@ class Product {
       taxId;
   final String nameEn, nameAr;
   final String imageUrl;
-  final int purchasePrice, sellingPrice, stock, minimumStock;
+  final int purchasePrice, sellingPrice, minimumStock;
+  final double stock;
   final double taxPercent;
   final bool sellingPriceIncludesTax;
   final bool active;
@@ -65,7 +71,7 @@ class Product {
     String? taxId,
     int? purchasePrice,
     int? sellingPrice,
-    int? stock,
+    double? stock,
     int? minimumStock,
     String? imageUrl,
     bool? active,
@@ -501,11 +507,12 @@ class CartLine {
     this.itemNote = '',
   });
   final Product product;
-  final int quantity, discount;
+  final double quantity;
+  final int discount;
   final int? unitPriceOverride;
   final String? sellLineId;
   final String? instanceId;
-  final int quantityReturned;
+  final double quantityReturned;
   final int? saleUnitPriceIncTax;
   final List<SelectedModifier> modifiers;
   final String itemNote;
@@ -535,16 +542,17 @@ class CartLine {
                 : item.unitPrice) *
             item.quantity,
   );
-  int get returnableQuantity =>
+  double get returnableQuantity =>
       (quantity - quantityReturned).clamp(0, quantity);
   int get returnUnitPrice => saleUnitPriceIncTax ?? unitPrice;
   int get unitPrice => unitPriceOverride ?? product.sellingPrice;
   int get subtotal =>
-      (unitPrice +
-          (product.sellingPriceIncludesTax
-              ? modifierUnitTotalIncludingTax
-              : modifierUnitTotalExcludingTax)) *
-      quantity;
+      ((unitPrice +
+                  (product.sellingPriceIncludesTax
+                      ? modifierUnitTotalIncludingTax
+                      : modifierUnitTotalExcludingTax)) *
+              quantity)
+          .round();
   int get taxableAmount => (subtotal - discount).clamp(0, subtotal);
   int get tax => product.sellingPriceIncludesTax
       ? (taxableAmount - taxableAmount / (1 + product.taxPercent / 100)).round()
@@ -561,12 +569,12 @@ class CartLine {
       product.sellingPriceIncludesTax ? unitPrice : unitPrice + unitTax;
   CartLine copyWith({
     Product? product,
-    int? quantity,
+    double? quantity,
     int? discount,
     int? unitPriceOverride,
     bool clearUnitPriceOverride = false,
     String? instanceId,
-    int? quantityReturned,
+    double? quantityReturned,
     List<SelectedModifier>? modifiers,
     String? itemNote,
   }) => CartLine(

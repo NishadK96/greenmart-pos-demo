@@ -3320,7 +3320,7 @@ class Api {
             0,
             (sum, item) => sum + _number(item['qty_available']),
           )
-        : 0;
+        : 0.0;
     final category = json['category'];
     final categoryId = category is Map<String, dynamic>
         ? category['id']?.toString() ?? ''
@@ -3337,7 +3337,7 @@ class Api {
       categoryId: categoryId,
       purchasePrice: (_number(variation['dpp_inc_tax']) * 100).round(),
       sellingPrice: (_number(variation['sell_price_inc_tax']) * 100).round(),
-      stock: stock.floor(),
+      stock: stock,
       minimumStock: _number(json['alert_quantity']).floor(),
       variationId: variation['id']?.toString() ?? '',
       taxPercent: _number(productTax['amount']),
@@ -3510,10 +3510,10 @@ class Api {
           if (product == null) return null;
           return CartLine(
             product: product,
-            quantity: _number(line['quantity']).round(),
+            quantity: _number(line['quantity']),
             discount: _money(line['line_discount_amount']),
             sellLineId: line['id']?.toString(),
-            quantityReturned: _number(line['quantity_returned']).round(),
+            quantityReturned: _number(line['quantity_returned']),
             saleUnitPriceIncTax: line['unit_price_inc_tax'] == null
                 ? null
                 : _money(line['unit_price_inc_tax']),

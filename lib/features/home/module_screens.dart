@@ -637,7 +637,10 @@ class _LowStockRow extends StatelessWidget {
             ],
           ),
         ),
-        StatusBadge('${product.stock} left', color: AppColors.danger),
+        StatusBadge(
+          '${formatQuantity(product.stock)} left',
+          color: AppColors.danger,
+        ),
       ],
     ),
   );
@@ -1050,7 +1053,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       0,
       (value, product) =>
           value +
-          (product.purchasePrice * (product.stock > 0 ? product.stock : 0)),
+          (product.purchasePrice * (product.stock > 0 ? product.stock : 0))
+              .round(),
     );
     final mobile = MediaQuery.sizeOf(context).width < 700;
 
@@ -1556,7 +1560,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${product.stock} ${product.unit}',
+                      '${formatQuantity(product.stock)} ${product.unit}',
                       style: TextStyle(
                         color: stockColor,
                         fontSize: 9,
@@ -1972,7 +1976,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   ),
                   const Spacer(),
                   Text(
-                    '${product.stock} ${product.unit}',
+                    '${formatQuantity(product.stock)} ${product.unit}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
@@ -6180,7 +6184,7 @@ class LegacyReportsScreen extends ConsumerWidget {
       0,
       (maximum, sale) => sale.total > maximum ? sale.total : maximum,
     );
-    final units = <String, int>{};
+    final units = <String, double>{};
     for (final sale in s.sales) {
       for (final item in sale.items) {
         units.update(

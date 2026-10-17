@@ -4,6 +4,39 @@ import 'package:eazy_pos/features/store/app_store.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 
 void main() {
+  test(
+    'retail cart accepts fractional quantity and rounds totals to halalas',
+    () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final store = container.read(appStoreProvider.notifier);
+      const product = Product(
+        id: 'weighted',
+        name: 'Weighted item',
+        sku: 'WEIGHT',
+        barcode: 'WEIGHT',
+        categoryId: '1',
+        purchasePrice: 300,
+        sellingPrice: 725,
+        stock: 2.5,
+        minimumStock: 0,
+        variationId: '1',
+        sellingPriceIncludesTax: true,
+      );
+      store.addToCart(product);
+      store.quantity('weighted', 0.5);
+      expect(container.read(appStoreProvider).cart.single.quantity, 1.5);
+      expect(container.read(appStoreProvider).cartTotal, 1088);
+      expect(formatQuantity(1.5), '1.5');
+      expect(formatQuantity(2), '2');
+
+      store.quantity('weighted', 1);
+      expect(container.read(appStoreProvider).cart.single.quantity, 2.5);
+      store.quantity('weighted', 0.5);
+      expect(container.read(appStoreProvider).cart.single.quantity, 2.5);
+    },
+  );
+
   test('products without configured tax do not receive an implicit rate', () {
     const product = Product(
       id: 'untaxed',

@@ -96,7 +96,7 @@ class AppState {
       cart.fold<int>(0, (value, line) => value + line.total) -
       cartGrossDiscount +
       cartOrderTax;
-  int get itemCount => cart.fold(0, (v, e) => v + e.quantity);
+  double get itemCount => cart.fold<double>(0, (v, e) => v + e.quantity);
   AppState copyWith({
     List<Product>? products,
     List<Category>? categories,
@@ -175,15 +175,19 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(cart: lines);
   }
 
-  void quantity(String id, int delta) {
+  void quantity(String id, double delta) {
     final lines = [...state.cart];
     final i = lines.indexWhere((e) => e.lineId == id);
     if (i < 0) return;
-    final q = lines[i].quantity + delta;
+    final q = ((lines[i].quantity + delta) * 10000).round() / 10000;
     if (q <= 0)
       lines.removeAt(i);
-    else if (state.allowOverselling || q <= lines[i].product.stock)
-      lines[i] = lines[i].copyWith(quantity: q);
+    else if (state.allowOverselling || q <= lines[i].product.stock) {
+      final updated = lines[i].copyWith(quantity: q);
+      lines[i] = updated.copyWith(
+        discount: updated.discount.clamp(0, updated.subtotal),
+      );
+    }
     state = state.copyWith(cart: lines);
   }
 

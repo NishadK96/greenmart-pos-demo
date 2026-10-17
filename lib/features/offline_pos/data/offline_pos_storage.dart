@@ -177,7 +177,7 @@ class OfflinePosStorage {
             categoryId: '${item['category_id'] ?? ''}',
             purchasePrice: (item['purchase_price'] as num?)?.toInt() ?? 0,
             sellingPrice: (item['selling_price'] as num?)?.toInt() ?? 0,
-            stock: (item['stock'] as num?)?.toInt() ?? 0,
+            stock: (item['stock'] as num?)?.toDouble() ?? 0,
             minimumStock: (item['minimum_stock'] as num?)?.toInt() ?? 0,
             variationId: '${item['variation_id'] ?? ''}',
             taxPercent: (item['tax_percent'] as num?)?.toDouble() ?? 0,

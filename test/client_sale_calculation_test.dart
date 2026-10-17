@@ -58,6 +58,31 @@ void main() {
     expect(result['final_total'], '0.03');
   });
 
+  test('uses rounded line totals for fractional quantities', () {
+    const weighted = Product(
+      id: 'weighted',
+      variationId: 'weighted-v1',
+      name: 'Weighted item',
+      sku: 'WEIGHT',
+      barcode: 'WEIGHT',
+      categoryId: '1',
+      purchasePrice: 0,
+      sellingPrice: 725,
+      stock: 10,
+      minimumStock: 0,
+      sellingPriceIncludesTax: true,
+    );
+    final result = ClientSaleCalculation.fromCart(
+      lines: const [CartLine(product: weighted, quantity: 1.5)],
+      orderDiscount: 0,
+      finalTotal: 1088,
+    );
+
+    expect(result['subtotal'], '10.88');
+    expect(result['final_total'], '10.88');
+    expect((result['lines'] as List).single['line_total'], '10.88');
+  });
+
   test('matches the backend four-line example exactly', () {
     const expensive = Product(
       id: '2',

@@ -665,7 +665,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
       categoryId: existing?.categoryId ?? '',
       purchasePrice: existing?.purchasePrice ?? 0,
       sellingPrice: (_number(variation['sell_price_inc_tax']) * 100).round(),
-      stock: _number(variation['stock']).floor(),
+      stock: _number(variation['stock']),
       minimumStock: existing?.minimumStock ?? 0,
       variationId: '${variation['id'] ?? ''}',
       taxPercent: taxAmounts[taxId] ?? 0,
@@ -811,7 +811,7 @@ class OfflinePosController extends AsyncNotifier<OfflinePosState> {
         lines.add(
           CartLine(
             product: product,
-            quantity: (raw['quantity'] as num?)?.toInt() ?? 1,
+            quantity: (raw['quantity'] as num?)?.toDouble() ?? 1,
             unitPriceOverride: (raw['unit_price_override'] as num?)?.toInt(),
             discount: (raw['discount'] as num?)?.toInt() ?? 0,
             itemNote: '${raw['note'] ?? ''}',

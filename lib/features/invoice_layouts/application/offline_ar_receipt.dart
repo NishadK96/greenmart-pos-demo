@@ -89,8 +89,9 @@ abstract final class OfflineArabicReceipt {
       '[Customer Name or Cash Customer]': _escape(sale.customer.name),
       '[Mobile Number]': _escape(sale.customer.phone),
       '[Customer VAT Number]': _escape(sale.customer.taxNumber ?? ''),
-      '[Total Quantity]':
-          '${sale.items.fold<int>(0, (sum, item) => sum + item.quantity)}',
+      '[Total Quantity]': formatQuantity(
+        sale.items.fold<double>(0, (sum, item) => sum + item.quantity),
+      ),
       '[Item Count]': '${sale.items.length}',
       '[Subtotal Before Tax]': _amount(sale.total - sale.tax + sale.discount),
       '[Discount]': _amount(sale.discount),
@@ -106,7 +107,7 @@ abstract final class OfflineArabicReceipt {
           : '<div class="ar-item-modifiers">${_escape(item.modifiers.map((modifier) => modifier.name).join(' · '))}</div>';
       return '<tr>'
           '<td class="ar-col-item"><div class="ar-strong">${_escape(item.product.name)}</div>$modifiers</td>'
-          '<td class="ar-col-qty ar-num">${item.quantity}</td>'
+          '<td class="ar-col-qty ar-num">${formatQuantity(item.quantity)}</td>'
           '<td class="ar-col-piece ar-num">${_amount(item.unitPriceExcludingTax)}</td>'
           '<td class="ar-col-total ar-num ar-strong">${_amount(item.total)}</td>'
           '<td class="ar-col-vat ar-num">${_amount(item.tax)}</td>'
@@ -420,7 +421,7 @@ abstract final class OfflineArabicReceipt {
                     text(_amount(item.tax), size: 7),
                     text(_amount(item.total), size: 7, bold: true),
                     text(_amount(item.unitPriceExcludingTax), size: 7),
-                    text('${item.quantity}', size: 7),
+                    text(formatQuantity(item.quantity), size: 7),
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
@@ -447,7 +448,7 @@ abstract final class OfflineArabicReceipt {
           pw.SizedBox(height: 5),
           pw.Center(
             child: text(
-              'إجمالي الكمية: ${sale.items.fold<int>(0, (sum, item) => sum + item.quantity)}  |  عدد الأصناف: ${sale.items.length}',
+              'إجمالي الكمية: ${formatQuantity(sale.items.fold<double>(0, (sum, item) => sum + item.quantity))}  |  عدد الأصناف: ${sale.items.length}',
               size: 7,
               align: pw.TextAlign.center,
             ),

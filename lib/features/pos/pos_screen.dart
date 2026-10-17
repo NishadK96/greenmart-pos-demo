@@ -136,7 +136,8 @@ class _CartKeyboardNotifier extends Notifier<_CartKeyboardState> {
 
   void appendQuantityDigit(String digit) {
     final current = state.quantityBuffer;
-    final maxLength = state.keypadTarget == _CartKeypadTarget.price ? 9 : 4;
+    const maxLength = 9;
+    if (current.contains('.') && current.split('.').last.length >= 4) return;
     if (current.length >= maxLength ||
         (state.keypadTarget != _CartKeypadTarget.price &&
             current.isEmpty &&
@@ -147,8 +148,7 @@ class _CartKeyboardNotifier extends Notifier<_CartKeyboardState> {
   }
 
   void appendDecimal() {
-    if (state.keypadTarget != _CartKeypadTarget.price ||
-        state.quantityBuffer.contains('.')) {
+    if (state.quantityBuffer.contains('.')) {
       return;
     }
     final current = state.quantityBuffer;
@@ -476,7 +476,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           (a, b) => _recent.indexOf(a.id).compareTo(_recent.indexOf(b.id)),
         );
     } else if (_mode == 'top') {
-      final soldQuantity = <String, int>{};
+      final soldQuantity = <String, double>{};
       for (final sale in state.sales) {
         for (final line in sale.items) {
           soldQuantity.update(
@@ -663,7 +663,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${state.itemCount} ${context.tr('items')} • ${context.tr('Total Payable')}',
+                      '${formatQuantity(state.itemCount)} ${context.tr('items')} • ${context.tr('Total Payable')}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.muted,
@@ -702,7 +702,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             color: const Color(0xFFF0F6FB),
             child: Text(
-              '${context.tr('Current Order')} (${state.itemCount})',
+              '${context.tr('Current Order')} (${formatQuantity(state.itemCount)})',
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
           ),
@@ -827,7 +827,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   value:
                       editingQuantity && keyboardState.quantityBuffer.isNotEmpty
                       ? '${keyboardState.quantityBuffer}_'
-                      : '${line.quantity}',
+                      : formatQuantity(line.quantity),
                   active: editingQuantity,
                   onTap: () =>
                       _editCompactCartLine(line, _CartKeypadTarget.quantity),
@@ -1797,7 +1797,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '${dialogContext.tr('Stock')}: ${product.stock}',
+                                '${dialogContext.tr('Stock')}: ${formatQuantity(product.stock)}',
                                 style: TextStyle(
                                   color: product.stock < 0
                                       ? AppColors.danger
@@ -2165,7 +2165,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   child: Text(
                     editingQuantity && keypadBuffer.isNotEmpty
                         ? '${keypadBuffer}_'
-                        : '${line.quantity}',
+                        : formatQuantity(line.quantity),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
@@ -2834,7 +2834,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 child: Text(
                   product.stock == 0
                       ? context.tr('Out of stock')
-                      : '${product.stock} ${context.tr('in stock')}',
+                      : '${formatQuantity(product.stock)} ${context.tr('in stock')}',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 10,
@@ -2882,7 +2882,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           subtitle: Text(
-            '${product.sku} • ${product.stock} ${context.tr('in stock')}',
+            '${product.sku} • ${formatQuantity(product.stock)} ${context.tr('in stock')}',
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -3607,7 +3607,7 @@ class _RecentSalesDialogState extends ConsumerState<_RecentSalesDialog> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${line.quantity} × ${line.product.displayName(context.isArabic)}',
+                          '${formatQuantity(line.quantity)} × ${line.product.displayName(context.isArabic)}',
                         ),
                       ),
                       RiyalAmount(line.total),
@@ -4958,7 +4958,7 @@ class _CurrentOrder extends ConsumerWidget {
               children: [
                 _panelTotal(
                   context,
-                  '${context.tr('Subtotal')} (${state.itemCount} ${context.tr('items')})',
+                  '${context.tr('Subtotal')} (${formatQuantity(state.itemCount)} ${context.tr('items')})',
                   state.cartSubtotal,
                 ),
                 _panelTotal(
@@ -5149,12 +5149,14 @@ class _CurrentOrder extends ConsumerWidget {
     if (line == null || buffer.isEmpty) return;
 
     if (keypadState.keypadTarget == _CartKeypadTarget.quantity) {
-      final requested = int.tryParse(buffer);
-      if (requested == null || requested < 1) return;
+      final requested = double.tryParse(buffer);
+      if (requested == null || requested <= 0) return;
       if (!state.allowOverselling && requested > line.product.stock) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Only ${line.product.stock} available in stock.'),
+            content: Text(
+              'Only ${formatQuantity(line.product.stock)} available in stock.',
+            ),
           ),
         );
         return;
@@ -5242,7 +5244,7 @@ class _CurrentOrder extends ConsumerWidget {
     final amount =
         held.lines.fold<int>(0, (total, line) => total + line.total) -
         held.grossDiscount;
-    final count = held.lines.fold<int>(
+    final count = held.lines.fold<double>(
       0,
       (total, line) => total + line.quantity,
     );
@@ -5410,6 +5412,11 @@ class _CurrentOrder extends ConsumerWidget {
       keyboard.appendQuantityDigit(digit);
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.period ||
+        key == LogicalKeyboardKey.numpadDecimal) {
+      keyboard.appendDecimal();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.backspace) {
       keyboard.removeQuantityDigit();
       return KeyEventResult.handled;
@@ -5430,14 +5437,14 @@ class _CurrentOrder extends ConsumerWidget {
         key == LogicalKeyboardKey.numpadEnter) {
       final buffer = ref.read(_posCartKeyboardProvider).quantityBuffer;
       if (buffer.isNotEmpty) {
-        final requested = int.tryParse(buffer);
+        final requested = double.tryParse(buffer);
         keyboard.clearQuantity();
-        if (requested == null || requested < 1) return KeyEventResult.handled;
+        if (requested == null || requested <= 0) return KeyEventResult.handled;
         if (!state.allowOverselling && requested > selectedLine.product.stock) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Only ${selectedLine.product.stock} available in stock.',
+                'Only ${formatQuantity(selectedLine.product.stock)} available in stock.',
               ),
             ),
           );
@@ -5565,7 +5572,7 @@ class _CurrentOrder extends ConsumerWidget {
         children: [
           Expanded(
             child: Text(
-              '${state.itemCount} items • ${state.customer?.name ?? context.tr('Walk-in Customer')}',
+              '${formatQuantity(state.itemCount)} items • ${state.customer?.name ?? context.tr('Walk-in Customer')}',
               style: const TextStyle(color: AppColors.muted, fontSize: 12),
             ),
           ),
@@ -5606,7 +5613,7 @@ class _CurrentOrder extends ConsumerWidget {
     child: Semantics(
       selected: selected,
       label:
-          '${line.product.displayName(context.isArabic)}, quantity ${line.quantity}, ${money(line.total)}',
+          '${line.product.displayName(context.isArabic)}, quantity ${formatQuantity(line.quantity)}, ${money(line.total)}',
       hint: selected
           ? 'Selected. Use arrow keys to move, type a quantity and press Enter, or press Enter for item actions.'
           : 'Press the arrow keys to select this item.',
@@ -5806,7 +5813,7 @@ class _CurrentOrder extends ConsumerWidget {
                             width: 28,
                             child: Text(
                               quantityBuffer.isEmpty
-                                  ? '${line.quantity}'
+                                  ? formatQuantity(line.quantity)
                                   : '${quantityBuffer}_',
                               textAlign: TextAlign.center,
                               style: TextStyle(

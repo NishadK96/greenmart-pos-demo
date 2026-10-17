@@ -7,6 +7,7 @@ import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../auth/auth_controller.dart';
 import '../../backend/data/eazyerp_backend_repository.dart';
 import '../../backend/presentation/backend_controller.dart';
@@ -46,9 +47,11 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     context,
     ref,
     state,
-    selectedCustomer: state.customers
-        .where((customer) => customer.id == _customerId)
-        .firstOrNull ?? state.customers.firstOrNull,
+    selectedCustomer:
+        state.customers
+            .where((customer) => customer.id == _customerId)
+            .firstOrNull ??
+        state.customers.firstOrNull,
     onSelected: (customer) => setState(() {
       _customerId = customer.id;
       _pendingId = null;
@@ -263,9 +266,9 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     );
     final bill = _bill(state, methods);
     return ColoredBox(
-      color: const Color(0xFFF5F8F6),
+      color: const Color(0xFFF5F8F7),
       child: Padding(
-        padding: EdgeInsets.all(compact ? 12 : 20),
+        padding: EdgeInsets.all(compact ? 12 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -274,8 +277,9 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                 const Icon(
                   Icons.local_shipping_outlined,
                   color: AppColors.primary,
+                  size: 30,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'New van sale',
@@ -284,17 +288,18 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                     ),
                   ),
                 ),
-                Text(
-                  location?.name ?? 'Van location',
-                  style: const TextStyle(color: AppColors.muted),
-                ),
+                if (!compact)
+                  Text(
+                    location?.name ?? 'Van location',
+                    style: const TextStyle(color: AppColors.muted),
+                  ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             Expanded(
               child: compact
                   ? ListView(
-                      children: [catalog, const SizedBox(height: 14), bill],
+                      children: [catalog, const SizedBox(height: 12), bill],
                     )
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +308,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                           flex: 6,
                           child: SingleChildScrollView(child: catalog),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 16),
                         Expanded(
                           flex: 4,
                           child: SingleChildScrollView(child: bill),
@@ -321,60 +326,119 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     List<Product> products,
     bool allowOverselling,
     String location,
-  ) => Card(
+  ) => _panel(
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             'Products · $location',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
           const Text(
             'Stock shown is the catalog balance; the server validates availability at checkout.',
             style: TextStyle(color: AppColors.muted, fontSize: 12),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           TextField(
             controller: _search,
             onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Search name, SKU or barcode',
+              prefixIcon: Icon(Icons.search_rounded),
+              hintText: 'Search name, SKU or barcode…',
+              filled: true,
+              fillColor: Color(0xFFF7FAF9),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           if (products.isEmpty)
             const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: Text('No matching products.')),
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.search_off_rounded,
+                    size: 36,
+                    color: AppColors.muted,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'No matching products',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Try another name, SKU or barcode.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                ],
+              ),
             ),
           for (final product in products) ...[
             const Divider(height: 1),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                product.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                '${product.sku} · catalog stock ${formatQuantity(product.stock)}',
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Row(
                 children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F8F7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE7EEEB)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ProductImage(
+                      product.imageUrl,
+                      width: 48,
+                      height: 48,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${product.sku}  ·  catalog stock ${formatQuantity(product.stock)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     money(product.sellingPrice),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
                     tooltip: 'Add ${product.name}',
                     onPressed: () => _change(product, 1, allowOverselling),
-                    icon: const Icon(Icons.add),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFDDF4EC),
+                      foregroundColor: AppColors.primary,
+                      minimumSize: const Size(42, 42),
+                    ),
+                    icon: const Icon(Icons.add_rounded),
                   ),
                 ],
               ),
@@ -385,15 +449,15 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     ),
   );
 
-  Widget _bill(AppState state, List<PaymentOption> methods) => Card(
+  Widget _bill(AppState state, List<PaymentOption> methods) => _panel(
     child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
             'Current order',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 14),
           OutlinedButton.icon(
@@ -412,12 +476,44 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+              side: const BorderSide(color: Color(0xFFDDE7E3)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           if (_cart.isEmpty)
             const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: Text('Add products to start an order.')),
+              padding: EdgeInsets.symmetric(vertical: 42, horizontal: 12),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 42,
+                    backgroundColor: Color(0xFFF2F7F5),
+                    child: Icon(
+                      Icons.shopping_cart_outlined,
+                      size: 38,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Add products to start an order',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Search or scan items from the catalog to add them to this sale.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
+                ],
+              ),
             ),
           for (final line in _cart.values) ...[
             const Divider(height: 1),
@@ -457,7 +553,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
               ],
             ),
           ],
-          const Divider(),
+          const Divider(height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -468,19 +564,22 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
               Text(
                 money(_total),
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           DropdownButtonFormField<String>(
             initialValue: methods.any((item) => item.code == _payment)
                 ? _payment
                 : methods.firstOrNull?.code,
-            decoration: const InputDecoration(labelText: 'Payment method'),
+            decoration: const InputDecoration(
+              labelText: 'Payment method',
+              prefixIcon: Icon(Icons.credit_card_outlined),
+            ),
             items: [
               for (final method in methods)
                 DropdownMenuItem(value: method.code, child: Text(method.label)),
@@ -494,7 +593,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
             const SizedBox(height: 10),
             Text(_error!, style: const TextStyle(color: AppColors.danger)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: _busy || _cart.isEmpty || methods.isEmpty
                 ? null
@@ -512,6 +611,13 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                   )
                 : const Icon(Icons.check_circle_outline),
             label: Text(_busy ? 'Submitting…' : 'Complete sale'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              backgroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -522,5 +628,21 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
         ],
       ),
     ),
+  );
+
+  Widget _panel({required Widget child}) => Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFE6EEEA)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A173B32),
+          blurRadius: 22,
+          offset: Offset(0, 8),
+        ),
+      ],
+    ),
+    child: child,
   );
 }

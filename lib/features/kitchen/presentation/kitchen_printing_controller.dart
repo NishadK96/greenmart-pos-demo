@@ -11,6 +11,7 @@ import '../../printers/application/printer_document_service.dart';
 import '../../store/app_store.dart';
 import '../../../shared/models/entities.dart';
 import '../domain/kitchen_entities.dart';
+import '../../settings/application/pos_operating_mode_controller.dart';
 
 class KitchenPrintSummary {
   const KitchenPrintSummary({
@@ -89,11 +90,25 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
     final locations = ref.watch(
       appStoreProvider.select((state) => state.locations),
     );
-    if (locations.isEmpty) return const KitchenPrintingState();
-    return _load(locations.first.id);
+    final access = (await ref.watch(posRoleAccessProvider.future)).access;
+    final allowed = locations
+        .where((item) => access.allowsLocation(item.id))
+        .toList(growable: false);
+    if (allowed.isEmpty) return const KitchenPrintingState();
+    final locationId =
+        allowed.any((item) => item.id == access.defaultLocationId)
+        ? access.defaultLocationId!
+        : allowed.first.id;
+    return _load(locationId);
   }
 
   Future<void> selectLocation(String locationId) async {
+    final access = (await ref.read(posRoleAccessProvider.future)).access;
+    if (!access.allowsLocation(locationId)) {
+      throw const ApiException(
+        'This POS location is not assigned to your account.',
+      );
+    }
     if (locationId == state.asData?.value.locationId) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => _load(locationId));
@@ -101,10 +116,19 @@ class KitchenPrintingController extends AsyncNotifier<KitchenPrintingState> {
 
   Future<void> refresh() async {
     final current = state.asData?.value;
-    final locations = ref.read(appStoreProvider).locations;
-    final locationId = current?.locationId.isNotEmpty == true
-        ? current!.locationId
-        : locations.firstOrNull?.id;
+    final access = (await ref.read(posRoleAccessProvider.future)).access;
+    final locations = ref
+        .read(appStoreProvider)
+        .locations
+        .where((item) => access.allowsLocation(item.id))
+        .toList(growable: false);
+    final locationId =
+        current?.locationId.isNotEmpty == true &&
+            access.allowsLocation(current!.locationId)
+        ? current.locationId
+        : (locations.any((item) => item.id == access.defaultLocationId)
+              ? access.defaultLocationId
+              : locations.firstOrNull?.id);
     if (locationId == null || locationId.isEmpty) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => _load(locationId));

@@ -168,10 +168,20 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStoreProvider);
-    final posMode = ref.watch(posOperatingModeProvider);
+    final preferredPosMode = ref.watch(posOperatingModeProvider);
+    final posMode = ref
+        .watch(posRoleAccessProvider)
+        .asData
+        ?.value
+        .effectiveMode(preferredPosMode);
+    final posRoute = posMode?.route ?? '/settings';
     final zatcaStatus = ref.watch(zatcaControllerProvider);
     final shellDestinations = [
-      (posMode.route, posMode.label, Icons.point_of_sale_outlined),
+      (
+        posRoute,
+        posMode?.label ?? 'POS access',
+        posMode == null ? Icons.lock_outline : Icons.point_of_sale_outlined,
+      ),
       ...destinations.skip(1),
     ];
     // Keep the selected ERP layout manifest and its authenticated assets warm
@@ -180,9 +190,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.watch(kitchenPrintingControllerProvider);
     final businessName = appState.business?.displayName(context.isArabic) ?? '';
     final userName = appState.user?.name ?? '';
-    final locationName = appState.locations.isEmpty
-        ? ''
-        : appState.locations.first.name;
+    final access = ref.watch(posRoleAccessProvider).asData?.value.access;
+    final visibleLocations = appState.locations
+        .where((item) => access?.allowsLocation(item.id) == true)
+        .toList(growable: false);
+    final locationName =
+        visibleLocations
+            .where((item) => item.id == access?.defaultLocationId)
+            .firstOrNull
+            ?.name ??
+        visibleLocations.firstOrNull?.name ??
+        '';
     final width = MediaQuery.sizeOf(context).width;
     final desktop = width > 1100;
     if (desktop && !sidebarInitialized) {
@@ -205,6 +223,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         ? ref.watch(cashRegisterControllerProvider)
         : const AsyncData(null);
     final register = registerState.asData?.value;
+    final activeLocationName =
+        visibleLocations
+            .where((item) => item.id == register?.locationId)
+            .firstOrNull
+            ?.name ??
+        locationName;
     final registerLabel = registerState.isLoading
         ? context.tr('Register…')
         : register == null
@@ -409,7 +433,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   const SizedBox(width: 7),
                   StatusBadge(context.tr('Online')),
                   IconButton(
-                    onPressed: () => context.go(posMode.route),
+                    onPressed: () => context.go(posRoute),
                     icon: const Icon(Icons.add_shopping_cart),
                   ),
                 ],
@@ -729,7 +753,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                             borderRadius: BorderRadius.circular(7),
                           ),
                           child: Text(
-                            locationName.toUpperCase(),
+                            activeLocationName.toUpperCase(),
                             style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
@@ -829,7 +853,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ],
                       const SizedBox(width: 14),
                       FilledButton(
-                        onPressed: () => context.go(posMode.route),
+                        onPressed: () => context.go(posRoute),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 13),
                         ),

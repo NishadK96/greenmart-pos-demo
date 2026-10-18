@@ -781,9 +781,24 @@ class RestaurantTable {
 }
 
 class ConnectorAccess {
-  const ConnectorAccess({required this.isAdmin, required this.permissions});
+  const ConnectorAccess({
+    required this.isAdmin,
+    required this.permissions,
+    this.roles = const [],
+    this.hasRoleData = false,
+    this.allowedLocationIds = const {},
+    this.defaultLocationId,
+    this.hasLocationData = false,
+  });
   final bool isAdmin;
   final Set<String> permissions;
+  final List<String> roles;
+  final bool hasRoleData;
+  final Set<String> allowedLocationIds;
+  final String? defaultLocationId;
+  final bool hasLocationData;
+  bool allowsLocation(String locationId) =>
+      hasLocationData && allowedLocationIds.contains(locationId);
   bool allows(String permission) => isAdmin || permissions.contains(permission);
 }
 

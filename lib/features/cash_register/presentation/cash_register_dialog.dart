@@ -6,6 +6,7 @@ import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/entities.dart';
 import '../../store/app_store.dart';
+import '../../settings/application/pos_operating_mode_controller.dart';
 import '../domain/cash_register_entities.dart';
 import 'cash_register_controller.dart';
 
@@ -47,6 +48,7 @@ class CashRegisterWorkspace extends ConsumerStatefulWidget {
 class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
   final openingController = TextEditingController(text: '0.00');
   String? locationId;
+  ConnectorAccess? _selectedForAccess;
 
   @override
   void dispose() {
@@ -57,8 +59,26 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
   @override
   Widget build(BuildContext context) {
     final register = ref.watch(cashRegisterControllerProvider);
-    final locations = ref.watch(appStoreProvider).locations;
-    locationId ??= locations.firstOrNull?.id;
+    final accessState = ref.watch(posRoleAccessProvider);
+    final access = accessState.asData?.value.access;
+    final locations = access == null
+        ? <BusinessLocation>[]
+        : ref
+              .watch(appStoreProvider)
+              .locations
+              .where((item) => access.allowsLocation(item.id))
+              .toList(growable: false);
+    if (!identical(_selectedForAccess, access)) {
+      _selectedForAccess = access;
+      locationId = access?.defaultLocationId;
+    }
+    if (access != null && !locations.any((item) => item.id == locationId)) {
+      locationId =
+          access.defaultLocationId != null &&
+              locations.any((item) => item.id == access.defaultLocationId)
+          ? access.defaultLocationId
+          : locations.firstOrNull?.id;
+    }
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(20),
@@ -70,16 +90,35 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
                 ref.read(cashRegisterControllerProvider.notifier).refresh(),
           ),
           Expanded(
-            child: register.when(
+            child: accessState.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _ErrorState(
-                message: _message(error),
-                onRetry: () =>
-                    ref.read(cashRegisterControllerProvider.notifier).refresh(),
+              error: (_, __) => _ErrorState(
+                message:
+                    'Unable to verify your allowed POS locations. Reconnect and retry.',
+                onRetry: () => ref.invalidate(posRoleAccessProvider),
               ),
-              data: (value) => value == null
-                  ? _closedView(locations)
-                  : _openView(value, locations),
+              data: (_) => register.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => _ErrorState(
+                  message: _message(error),
+                  onRetry: () => ref
+                      .read(cashRegisterControllerProvider.notifier)
+                      .refresh(),
+                ),
+                data: (value) =>
+                    value != null && !access!.allowsLocation(value.locationId)
+                    ? _ErrorState(
+                        message:
+                            'This register belongs to a location that is not allowed for this account.',
+                        onRetry: () {
+                          ref.invalidate(posRoleAccessProvider);
+                          ref.invalidate(cashRegisterControllerProvider);
+                        },
+                      )
+                    : value == null
+                    ? _closedView(locations)
+                    : _openView(value, locations),
+              ),
             ),
           ),
         ],
@@ -97,6 +136,13 @@ class _CashRegisterWorkspaceState extends ConsumerState<CashRegisterWorkspace> {
             'Choose the selling location and count the opening cash before taking payments.',
       ),
       const SizedBox(height: 24),
+      if (locations.isEmpty) ...[
+        const Text(
+          'No POS locations are assigned to this account.',
+          style: TextStyle(color: AppColors.danger),
+        ),
+        const SizedBox(height: 16),
+      ],
       DropdownButtonFormField<String>(
         initialValue: locationId,
         decoration: InputDecoration(

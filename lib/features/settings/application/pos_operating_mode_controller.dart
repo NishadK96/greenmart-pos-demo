@@ -1,7 +1,63 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../apis/api.dart';
+import '../../../core/network/api_provider.dart';
+import '../../../shared/models/entities.dart';
+import '../../auth/auth_controller.dart';
 
 enum PosOperatingMode { retail, kitchen, fuel, van }
+
+class PosRoleAccess {
+  const PosRoleAccess(this.access);
+  final ConnectorAccess access;
+
+  bool allows(PosOperatingMode mode) {
+    if (access.isAdmin) return true;
+    if (!access.hasRoleData) return false;
+    const names = {
+      PosOperatingMode.retail: {'retail', 'retail pos', 'retail sales'},
+      PosOperatingMode.kitchen: {
+        'kitchen',
+        'kitchen pos',
+        'restaurant',
+        'restaurant pos',
+      },
+      PosOperatingMode.fuel: {'fuel', 'fuel pos', 'fuel station', 'fuel sales'},
+      PosOperatingMode.van: {'van', 'van pos', 'van sales'},
+    };
+    return access.roles.any(
+      (role) => names[mode]!.contains(
+        role
+            .trim()
+            .toLowerCase()
+            .replaceAll(RegExp(r'[_-]+'), ' ')
+            .replaceAll(RegExp(r'\s+'), ' '),
+      ),
+    );
+  }
+
+  PosOperatingMode? effectiveMode(PosOperatingMode preferred) {
+    if (allows(preferred)) return preferred;
+    for (final mode in PosOperatingMode.values) {
+      if (allows(mode)) return mode;
+    }
+    return null;
+  }
+}
+
+final posRoleAccessProvider = FutureProvider<PosRoleAccess>((ref) async {
+  final token = await ref.watch(authControllerProvider.future);
+  if (token == null || token.isEmpty) {
+    throw const ApiException('Sign in to access POS.');
+  }
+  if (token == 'offline-local-session') {
+    return const PosRoleAccess(
+      ConnectorAccess(isAdmin: false, permissions: {}, hasRoleData: true),
+    );
+  }
+  final access = await ref.read(apiProvider).connectorAccess(token);
+  return PosRoleAccess(access);
+});
 
 const fuelPosEnabled = true;
 

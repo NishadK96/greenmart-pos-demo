@@ -2,6 +2,10 @@ import 'package:eazy_pos/features/settings/application/pos_operating_mode_contro
 import 'package:eazy_pos/core/localization/app_localizations.dart';
 import 'package:eazy_pos/core/theme/app_theme.dart';
 import 'package:eazy_pos/features/home/module_screens.dart';
+import 'package:eazy_pos/shared/models/entities.dart';
+import 'package:eazy_pos/apis/api.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +44,15 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final container = ProviderContainer();
+    final container = ProviderContainer(
+      overrides: [
+        posRoleAccessProvider.overrideWith(
+          (ref) async => const PosRoleAccess(
+            ConnectorAccess(isAdmin: true, permissions: {}, hasRoleData: true),
+          ),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
@@ -72,5 +84,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(posOperatingModeProvider), PosOperatingMode.van);
     expect(tester.takeException(), isNull);
+  });
+
+  test(
+    'POS roles allow only their assigned workspace and admins can use all',
+    () {
+      const van = PosRoleAccess(
+        ConnectorAccess(
+          isAdmin: false,
+          permissions: {'sell.view', 'sell.create'},
+          roles: ['Van Sales'],
+          hasRoleData: true,
+        ),
+      );
+      expect(van.allows(PosOperatingMode.van), isTrue);
+      expect(van.allows(PosOperatingMode.kitchen), isFalse);
+      expect(van.allows(PosOperatingMode.retail), isFalse);
+      expect(van.effectiveMode(PosOperatingMode.retail), PosOperatingMode.van);
+
+      const noRoles = PosRoleAccess(
+        ConnectorAccess(isAdmin: false, permissions: {}, hasRoleData: true),
+      );
+      expect(noRoles.effectiveMode(PosOperatingMode.retail), isNull);
+
+      const admin = PosRoleAccess(
+        ConnectorAccess(isAdmin: true, permissions: {}, hasRoleData: true),
+      );
+      for (final mode in PosOperatingMode.values) {
+        expect(admin.allows(mode), isTrue);
+      }
+    },
+  );
+
+  test('auth context reads role names from the session user', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/auth/context');
+        return http.Response(
+          '{"data":{"user":{"roles":[{"id":12,"name":"Van Sales"}]},"is_admin":false,"permissions":["sell.view"],"allowed_location_ids":[3,48],"default_location_id":48}}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    final access = await api.connectorAccess('token');
+    expect(access.roles, ['Van Sales']);
+    expect(access.hasRoleData, isTrue);
+    expect(PosRoleAccess(access).allows(PosOperatingMode.van), isTrue);
+    expect(PosRoleAccess(access).allows(PosOperatingMode.retail), isFalse);
+    expect(access.allowedLocationIds, {'3', '48'});
+    expect(access.defaultLocationId, '48');
+    expect(access.allowsLocation('48'), isTrue);
+    expect(access.allowsLocation('2'), isFalse);
   });
 }

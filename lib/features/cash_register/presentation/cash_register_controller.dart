@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/auth_controller.dart';
 import '../data/eazyerp_cash_register_repository.dart';
 import '../domain/cash_register_entities.dart';
+import '../../settings/application/pos_operating_mode_controller.dart';
+import '../../../apis/api.dart';
 
 final cashRegisterControllerProvider =
     AsyncNotifierProvider<CashRegisterController, CashRegister?>(
@@ -10,15 +12,45 @@ final cashRegisterControllerProvider =
 
 class CashRegisterController extends AsyncNotifier<CashRegister?> {
   @override
-  Future<CashRegister?> build() async =>
-      ref.read(cashRegisterRepositoryProvider).current(await _token());
+  Future<CashRegister?> build() async {
+    final token = await ref.watch(authControllerProvider.future);
+    if (token == null || token.isEmpty) {
+      throw StateError('Your session has expired.');
+    }
+    final access = await ref.watch(posRoleAccessProvider.future);
+    return _currentForAccess(token, access);
+  }
+
+  Future<CashRegister?> _currentForAccess(
+    String token,
+    PosRoleAccess access,
+  ) async {
+    final register = await ref
+        .read(cashRegisterRepositoryProvider)
+        .current(token);
+    if (register != null &&
+        !access.access.allowsLocation(register.locationId)) {
+      throw const ApiException(
+        'The open register location is not allowed for this account.',
+      );
+    }
+    return register;
+  }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(build);
+    state = await AsyncValue.guard(() async {
+      final token = await _token();
+      final access = await ref.read(posRoleAccessProvider.future);
+      return _currentForAccess(token, access);
+    });
   }
 
   Future<void> open(String locationId, double initialCash) async {
+    final access = await ref.read(posRoleAccessProvider.future);
+    if (!access.access.allowsLocation(locationId)) {
+      throw StateError('This location is not assigned to your POS account.');
+    }
     state = const AsyncLoading();
     final repository = ref.read(cashRegisterRepositoryProvider);
     final token = await _token();
@@ -32,7 +64,8 @@ class CashRegisterController extends AsyncNotifier<CashRegister?> {
       // UI in an error state and asking the cashier to open it again.
       try {
         final current = await repository.current(token);
-        if (current != null) {
+        if (current != null &&
+            access.access.allowsLocation(current.locationId)) {
           state = AsyncData(current);
           return;
         }

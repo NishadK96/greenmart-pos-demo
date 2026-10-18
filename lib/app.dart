@@ -13,6 +13,7 @@ import 'features/kitchen/presentation/kitchen_pos_screen.dart';
 import 'features/fuel/presentation/fuel_pos_screen.dart';
 import 'features/van/presentation/van_pos_preview_screen.dart';
 import 'features/van/presentation/van_pos_screen.dart';
+import 'features/settings/application/pos_operating_mode_controller.dart';
 import 'features/kitchen/presentation/restaurant_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
@@ -27,6 +28,35 @@ import 'features/app_update/presentation/app_update_settings_preview_screen.dart
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
     NoTransitionPage<void>(key: state.pageKey, child: child);
+
+class _PosModeGate extends ConsumerWidget {
+  const _PosModeGate({required this.mode, required this.child});
+  final PosOperatingMode mode;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref
+      .watch(posRoleAccessProvider)
+      .when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => const Center(
+          child: Text(
+            'Unable to verify POS access. Please reconnect and retry.',
+          ),
+        ),
+        data: (access) => access.allows(mode)
+            ? child
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Your role does not have access to ${mode.label}.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+      );
+}
 
 final _router = GoRouter(
   initialLocation: '/login',
@@ -69,20 +99,43 @@ final _router = GoRouter(
         ),
         GoRoute(
           path: '/pos',
-          pageBuilder: (_, state) => _instantPage(state, const PosScreen()),
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            const _PosModeGate(
+              mode: PosOperatingMode.retail,
+              child: PosScreen(),
+            ),
+          ),
         ),
         GoRoute(
           path: '/kitchen-pos',
-          pageBuilder: (_, state) =>
-              _instantPage(state, const KitchenPosScreen()),
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            const _PosModeGate(
+              mode: PosOperatingMode.kitchen,
+              child: KitchenPosScreen(),
+            ),
+          ),
         ),
         GoRoute(
           path: '/fuel-pos',
-          pageBuilder: (_, state) => _instantPage(state, const FuelPosScreen()),
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            const _PosModeGate(
+              mode: PosOperatingMode.fuel,
+              child: FuelPosScreen(),
+            ),
+          ),
         ),
         GoRoute(
           path: '/van-pos',
-          pageBuilder: (_, state) => _instantPage(state, const VanPosScreen()),
+          pageBuilder: (_, state) => _instantPage(
+            state,
+            const _PosModeGate(
+              mode: PosOperatingMode.van,
+              child: VanPosScreen(),
+            ),
+          ),
         ),
         GoRoute(
           path: '/products',

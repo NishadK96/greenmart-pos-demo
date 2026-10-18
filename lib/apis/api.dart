@@ -2000,6 +2000,22 @@ class Api {
       accessToken,
       'account permissions',
     );
+    final user = data['user'] is Map
+        ? Map<String, dynamic>.from(data['user'] as Map)
+        : const <String, dynamic>{};
+    final rawRoles = user['roles'] ?? data['roles'];
+    final rawAllowedLocations =
+        data['allowed_location_ids'] ?? user['allowed_location_ids'];
+    final allowedLocationIds = rawAllowedLocations is List
+        ? rawAllowedLocations
+              .map((id) => id.toString().trim())
+              .where((id) => id.isNotEmpty)
+              .toSet()
+        : <String>{};
+    final defaultLocationId =
+        (data['default_location_id'] ?? user['default_location_id'])
+            ?.toString()
+            .trim();
     return ConnectorAccess(
       isAdmin:
           data['is_admin'] == true ||
@@ -2008,6 +2024,21 @@ class Api {
       permissions: (data['permissions'] as List? ?? const [])
           .whereType<String>()
           .toSet(),
+      hasRoleData: rawRoles is List,
+      roles: (rawRoles is List ? rawRoles : const [])
+          .map(
+            (role) =>
+                role is Map ? role['name']?.toString() ?? '' : role.toString(),
+          )
+          .where((name) => name.trim().isNotEmpty)
+          .toList(growable: false),
+      hasLocationData: rawAllowedLocations is List,
+      allowedLocationIds: allowedLocationIds,
+      defaultLocationId:
+          defaultLocationId != null &&
+              allowedLocationIds.contains(defaultLocationId)
+          ? defaultLocationId
+          : null,
     );
   }
 

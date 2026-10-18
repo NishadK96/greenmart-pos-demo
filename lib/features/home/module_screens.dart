@@ -59,7 +59,12 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
-    final posMode = ref.watch(posOperatingModeProvider);
+    final preferredPosMode = ref.watch(posOperatingModeProvider);
+    final posMode = ref
+        .watch(posRoleAccessProvider)
+        .asData
+        ?.value
+        .effectiveMode(preferredPosMode);
     final now = DateTime.now();
     final today = state.sales
         .where((sale) => _sameDay(sale.createdAt, now))
@@ -74,7 +79,7 @@ class DashboardScreen extends ConsumerWidget {
     return PagePad(
       child: ListView(
         children: [
-          _DashboardHero(state: state, posRoute: posMode.route),
+          _DashboardHero(state: state, posRoute: posMode?.route ?? '/settings'),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) => GridView.count(
@@ -6537,7 +6542,10 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(appStoreProvider);
-    final posMode = ref.watch(posOperatingModeProvider);
+    final preferredPosMode = ref.watch(posOperatingModeProvider);
+    final roleAccess = ref.watch(posRoleAccessProvider).asData?.value;
+    final posMode =
+        roleAccess?.effectiveMode(preferredPosMode) ?? preferredPosMode;
     final business = state.business;
     final user = state.user;
     final locationNames = state.locations.map((item) => item.name).join(', ');
@@ -6594,6 +6602,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 10),
           _PosOperatingModeSettings(
             mode: posMode,
+            roleAccess: roleAccess,
             onChanged: (mode) async {
               await ref.read(posOperatingModeProvider.notifier).setMode(mode);
               if (context.mounted) {
@@ -7175,10 +7184,12 @@ class _PaymentMethodSettingsDialog extends ConsumerWidget {
 class _PosOperatingModeSettings extends StatelessWidget {
   const _PosOperatingModeSettings({
     required this.mode,
+    required this.roleAccess,
     required this.onChanged,
   });
 
   final PosOperatingMode mode;
+  final PosRoleAccess? roleAccess;
   final Future<void> Function(PosOperatingMode mode) onChanged;
 
   @override
@@ -7217,23 +7228,27 @@ class _PosOperatingModeSettings extends StatelessWidget {
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 560;
             final options = [
-              _PosModeOption(
-                mode: PosOperatingMode.retail,
-                selected: mode == PosOperatingMode.retail,
-                icon: Icons.point_of_sale_outlined,
-                title: 'Retail POS',
-                subtitle: 'Products, cart, payment and customer checkout',
-                onTap: onChanged,
-              ),
-              _PosModeOption(
-                mode: PosOperatingMode.kitchen,
-                selected: mode == PosOperatingMode.kitchen,
-                icon: Icons.soup_kitchen_outlined,
-                title: 'Kitchen POS',
-                subtitle: 'Tables, guests, modifiers, KOT and kitchen routing',
-                onTap: onChanged,
-              ),
-              if (fuelPosEnabled)
+              if (roleAccess?.allows(PosOperatingMode.retail) == true)
+                _PosModeOption(
+                  mode: PosOperatingMode.retail,
+                  selected: mode == PosOperatingMode.retail,
+                  icon: Icons.point_of_sale_outlined,
+                  title: 'Retail POS',
+                  subtitle: 'Products, cart, payment and customer checkout',
+                  onTap: onChanged,
+                ),
+              if (roleAccess?.allows(PosOperatingMode.kitchen) == true)
+                _PosModeOption(
+                  mode: PosOperatingMode.kitchen,
+                  selected: mode == PosOperatingMode.kitchen,
+                  icon: Icons.soup_kitchen_outlined,
+                  title: 'Kitchen POS',
+                  subtitle:
+                      'Tables, guests, modifiers, KOT and kitchen routing',
+                  onTap: onChanged,
+                ),
+              if (fuelPosEnabled &&
+                  roleAccess?.allows(PosOperatingMode.fuel) == true)
                 _PosModeOption(
                   mode: PosOperatingMode.fuel,
                   selected: mode == PosOperatingMode.fuel,
@@ -7242,15 +7257,22 @@ class _PosOperatingModeSettings extends StatelessWidget {
                   subtitle: 'Litres or amount billing for fuel stations',
                   onTap: onChanged,
                 ),
-              _PosModeOption(
-                mode: PosOperatingMode.van,
-                selected: mode == PosOperatingMode.van,
-                icon: Icons.local_shipping_outlined,
-                title: 'Van POS',
-                subtitle: 'Mobile route sales from the selected van location',
-                onTap: onChanged,
-              ),
+              if (roleAccess?.allows(PosOperatingMode.van) == true)
+                _PosModeOption(
+                  mode: PosOperatingMode.van,
+                  selected: mode == PosOperatingMode.van,
+                  icon: Icons.local_shipping_outlined,
+                  title: 'Van POS',
+                  subtitle: 'Mobile route sales from the selected van location',
+                  onTap: onChanged,
+                ),
             ];
+            if (options.isEmpty) {
+              return const Text(
+                'No POS workspace is assigned to this account. Ask an administrator to assign a Retail, Kitchen, Fuel, or Van role.',
+                style: TextStyle(color: AppColors.muted),
+              );
+            }
             if (compact) {
               return Column(
                 children: [

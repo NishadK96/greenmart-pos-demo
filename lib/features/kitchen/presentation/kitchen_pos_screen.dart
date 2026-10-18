@@ -24,6 +24,7 @@ import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../offline_pos/presentation/offline_pos_controller.dart';
 import '../../printers/application/printer_controller.dart';
 import '../../settings/application/order_type_settings_controller.dart';
+import '../../settings/application/pos_operating_mode_controller.dart';
 import 'kitchen_printing_controller.dart';
 
 typedef _RestaurantContext = ({
@@ -391,10 +392,23 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       store.customer ?? store.customers.firstOrNull;
 
   String? _locationId(AppState store) {
+    final access = ref.read(posRoleAccessProvider).asData?.value.access;
+    if (access == null) return null;
     final kitchen = ref.read(kitchenPrintingControllerProvider).asData?.value;
-    return kitchen?.locationId.isNotEmpty == true
-        ? kitchen!.locationId
-        : store.locations.firstOrNull?.id;
+    if (kitchen != null && access.allowsLocation(kitchen.locationId)) {
+      return kitchen.locationId;
+    }
+    final register = ref.read(cashRegisterControllerProvider).asData?.value;
+    if (register != null && access.allowsLocation(register.locationId)) {
+      return register.locationId;
+    }
+    if (store.locations.any((item) => item.id == access.defaultLocationId)) {
+      return access.defaultLocationId;
+    }
+    return store.locations
+        .where((item) => access.allowsLocation(item.id))
+        .firstOrNull
+        ?.id;
   }
 
   void _newOrder() {
@@ -1415,9 +1429,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       return;
     }
     final store = ref.read(appStoreProvider);
-    final locationId = kitchen?.locationId.isNotEmpty == true
-        ? kitchen!.locationId
-        : store.locations.firstOrNull?.id;
+    final locationId = _locationId(store);
     final customer = store.customer ?? store.customers.firstOrNull;
     if (_savedTransactionId == null &&
         (locationId == null || locationId.isEmpty || customer == null)) {
@@ -1533,10 +1545,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _lines.values.fold<int>(0, (sum, line) => sum + _kitchenLineTotal(line)) -
           _grossDiscount,
     );
-    final kitchen = ref.watch(kitchenPrintingControllerProvider).asData?.value;
-    final locationId = kitchen?.locationId.isNotEmpty == true
-        ? kitchen!.locationId
-        : store.locations.firstOrNull?.id ?? '';
+    ref.watch(kitchenPrintingControllerProvider);
+    final locationId = _locationId(store) ?? '';
     final restaurantContext = locationId.isEmpty
         ? null
         : ref.watch(kitchenRestaurantContextProvider(locationId)).asData?.value;

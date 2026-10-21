@@ -801,6 +801,79 @@ void main() {
     expect(supplier.buildingNumber, '1234');
   });
 
+  test('supplier translations are sent and mapped on create', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['supplier_business_name_ar'], 'شركة أكمي');
+        expect(body['contact_name_ar'], 'عائشة');
+        return http.Response.bytes(
+          utf8.encode(
+            '{"data":{"id":99,"supplier_business_name":"Acme","supplier_business_name_ar":"شركة أكمي","name":"Asha","contact_name_ar":"عائشة","mobile":"0500000000"}}',
+          ),
+          201,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final supplier = await api.createSupplier(
+      accessToken: 'token',
+      businessName: 'Acme',
+      businessNameAr: 'شركة أكمي',
+      contactName: 'Asha',
+      contactNameAr: 'عائشة',
+      mobile: '0500000000',
+    );
+    expect(supplier.nameAr, 'شركة أكمي');
+    expect(supplier.contactNameAr, 'عائشة');
+  });
+
+  test('supplier edit uses contact update and preserves Arabic names', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/connector/api/contactapi/99');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['supplier_business_name_ar'], 'شركة أكمي');
+        return http.Response.bytes(
+          utf8.encode(
+            '{"data":{"id":99,"supplier_business_name":"Acme","supplier_business_name_ar":"شركة أكمي","name":"Asha","contact_name_ar":"عائشة","mobile":"0500000000"}}',
+          ),
+          200,
+          headers: const {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final supplier = await api.updateSupplier(
+      accessToken: 'token',
+      supplier: const Supplier(
+        id: '99',
+        name: 'Acme',
+        nameAr: 'شركة أكمي',
+        contactName: 'Asha',
+        contactNameAr: 'عائشة',
+        mobile: '0500000000',
+      ),
+    );
+    expect(supplier.nameAr, 'شركة أكمي');
+  });
+
+  test('supplier transaction history uses the scoped endpoint', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/connector/api/suppliers/99/transactions');
+        return http.Response(
+          '{"data":[{"kind":"document","type":"purchase","reference":"P-1","amount":20.0},{"kind":"payment","method":"cash","amount":5.0}]}',
+          200,
+        );
+      }),
+    );
+    final rows = await api.supplierTransactions('token', '99');
+    expect(rows.length, 2);
+    expect(rows.last['kind'], 'payment');
+  });
+
   test('products maps EazyERP price, stock, category, and image', () async {
     final api = Api(
       client: MockClient((request) async {

@@ -91,7 +91,7 @@ class _AppUpdateSettingsCardState extends ConsumerState<AppUpdateSettingsCard> {
             ? 'Required updates appear after sign in. Check here for optional updates.'
             : kIsWeb
             ? 'The web app is updated automatically.'
-            : 'Automatic installers are currently available on Windows.');
+            : 'Installed app version.');
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -153,18 +153,19 @@ class _AppUpdateSettingsCardState extends ConsumerState<AppUpdateSettingsCard> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _VersionBadge(version: _version),
-              OutlinedButton.icon(
-                onPressed: _supportsInstaller && !_checking ? _check : null,
-                icon: _checking
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh_rounded),
-                label: Text(
-                  context.tr(_checking ? 'Checking…' : 'Check for updates'),
+              if (_supportsInstaller)
+                OutlinedButton.icon(
+                  onPressed: _checking ? null : _check,
+                  icon: _checking
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                  label: Text(
+                    context.tr(_checking ? 'Checking…' : 'Check for updates'),
+                  ),
                 ),
-              ),
             ],
           );
           if (constraints.maxWidth < 620) {

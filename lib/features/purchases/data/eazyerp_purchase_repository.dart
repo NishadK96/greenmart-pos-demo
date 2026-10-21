@@ -22,6 +22,8 @@ class EazyErpPurchaseRepository implements PurchaseRepository {
     String accessToken, {
     required String businessName,
     required String contactName,
+    String businessNameAr = '',
+    String contactNameAr = '',
     required String mobile,
     String email = '',
     String taxNumber = '',
@@ -41,6 +43,8 @@ class EazyErpPurchaseRepository implements PurchaseRepository {
     accessToken: accessToken,
     businessName: businessName,
     contactName: contactName,
+    businessNameAr: businessNameAr,
+    contactNameAr: contactNameAr,
     mobile: mobile,
     email: email,
     taxNumber: taxNumber,

@@ -460,7 +460,9 @@ class Supplier {
   const Supplier({
     required this.id,
     required this.name,
+    this.nameAr = '',
     this.contactName = '',
+    this.contactNameAr = '',
     this.mobile = '',
     this.email = '',
     this.taxNumber = '',
@@ -477,7 +479,9 @@ class Supplier {
   });
   final String id,
       name,
+      nameAr,
       contactName,
+      contactNameAr,
       mobile,
       email,
       taxNumber,

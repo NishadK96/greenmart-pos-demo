@@ -7,6 +7,8 @@ abstract interface class PurchaseRepository {
     String accessToken, {
     required String businessName,
     required String contactName,
+    String businessNameAr,
+    String contactNameAr,
     required String mobile,
     String email,
     String taxNumber,

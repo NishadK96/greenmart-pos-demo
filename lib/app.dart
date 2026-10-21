@@ -17,6 +17,7 @@ import 'features/settings/application/pos_operating_mode_controller.dart';
 import 'features/kitchen/presentation/restaurant_screen.dart';
 import 'features/products/presentation/product_management_screens.dart';
 import 'features/purchases/presentation/purchase_screens.dart';
+import 'features/purchases/presentation/suppliers_screen.dart';
 import 'features/printers/presentation/printer_settings_screen.dart';
 import 'shared/models/entities.dart';
 import 'features/sales/receipt_screen.dart';
@@ -186,6 +187,11 @@ final _router = GoRouter(
           path: '/purchases',
           pageBuilder: (_, state) =>
               _instantPage(state, const PurchasesScreen()),
+        ),
+        GoRoute(
+          path: '/suppliers',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const SuppliersScreen()),
         ),
         GoRoute(
           path: '/inventory',

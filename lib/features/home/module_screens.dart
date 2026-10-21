@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../../apis/api.dart';
 import '../../core/theme/app_theme.dart';
@@ -3526,9 +3527,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                             Navigator.pop(dialogContext);
                           }
                         } catch (exception) {
+                          if (!dialogContext.mounted) return;
                           setState(() {
                             saving = false;
-                            error = exception.toString();
+                            error = _customerSaveError(exception);
                           });
                         }
                       },
@@ -3577,6 +3579,35 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     shippingAddress.dispose();
     position.dispose();
   }
+}
+
+String _customerSaveError(Object exception) {
+  if (exception is! ApiException) {
+    return 'Unable to save this customer. Please try again.';
+  }
+  final validationMessages = <String>[];
+  void collect(dynamic value) {
+    if (value is Iterable) {
+      for (final item in value) {
+        collect(item);
+      }
+    } else if (value is Map) {
+      for (final item in value.values) {
+        collect(item);
+      }
+    } else if (value != null && value.toString().trim().isNotEmpty) {
+      validationMessages.add(value.toString().trim());
+    }
+  }
+
+  collect(exception.validationErrors);
+  if (validationMessages.isNotEmpty) {
+    return validationMessages.toSet().join('\n');
+  }
+  final message = exception.message.trim();
+  return message.isEmpty
+      ? 'Unable to save this customer. Please try again.'
+      : message;
 }
 
 class _CustomerFormSectionTitle extends StatelessWidget {
@@ -4669,12 +4700,54 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     }
   }
 
+  Future<void> _exportSalePdf(Sale sale, {required bool share}) async {
+    try {
+      final file = await ref
+          .read(invoiceLayoutControllerProvider.notifier)
+          .salePdf(
+            sale: sale,
+            businessName:
+                ref
+                    .read(appStoreProvider)
+                    .business
+                    ?.displayName(context.isArabic) ??
+                'Eazy POS',
+            settings: ref.read(printerControllerProvider).settings,
+            arabic: ref.read(localeProvider).languageCode == 'ar',
+          );
+      final name = sale.invoiceNo.trim().isEmpty
+          ? sale.serverId ?? 'sale'
+          : sale.invoiceNo.trim();
+      final filename =
+          'invoice-${name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '-')}.pdf';
+      if (share) {
+        await Printing.sharePdf(bytes: file.bytes, filename: filename);
+      } else {
+        await FilePicker.platform.saveFile(
+          dialogTitle: 'Save invoice PDF',
+          fileName: filename,
+          type: FileType.custom,
+          allowedExtensions: const ['pdf'],
+          bytes: file.bytes,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to prepare invoice PDF: $error')),
+        );
+      }
+    }
+  }
+
   void _details(BuildContext context, Sale sale) => showDialog(
     context: context,
     builder: (dialogContext) => _SaleDetailsDialog(
       sale: sale,
       onPreview: () => _previewSaleDocument(sale),
       onPrint: () => _printSaleDocument(sale),
+      onDownloadPdf: () => _exportSalePdf(sale, share: false),
+      onSharePdf: () => _exportSalePdf(sale, share: true),
       onReturn:
           sale.serverId == null ||
               sale.items.every(
@@ -5654,6 +5727,8 @@ class _SaleDetailsDialog extends StatelessWidget {
     required this.sale,
     required this.onPreview,
     required this.onPrint,
+    required this.onDownloadPdf,
+    required this.onSharePdf,
     required this.onReturn,
     required this.onZatca,
   });
@@ -5661,6 +5736,8 @@ class _SaleDetailsDialog extends StatelessWidget {
   final Sale sale;
   final VoidCallback onPreview;
   final VoidCallback onPrint;
+  final VoidCallback onDownloadPdf;
+  final VoidCallback onSharePdf;
   final VoidCallback? onReturn;
   final VoidCallback? onZatca;
 
@@ -5759,6 +5836,22 @@ class _SaleDetailsDialog extends StatelessWidget {
                                 'Print',
                                 onPrint,
                                 primary: true,
+                                compact: compact,
+                              ),
+                              _action(
+                                context,
+                                width,
+                                Icons.download_outlined,
+                                'Download PDF',
+                                onDownloadPdf,
+                                compact: compact,
+                              ),
+                              _action(
+                                context,
+                                width,
+                                Icons.share_outlined,
+                                'Share PDF',
+                                onSharePdf,
                                 compact: compact,
                               ),
                               _action(

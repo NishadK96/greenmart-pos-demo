@@ -2,9 +2,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:printing/printing.dart';
 
 import '../../../apis/api.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/network/api_provider.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
@@ -12,7 +15,9 @@ import '../../auth/auth_controller.dart';
 import '../../backend/data/eazyerp_backend_repository.dart';
 import '../../backend/presentation/backend_controller.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
+import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../pos/pos_screen.dart' show showPosCustomerSelector;
+import '../../printers/application/printer_controller.dart';
 import '../../settings/application/payment_method_settings_controller.dart';
 import '../../store/app_store.dart';
 
@@ -72,7 +77,8 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
       if (next <= 0) {
         _cart.remove(product.id);
       } else {
-        _cart[product.id] = CartLine(product: product, quantity: next);
+        _cart[product.id] = (_cart[product.id] ?? CartLine(product: product))
+            .copyWith(quantity: next);
       }
       _pendingId = null;
       _pendingFingerprint = null;
@@ -117,7 +123,70 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
       return;
     }
     setState(() {
-      _cart[product.id] = CartLine(product: product, quantity: value);
+      _cart[product.id] = (_cart[product.id] ?? CartLine(product: product))
+          .copyWith(quantity: value);
+      _pendingId = null;
+      _pendingFingerprint = null;
+      _error = null;
+    });
+  }
+
+  Future<void> _setUnitPrice(CartLine line) async {
+    final controller = TextEditingController(
+      text: (line.unitPrice / 100).toStringAsFixed(2),
+    );
+    final formKey = GlobalKey<FormState>();
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        void apply() {
+          if (!formKey.currentState!.validate()) return;
+          final parsed = double.parse(controller.text.trim());
+          Navigator.pop(dialogContext, (parsed * 100).round());
+        }
+
+        return AlertDialog(
+          title: Text('Edit unit price · ${line.product.name}'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Unit price'),
+              validator: (value) {
+                final parsed = double.tryParse(value?.trim() ?? '');
+                return parsed == null || !parsed.isFinite || parsed < 0
+                    ? 'Enter a valid amount'
+                    : null;
+              },
+              onFieldSubmitted: (_) => apply(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            if (line.unitPriceOverride != null)
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, -1),
+                child: const Text('Use default price'),
+              ),
+            FilledButton(onPressed: apply, child: const Text('Apply')),
+          ],
+        );
+      },
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+    if (amount == null || !mounted) return;
+    setState(() {
+      _cart[line.product.id] = line.copyWith(
+        unitPriceOverride: amount < 0 ? null : amount,
+        clearUnitPriceOverride: amount < 0,
+      );
       _pendingId = null;
       _pendingFingerprint = null;
       _error = null;
@@ -175,7 +244,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
         _pendingFingerprint = fingerprint;
         _pendingId = _transactionId();
       }
-      await ref
+      final created = await ref
           .read(backendRepositoryProvider)
           .createSale(
             accessToken: token,
@@ -190,14 +259,78 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
             isCreditSale: paymentMethod == 'credit',
           );
       if (!mounted) return;
+      final now = DateTime.now();
+      final completedSale = Sale(
+        localId: 'server-${created.id}',
+        serverId: created.id,
+        invoiceNo: created.invoiceNo,
+        createdAt: now,
+        updatedAt: now,
+        customer: customer,
+        items: lines,
+        paymentMethod: paymentMethod,
+        total: _total,
+        tax: lines.fold<int>(0, (sum, line) => sum + line.tax),
+        discount: 0,
+        syncStatus: SyncStatus.synced,
+        status: 'final',
+        paymentStatus: paymentMethod == 'credit' ? 'due' : 'paid',
+        locationId: register.locationId,
+      );
       setState(() {
         _cart.clear();
         _pendingId = null;
         _pendingFingerprint = null;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Van sale completed.')));
+      final printers = ref.read(printerControllerProvider);
+      if (printers.settings.posPrintingEnabled && created.id.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Van sale completed${created.invoiceNo.isEmpty ? '' : ' • ${created.invoiceNo}'} • Printing…',
+            ),
+          ),
+        );
+        try {
+          await _printCompletedSaleWithRetry(
+            completedSale,
+            state.business?.name ?? 'Eazy POS',
+            arabic:
+                Localizations.localeOf(context).languageCode.toLowerCase() ==
+                'ar',
+          );
+        } catch (printError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Sale completed, but receipt printing failed: $printError',
+                ),
+              ),
+            );
+          }
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              printers.settings.posPrintingEnabled
+                  ? 'Van sale completed.'
+                  : 'Van sale completed • Printing is turned off.',
+            ),
+          ),
+        );
+      }
+      if (!mounted) return;
+      if (created.id.isNotEmpty) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => VanSalePdfDialog(
+            transactionId: created.id,
+            invoiceNo: created.invoiceNo,
+          ),
+        );
+      }
       try {
         await ref
             .read(backendControllerProvider.notifier)
@@ -215,6 +348,37 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _printCompletedSaleWithRetry(
+    Sale sale,
+    String businessName, {
+    required bool arabic,
+  }) async {
+    Object? lastError;
+    for (final delay in const [
+      Duration.zero,
+      Duration(milliseconds: 700),
+      Duration(seconds: 2),
+    ]) {
+      if (delay != Duration.zero) await Future<void>.delayed(delay);
+      try {
+        final printers = ref.read(printerControllerProvider);
+        await ref
+            .read(invoiceLayoutControllerProvider.notifier)
+            .printSale(
+              sale: sale,
+              businessName: businessName,
+              settings: printers.settings,
+              printers: printers.selectedPrinters,
+              arabic: arabic,
+            );
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? StateError('Unable to print the completed sale.');
   }
 
   @override
@@ -548,7 +712,11 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                 TextButton(
                   onPressed: () =>
                       _setQuantity(line.product, state.allowOverselling),
-                  child: const Text('Edit'),
+                  child: const Text('Qty'),
+                ),
+                TextButton(
+                  onPressed: () => _setUnitPrice(line),
+                  child: const Text('Price'),
                 ),
               ],
             ),
@@ -644,5 +812,112 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
       ],
     ),
     child: child,
+  );
+}
+
+class VanSalePdfDialog extends ConsumerStatefulWidget {
+  const VanSalePdfDialog({
+    super.key,
+    required this.transactionId,
+    required this.invoiceNo,
+  });
+
+  final String transactionId;
+  final String invoiceNo;
+
+  @override
+  ConsumerState<VanSalePdfDialog> createState() => _VanSalePdfDialogState();
+}
+
+class _VanSalePdfDialogState extends ConsumerState<VanSalePdfDialog> {
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _export({required bool share}) async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final token = await ref.read(authControllerProvider.future);
+      if (token == null || token == 'offline-local-session') {
+        throw const ApiException('Reconnect to download the invoice PDF.');
+      }
+      final file = await ref
+          .read(apiProvider)
+          .finalizedSaleInvoicePdf(token, widget.transactionId);
+      final name = widget.invoiceNo.trim().isEmpty
+          ? widget.transactionId
+          : widget.invoiceNo.trim();
+      final safeName = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '-');
+      final filename = 'invoice-$safeName.pdf';
+      if (share) {
+        await Printing.sharePdf(bytes: file.bytes, filename: filename);
+      } else {
+        final path = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save invoice PDF',
+          fileName: filename,
+          type: FileType.custom,
+          allowedExtensions: const ['pdf'],
+          bytes: file.bytes,
+        );
+        if (path == null) return;
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is ApiException
+              ? error.message
+              : 'Unable to prepare the invoice PDF. Please retry.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Van sale completed'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.invoiceNo.trim().isEmpty
+              ? 'The sale was confirmed by the server.'
+              : 'Invoice ${widget.invoiceNo} is ready.',
+        ),
+        if (_loading) ...[
+          const SizedBox(height: 16),
+          const LinearProgressIndicator(),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: _loading ? null : () => Navigator.pop(context),
+        child: const Text('Done'),
+      ),
+      TextButton.icon(
+        onPressed: _loading ? null : () => _export(share: false),
+        icon: const Icon(Icons.download_outlined),
+        label: const Text('Download PDF'),
+      ),
+      FilledButton.icon(
+        onPressed: _loading ? null : () => _export(share: true),
+        icon: const Icon(Icons.share_outlined),
+        label: const Text('Share PDF'),
+      ),
+    ],
   );
 }

@@ -47,9 +47,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authControllerProvider.overrideWith(
-            _DiagnosticAuthController.new,
-          ),
+          authControllerProvider.overrideWith(_DiagnosticAuthController.new),
         ],
         child: const EazyPosApp(),
       ),
@@ -819,16 +817,44 @@ void main() {
         child: const _SalesTestApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Payment due'), findsOneWidget);
     expect(find.text('Payment / sync'), findsOneWidget);
     await tester.tap(find.text('0016'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Credit sale'), findsOneWidget);
     expect(find.textContaining('Outstanding:'), findsOneWidget);
     expect(find.text('Riyadh Retail'), findsWidgets);
+    expect(find.text('Download PDF'), findsOneWidget);
+    expect(find.text('Share PDF'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Sales details PDF actions fit on mobile', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final container = _creditSaleContainer(selectCreditCustomer: true);
+    addTearDown(container.dispose);
+    container
+        .read(appStoreProvider.notifier)
+        .checkout('due', serverId: '16', invoiceNo: '0016');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _SalesTestApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('0016'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Download PDF'), findsOneWidget);
+    expect(find.text('Share PDF'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

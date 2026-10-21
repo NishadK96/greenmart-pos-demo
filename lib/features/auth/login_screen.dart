@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../apis/api.dart';
+import '../../core/network/api_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../app_update/presentation/windows_update_gate.dart';
 import 'auth_controller.dart';
 import 'remembered_login_storage.dart';
 
@@ -713,6 +716,8 @@ class _LoginForm extends ConsumerWidget {
                   : Text(context.tr('Continue to Eazy POS')),
             ),
           ),
+          const SizedBox(height: 12),
+          const _LoginUpdateControl(),
           if (wide) ...[
             const SizedBox(height: 32),
             const Row(
@@ -736,6 +741,119 @@ class _LoginForm extends ConsumerWidget {
                 ),
                 Expanded(child: Divider()),
               ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginUpdateControl extends ConsumerStatefulWidget {
+  const _LoginUpdateControl();
+
+  @override
+  ConsumerState<_LoginUpdateControl> createState() =>
+      _LoginUpdateControlState();
+}
+
+class _LoginUpdateControlState extends ConsumerState<_LoginUpdateControl> {
+  String? _version;
+  bool _checking = false;
+
+  bool get _supported =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final version = await installedAppVersion();
+      if (mounted) setState(() => _version = version);
+    } catch (_) {
+      if (mounted) setState(() => _version = 'Unavailable');
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    try {
+      final version = _version ?? await installedAppVersion();
+      final update = await ref
+          .read(apiProvider)
+          .publicWindowsAppUpdate(currentVersion: version);
+      if (!mounted) return;
+      setState(() => _version = version);
+      if (update.canInstall) {
+        await showWindowsUpdateDialog(context, update, allowDismiss: true);
+        return;
+      }
+      final message = update.updateAvailable
+          ? 'An update is available, but its download details are incomplete.'
+          : 'You are using the latest version.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.tr(message))));
+    } catch (error) {
+      if (!mounted) return;
+      final tlsFailure = error.runtimeType.toString() == 'HandshakeException';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              tlsFailure
+                  ? 'Secure connection failed. Check the computer date, network, or antivirus HTTPS scanning.'
+                  : 'Unable to check for updates right now.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'Installed app version and updates',
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 4,
+        children: [
+          Text(
+            '${context.tr('Version')} ${_version ?? '…'}',
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (_supported) ...[
+            const Text('·', style: TextStyle(color: AppColors.muted)),
+            TextButton.icon(
+              onPressed: _checking ? null : _checkForUpdates,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: _checking
+                  ? const SizedBox.square(
+                      dimension: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.system_update_alt_rounded, size: 18),
+              label: Text(
+                context.tr(_checking ? 'Checking…' : 'Check for updates'),
+              ),
             ),
           ],
         ],

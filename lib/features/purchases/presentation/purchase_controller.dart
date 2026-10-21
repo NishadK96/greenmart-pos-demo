@@ -71,6 +71,8 @@ class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
   Future<Supplier> createSupplier({
     required String businessName,
     required String contactName,
+    String businessNameAr = '',
+    String contactNameAr = '',
     required String mobile,
     String email = '',
     String taxNumber = '',
@@ -93,6 +95,8 @@ class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
           await _token(),
           businessName: businessName,
           contactName: contactName,
+          businessNameAr: businessNameAr,
+          contactNameAr: contactNameAr,
           mobile: mobile,
           email: email,
           taxNumber: taxNumber,

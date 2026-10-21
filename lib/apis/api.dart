@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import '../api_end_points.dart';
+import '../config.dart';
 import '../shared/models/entities.dart';
 import '../features/cash_register/domain/cash_register_entities.dart';
 import '../features/purchases/domain/purchase_entities.dart';
@@ -167,6 +168,28 @@ class Api {
     );
     final response = await _client
         .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'Windows app update');
+    final data = payload['data'];
+    if (data is! Map) {
+      throw const ApiException('The update server returned invalid data.');
+    }
+    return AppUpdateInfo.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  /// Checks the signed Windows release feed before a user has authenticated.
+  ///
+  /// The endpoint must expose release metadata only. The installer is still
+  /// protected by its published size and SHA-256 verification in the updater.
+  Future<AppUpdateInfo> publicWindowsAppUpdate({
+    required String currentVersion,
+    String channel = 'stable',
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.windowsAppUpdateUrl).replace(
+      queryParameters: {'current_version': currentVersion, 'channel': channel},
+    );
+    final response = await _client
+        .get(uri, headers: const {'Accept': 'application/json'})
         .timeout(const Duration(seconds: 20));
     final payload = _requireObject(response, 'Windows app update');
     final data = payload['data'];
@@ -1081,10 +1104,107 @@ class Api {
     return data.map((item) => _supplierFromJson(item)).toList(growable: false);
   }
 
+  Future<Supplier> supplierDetail(String accessToken, String id) async {
+    final response = await _client
+        .get(
+          Uri.parse('${ApiEndPoints.customersUrl}/$id'),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'supplier');
+    final raw = payload['data'];
+    final item = raw is List && raw.isNotEmpty ? raw.first : raw;
+    return _supplierFromJson(_map(item));
+  }
+
+  Future<Supplier> updateSupplier({
+    required String accessToken,
+    required Supplier supplier,
+  }) async {
+    final response = await _client
+        .put(
+          Uri.parse('${ApiEndPoints.customersUrl}/${supplier.id}'),
+          headers: _jsonHeaders(accessToken),
+          body: jsonEncode({
+            'type': 'supplier',
+            'supplier_business_name': supplier.name.trim(),
+            'supplier_business_name_ar': supplier.nameAr.trim(),
+            'first_name': supplier.contactName.trim(),
+            'contact_name_ar': supplier.contactNameAr.trim(),
+            'mobile': supplier.mobile.trim(),
+            'email': supplier.email.trim(),
+            'tax_number': supplier.taxNumber.trim(),
+            'address_line_1': supplier.addressLine1.trim(),
+            'address_line_2': supplier.addressLine2.trim(),
+            'city': supplier.city.trim(),
+            'state': supplier.state.trim(),
+            'country': supplier.country.trim(),
+            'zip_code': supplier.zipCode.trim(),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'supplier');
+    return _supplierFromJson(_map(payload['data']));
+  }
+
+  Future<List<Map<String, dynamic>>> supplierPayments(
+    String accessToken,
+    String supplierId,
+  ) async {
+    final uri = Uri.parse('${Config.baseUrl}/connector/api/reports/payments')
+        .replace(
+          queryParameters: {
+            'type': 'purchases',
+            'contact_id': supplierId,
+            'per_page': '-1',
+          },
+        );
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'supplier payments');
+    final raw = payload['data'];
+    final rows = raw is List
+        ? raw
+        : raw is Map
+        ? raw['data']
+        : null;
+    return rows is List
+        ? rows
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+        : const [];
+  }
+
+  Future<List<Map<String, dynamic>>> supplierTransactions(
+    String accessToken,
+    String supplierId,
+  ) async {
+    final response = await _client
+        .get(
+          Uri.parse(
+            '${Config.baseUrl}/connector/api/suppliers/$supplierId/transactions',
+          ),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'supplier transactions');
+    final raw = payload['data'];
+    return raw is List
+        ? raw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList()
+        : const [];
+  }
+
   Future<Supplier> createSupplier({
     required String accessToken,
     required String businessName,
     required String contactName,
+    String businessNameAr = '',
+    String contactNameAr = '',
     required String mobile,
     String email = '',
     String taxNumber = '',
@@ -1108,7 +1228,11 @@ class Api {
           body: jsonEncode({
             'type': 'supplier',
             'supplier_business_name': businessName.trim(),
+            if (businessNameAr.trim().isNotEmpty)
+              'supplier_business_name_ar': businessNameAr.trim(),
             'first_name': contactName.trim(),
+            if (contactNameAr.trim().isNotEmpty)
+              'contact_name_ar': contactNameAr.trim(),
             'mobile': mobile.trim(),
             if (email.trim().isNotEmpty) 'email': email.trim(),
             if (taxNumber.trim().isNotEmpty) 'tax_number': taxNumber.trim(),
@@ -1144,8 +1268,10 @@ class Api {
     name: item['supplier_business_name']?.toString().trim().isNotEmpty == true
         ? item['supplier_business_name'].toString()
         : item['name']?.toString() ?? fallbackName,
+    nameAr: item['supplier_business_name_ar']?.toString() ?? '',
     contactName:
         item['name']?.toString() ?? item['first_name']?.toString() ?? '',
+    contactNameAr: item['contact_name_ar']?.toString() ?? '',
     mobile: item['mobile']?.toString() ?? '',
     email: item['email']?.toString() ?? '',
     taxNumber: item['tax_number']?.toString() ?? '',

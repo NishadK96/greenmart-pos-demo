@@ -94,6 +94,22 @@ void main() {
         );
       }
       expect(find.text('Current order'), findsOneWidget);
+      await tester.ensureVisible(find.text('Price'));
+      await tester.tap(find.text('Price'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Edit unit price'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).last, '3.75');
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 × SAR 3.75'), findsOneWidget);
+      await tester.tap(find.byTooltip('Increase quantity'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 × SAR 3.75'), findsOneWidget);
+      await tester.tap(find.text('Price'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use default price'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 × SAR 2.50'), findsOneWidget);
       await tester.tap(find.text('Walk-in Customer').first);
       await tester.pumpAndSettle();
       expect(find.text('Add customer'), findsWidgets);

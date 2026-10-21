@@ -11,7 +11,9 @@ import '../../../shared/models/entities.dart';
 import '../../auth/auth_controller.dart';
 import '../../backend/presentation/backend_controller.dart';
 import '../../cash_register/presentation/cash_register_controller.dart';
+import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../pos/pos_screen.dart' show showPosCustomerSelector;
+import '../../printers/application/printer_controller.dart';
 import '../../settings/application/payment_method_settings_controller.dart';
 import '../../store/app_store.dart';
 import '../../../shared/widgets/localized_text.dart';
@@ -48,9 +50,11 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
     context,
     ref,
     state,
-    selectedCustomer: state.customers
-        .where((customer) => customer.id == _customerId)
-        .firstOrNull ?? state.customers.firstOrNull,
+    selectedCustomer:
+        state.customers
+            .where((customer) => customer.id == _customerId)
+            .firstOrNull ??
+        state.customers.firstOrNull,
     onSelected: (customer) => setState(() {
       _customerId = customer.id;
       _pendingTransactionId = null;
@@ -347,10 +351,47 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
             },
           ],
       };
-      await ref
+      final result = await ref
           .read(apiProvider)
           .createSalePayload(accessToken: token, sell: sell);
       if (!mounted) return;
+      final transactionId =
+          (result['transaction_id'] ??
+                  result['server_transaction_id'] ??
+                  result['id'])
+              ?.toString() ??
+          '';
+      final invoiceNo =
+          result['official_invoice_no']?.toString() ??
+          result['invoice_no']?.toString() ??
+          '';
+      final fuelLines = List<FuelLine>.from(_lines);
+      final now = DateTime.now();
+      final completedSale = Sale(
+        localId: 'server-$transactionId',
+        serverId: transactionId.isEmpty ? null : transactionId,
+        invoiceNo: invoiceNo,
+        createdAt: now,
+        updatedAt: now,
+        customer: customer,
+        items: [
+          for (final line in fuelLines)
+            CartLine(
+              product: line.product,
+              quantity: line.quantityUnits / 10000,
+              saleUnitPriceIncTax: line.priceCentsIncludingTax,
+            ),
+        ],
+        paymentMethod: paymentMethod,
+        total: total,
+        tax: fuelLines.fold<int>(0, (sum, line) => sum + line.taxCents),
+        discount: 0,
+        syncStatus: SyncStatus.synced,
+        status: 'final',
+        paymentStatus: paymentMethod == 'credit' ? 'due' : 'paid',
+        locationId: register.locationId,
+        saleNote: metadata.saleNote,
+      );
       setState(() {
         _lines.clear();
         _vehicleController.clear();
@@ -362,9 +403,45 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
         _pendingSaleFingerprint = null;
         _mobileBillView = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Fuel sale completed.')));
+      final printers = ref.read(printerControllerProvider);
+      if (printers.settings.posPrintingEnabled && transactionId.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Fuel sale completed${invoiceNo.isEmpty ? '' : ' • $invoiceNo'} • Printing…',
+            ),
+          ),
+        );
+        try {
+          await _printCompletedSaleWithRetry(
+            completedSale,
+            state.business?.name ?? 'Eazy POS',
+            arabic:
+                Localizations.localeOf(context).languageCode.toLowerCase() ==
+                'ar',
+          );
+        } catch (printError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Sale completed, but receipt printing failed: $printError',
+                ),
+              ),
+            );
+          }
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              printers.settings.posPrintingEnabled
+                  ? 'Fuel sale completed, but the server did not return an invoice ID for printing.'
+                  : 'Fuel sale completed • Printing is turned off.',
+            ),
+          ),
+        );
+      }
       try {
         await ref
             .read(backendControllerProvider.notifier)
@@ -382,6 +459,37 @@ class _FuelPosScreenState extends ConsumerState<FuelPosScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _printCompletedSaleWithRetry(
+    Sale sale,
+    String businessName, {
+    required bool arabic,
+  }) async {
+    Object? lastError;
+    for (final delay in const [
+      Duration.zero,
+      Duration(milliseconds: 700),
+      Duration(seconds: 2),
+    ]) {
+      if (delay != Duration.zero) await Future<void>.delayed(delay);
+      try {
+        final printers = ref.read(printerControllerProvider);
+        await ref
+            .read(invoiceLayoutControllerProvider.notifier)
+            .printSale(
+              sale: sale,
+              businessName: businessName,
+              settings: printers.settings,
+              printers: printers.selectedPrinters,
+              arabic: arabic,
+            );
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? StateError('Unable to print the completed sale.');
   }
 
   Future<void> _completeSale(

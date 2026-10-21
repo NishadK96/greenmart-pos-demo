@@ -64,6 +64,9 @@ Future<String> installedAppVersion() async {
   final package = await PackageInfo.fromPlatform();
   final version = package.version.trim();
   final build = package.buildNumber.trim();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return build.isEmpty || build == '0' ? version : '$version (Build $build)';
+  }
   if (build.isEmpty || build == '0' || version.endsWith('.$build')) {
     return version;
   }

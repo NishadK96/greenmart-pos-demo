@@ -24,6 +24,7 @@ const destinations = [
   ('/products', 'Products', Icons.inventory_2_outlined),
   ('/categories', 'Categories', Icons.category_outlined),
   ('/purchases', 'Purchases', Icons.shopping_cart_checkout),
+  ('/suppliers', 'Suppliers', Icons.local_shipping_outlined),
   ('/inventory', 'Inventory', Icons.warehouse_outlined),
   ('/customers', 'Customers', Icons.people_outline),
   ('/sales', 'Sales', Icons.receipt_long_outlined),
@@ -238,7 +239,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       final mobile = [
         shellDestinations[0],
         shellDestinations[2],
-        shellDestinations[7],
+        shellDestinations[8],
         shellDestinations[5],
         ('/settings', 'More', Icons.more_horiz),
       ];

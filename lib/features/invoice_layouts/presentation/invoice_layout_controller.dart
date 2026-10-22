@@ -121,14 +121,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       final locationId = sale.locationId.isNotEmpty
           ? sale.locationId
           : _locationId;
-      final enabledRoutes = settings.invoicePrintRoutes.values
-          .where(
-            (route) =>
-                route.locationId == locationId &&
-                route.documentType == 'pos' &&
-                route.enabled,
-          )
-          .toList(growable: false);
+      final enabledRoutes = _routesForSale(settings, locationId: locationId);
       if (enabledRoutes.isNotEmpty) {
         final incomplete = enabledRoutes
             .where((route) => !route.isConfigured)
@@ -140,36 +133,50 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
             '$incomplete. Select both an ERP layout and a physical printer.',
           );
         }
-        var printed = true;
+        final failures = <String>[];
+        var printedAny = false;
         for (final route in enabledRoutes) {
-          final file = await _finalizedSalePdf(
-            sale.serverId!,
-            invoiceLayoutId: route.layoutId,
-          );
-          final destination = Printer(
-            url: route.printerUrl,
-            name: route.printerName.isEmpty
-                ? route.printerUrl
-                : route.printerName,
-          );
-          for (var copy = 0; copy < route.copies; copy++) {
-            printed =
-                await PrinterDocumentService.printPdfBytes(
-                  file.bytes,
-                  name: file.fileName,
-                  printer: destination,
-                  format: PrinterDocumentService.formatForPaperMetadata(
-                    route.paperFormat,
-                    route.paperWidthMm,
-                  ),
-                  fitThermalPrintableWidth: route.paperFormat.startsWith(
-                    'thermal_',
-                  ),
-                ) &&
-                printed;
+          try {
+            final file = await _finalizedSalePdf(
+              sale.serverId!,
+              invoiceLayoutId: route.layoutId,
+              retryWhenFinalizing: true,
+            );
+            final destination = Printer(
+              url: route.printerUrl,
+              name: route.printerName.isEmpty
+                  ? route.printerUrl
+                  : route.printerName,
+            );
+            for (var copy = 0; copy < route.copies; copy++) {
+              final printed = await PrinterDocumentService.printPdfBytes(
+                file.bytes,
+                name: file.fileName,
+                printer: destination,
+                format: PrinterDocumentService.formatForPaperMetadata(
+                  route.paperFormat,
+                  route.paperWidthMm,
+                ),
+                fitThermalPrintableWidth: route.paperFormat.startsWith(
+                  'thermal_',
+                ),
+              );
+              if (!printed) {
+                throw StateError('The printer rejected the print job.');
+              }
+              printedAny = true;
+            }
+          } catch (error) {
+            failures.add('${_routeLabel(route)}: $error');
           }
         }
-        return printed;
+        if (failures.isNotEmpty) {
+          throw StateError(
+            '${printedAny ? 'Some invoice routes printed, but ' : ''}'
+            '${failures.join(' | ')}',
+          );
+        }
+        return printedAny;
       }
     }
     final file = await salePdf(
@@ -271,22 +278,90 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   Future<ErpInvoicePdf> _finalizedSalePdf(
     String saleId, {
     String? invoiceLayoutId,
+    bool retryWhenFinalizing = false,
   }) async {
     final cacheKey = '$saleId|${invoiceLayoutId ?? 'default'}';
     final cachedFile = _salePdfCache[cacheKey];
     if (cachedFile != null) return cachedFile;
-    final file = await _authorized<ErpInvoicePdf>(
-      (token) => ref
-          .read(apiProvider)
-          .finalizedSaleInvoicePdf(
-            token,
-            saleId,
-            invoiceLayoutId: invoiceLayoutId,
-          ),
-    );
+    late ErpInvoicePdf file;
+    Object? lastError;
+    final attempts = retryWhenFinalizing ? 3 : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        file = await _authorized<ErpInvoicePdf>(
+          (token) => ref
+              .read(apiProvider)
+              .finalizedSaleInvoicePdf(
+                token,
+                saleId,
+                invoiceLayoutId: invoiceLayoutId,
+              ),
+        );
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 < attempts) {
+          await Future<void>.delayed(Duration(milliseconds: 500 << attempt));
+        }
+      }
+    }
+    if (lastError != null) throw lastError;
     _salePdfCache[cacheKey] = file;
     return file;
   }
+
+  List<InvoicePrintRoute> _routesForSale(
+    PrinterSettings settings, {
+    required String locationId,
+  }) {
+    List<InvoicePrintRoute> atLocation(String candidate) => settings
+        .invoicePrintRoutes
+        .values
+        .where(
+          (route) =>
+              route.locationId == candidate &&
+              route.documentType == 'pos' &&
+              route.enabled,
+        )
+        .toList(growable: false);
+
+    var routes = atLocation(locationId);
+    if (routes.isEmpty && _locationId.isNotEmpty && _locationId != locationId) {
+      routes = atLocation(_locationId);
+    }
+    if (routes.isEmpty) {
+      final posRoutes = settings.invoicePrintRoutes.values
+          .where((route) => route.documentType == 'pos' && route.enabled)
+          .toList(growable: false);
+      final configuredLocations = posRoutes
+          .map((route) => route.locationId)
+          .toSet();
+      // A workstation configured for only one location can safely recover
+      // from older/local sale records that did not retain their location id.
+      if (configuredLocations.length == 1) routes = posRoutes;
+    }
+    routes.sort(
+      (left, right) => _routeOrder(
+        left.paperFormat,
+      ).compareTo(_routeOrder(right.paperFormat)),
+    );
+    return routes;
+  }
+
+  int _routeOrder(String format) => switch (format) {
+    'a4' => 0,
+    'thermal_80mm' => 1,
+    'thermal_58mm' => 2,
+    _ => 3,
+  };
+
+  String _routeLabel(InvoicePrintRoute route) => switch (route.paperFormat) {
+    'a4' => 'A4 (${route.printerName})',
+    'thermal_80mm' => 'Thermal 80 mm (${route.printerName})',
+    'thermal_58mm' => 'Thermal 58 mm (${route.printerName})',
+    _ => '${route.paperFormat} (${route.printerName})',
+  };
 
   Future<ErpInvoiceLayoutCatalog> _load() async {
     try {

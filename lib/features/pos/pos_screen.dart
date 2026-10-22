@@ -14,10 +14,12 @@ import '../../shared/widgets/product_card_style_picker.dart';
 import '../../shared/widgets/modifier_selection_dialog.dart';
 import '../../shared/widgets/document_preview_actions.dart';
 import '../backend/presentation/backend_controller.dart';
+import '../cash_register/presentation/cash_register_controller.dart';
 import '../home/module_screens.dart' show showSaleReturnDialog;
 import '../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../printers/application/printer_controller.dart';
 import '../printers/application/printer_document_service.dart';
+import '../printers/domain/printer_settings.dart';
 import '../store/app_store.dart';
 import '../settings/application/payment_method_settings_controller.dart';
 import '../settings/application/order_type_settings_controller.dart';
@@ -1055,9 +1057,36 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Widget _quickPaperSizeControl() {
     final printerState = ref.watch(printerControllerProvider);
-    final current = printerState.settings.paperSizes['billing-retail'] == 'A4'
+    final locationId = ref
+        .watch(cashRegisterControllerProvider)
+        .asData
+        ?.value
+        ?.locationId;
+    final routes = _assignedInvoiceRoutes(
+      printerState.settings,
+      locationId: locationId,
+    );
+    final routeLocationId = routes.firstOrNull?.locationId;
+    final enabledRoutes = routes.where((route) => route.enabled).toList();
+    final enabledA4 = enabledRoutes.any(
+      (route) => route.paperFormat.toLowerCase() == 'a4',
+    );
+    final enabledThermal = enabledRoutes
+        .where((route) => route.paperFormat.toLowerCase() != 'a4')
+        .toList();
+    final current = enabledA4 && enabledThermal.isNotEmpty
+        ? 'Both'
+        : enabledA4
         ? 'A4'
-        : '80mm';
+        : enabledThermal.isNotEmpty
+        ? _shortPaperLabel(enabledThermal.first)
+        : 'Setup';
+    final a4Route = routes
+        .where((route) => route.paperFormat.toLowerCase() == 'a4')
+        .firstOrNull;
+    final thermalRoutes = routes
+        .where((route) => route.paperFormat.toLowerCase() != 'a4')
+        .toList();
     return Container(
       width: 68,
       decoration: const BoxDecoration(
@@ -1065,36 +1094,71 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         border: BorderDirectional(end: BorderSide(color: Color(0xFFE1E8E5))),
       ),
       child: PopupMenuButton<String>(
-        tooltip: context.tr('Invoice paper size'),
-        initialValue: current,
+        tooltip: context.tr(
+          routes.isEmpty
+              ? 'Configure invoice printers in Settings first'
+              : 'Switch invoice printer',
+        ),
         enabled: !printerState.loading,
         position: PopupMenuPosition.under,
-        onSelected: (paper) async {
-          final settings = ref.read(printerControllerProvider).settings;
-          final paperSizes = Map<String, String>.from(settings.paperSizes)
-            ..['billing-retail'] = paper
-            ..['billing-business'] = paper;
-          await ref
-              .read(printerControllerProvider.notifier)
-              .update(settings.copyWith(paperSizes: paperSizes));
-          if (!mounted) return;
-          final messenger = ScaffoldMessenger.of(context);
-          messenger
-            ..clearSnackBars()
-            ..showSnackBar(
-              SnackBar(
-                duration: const Duration(seconds: 2),
-                content: Text('${context.tr('Invoice paper size')}: $paper'),
-              ),
-            );
+        onSelected: (selection) async {
+          if (routeLocationId == null || routes.isEmpty) return;
+          await _selectInvoiceRoutes(
+            locationId: routeLocationId,
+            selection: selection,
+          );
         },
-        itemBuilder: (context) => [
-          _paperSizeMenuItem('80mm', current),
-          _paperSizeMenuItem('A4', current),
+        itemBuilder: (context) => <PopupMenuEntry<String>>[
+          if (routes.isEmpty)
+            PopupMenuItem<String>(
+              enabled: false,
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 19),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      context.tr(
+                        'Configure printer routes in Settings before switching here.',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (a4Route != null)
+            _printerRouteMenuItem(
+              value: 'a4',
+              label: 'A4 printer',
+              icon: Icons.description_outlined,
+              selected: enabledA4 && enabledThermal.isEmpty,
+            ),
+          for (final route in thermalRoutes)
+            _printerRouteMenuItem(
+              value: route.paperFormat,
+              label: '${_shortPaperLabel(route)} printer',
+              icon: Icons.receipt_long_outlined,
+              selected:
+                  !enabledA4 &&
+                  enabledThermal.length == 1 &&
+                  enabledThermal.first.key == route.key,
+            ),
+          if (a4Route != null)
+            for (final route in thermalRoutes)
+              _printerRouteMenuItem(
+                value: 'both|${route.paperFormat}',
+                label: 'A4 + ${_shortPaperLabel(route)}',
+                icon: Icons.print_outlined,
+                selected:
+                    enabledA4 &&
+                    enabledThermal.length == 1 &&
+                    enabledThermal.first.key == route.key,
+              ),
         ],
         child: Semantics(
           button: true,
-          label: '${context.tr('Invoice paper size')}: $current',
+          enabled: routes.isNotEmpty,
+          label: '${context.tr('Switch invoice printer')}: $current',
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1102,17 +1166,25 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 Icon(
                   current == 'A4'
                       ? Icons.description_outlined
+                      : current == 'Both'
+                      ? Icons.print_outlined
+                      : current == 'Setup'
+                      ? Icons.print_disabled_outlined
                       : Icons.receipt_long_outlined,
                   size: 20,
-                  color: AppColors.primary,
+                  color: current == 'Setup'
+                      ? AppColors.muted
+                      : AppColors.primary,
                 ),
                 const SizedBox(height: 1),
                 Text(
                   current,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.primary,
+                    color: current == 'Setup'
+                        ? AppColors.muted
+                        : AppColors.primary,
                   ),
                 ),
               ],
@@ -1123,28 +1195,106 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
-  PopupMenuItem<String> _paperSizeMenuItem(String value, String current) =>
-      PopupMenuItem<String>(
-        value: value,
-        child: Row(
-          children: [
-            Icon(
-              value == 'A4'
-                  ? Icons.description_outlined
-                  : Icons.receipt_long_outlined,
-              size: 19,
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(value)),
-            if (value == current)
-              const Icon(
-                Icons.check_rounded,
-                size: 18,
-                color: AppColors.primary,
-              ),
-          ],
-        ),
+  List<InvoicePrintRoute> _assignedInvoiceRoutes(
+    PrinterSettings settings, {
+    required String? locationId,
+  }) {
+    final assigned = settings.invoicePrintRoutes.values
+        .where(
+          (route) =>
+              route.documentType == 'pos' &&
+              route.layoutId.isNotEmpty &&
+              route.printerUrl.isNotEmpty,
+        )
+        .toList();
+    if (locationId != null && locationId.isNotEmpty) {
+      final exactRoutes = assigned
+          .where((route) => route.locationId == locationId)
+          .toList();
+      if (exactRoutes.isNotEmpty) {
+        exactRoutes.sort((a, b) => a.paperWidthMm.compareTo(b.paperWidthMm));
+        return exactRoutes;
+      }
+    }
+    final configuredLocations = assigned
+        .map((route) => route.locationId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (configuredLocations.length == 1) {
+      final configuredLocation = configuredLocations.single;
+      final routes = assigned
+          .where((route) => route.locationId == configuredLocation)
+          .toList();
+      routes.sort((a, b) => a.paperWidthMm.compareTo(b.paperWidthMm));
+      return routes;
+    }
+    return const [];
+  }
+
+  String _shortPaperLabel(InvoicePrintRoute route) {
+    if (route.paperFormat.toLowerCase() == 'a4') return 'A4';
+    return '${route.paperWidthMm}mm';
+  }
+
+  PopupMenuItem<String> _printerRouteMenuItem({
+    required String value,
+    required String label,
+    required IconData icon,
+    required bool selected,
+  }) => PopupMenuItem<String>(
+    value: value,
+    child: Row(
+      children: [
+        Icon(icon, size: 19),
+        const SizedBox(width: 10),
+        Expanded(child: Text(context.tr(label))),
+        if (selected)
+          const Icon(Icons.check_rounded, size: 18, color: AppColors.primary),
+      ],
+    ),
+  );
+
+  Future<void> _selectInvoiceRoutes({
+    required String locationId,
+    required String selection,
+  }) async {
+    final controller = ref.read(printerControllerProvider.notifier);
+    final settings = ref.read(printerControllerProvider).settings;
+    final assigned = _assignedInvoiceRoutes(settings, locationId: locationId);
+    final selectedFormats = selection.startsWith('both|')
+        ? <String>{'a4', selection.substring('both|'.length)}
+        : <String>{selection};
+    final updatedRoutes = Map<String, InvoicePrintRoute>.from(
+      settings.invoicePrintRoutes,
+    );
+    for (final route in assigned) {
+      updatedRoutes[route.key] = route.copyWith(
+        enabled: selectedFormats.contains(route.paperFormat),
       );
+    }
+    await controller.update(
+      settings.copyWith(
+        invoicePrintRoutes: updatedRoutes,
+        posPrintingEnabled: true,
+      ),
+    );
+    if (!mounted) return;
+    final label = selection.startsWith('both|')
+        ? 'A4 + ${_shortPaperLabel(assigned.firstWhere((route) => route.paperFormat == selection.substring('both|'.length)))}'
+        : _shortPaperLabel(
+            assigned.firstWhere((route) => route.paperFormat == selection),
+          );
+    _showPrinterRouteMessage('${context.tr('Automatic printing')}: $label');
+  }
+
+  void _showPrinterRouteMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(duration: const Duration(seconds: 2), content: Text(message)),
+      );
+  }
 
   Widget _quickPrintToggle() {
     final printerState = ref.watch(printerControllerProvider);

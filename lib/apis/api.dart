@@ -1810,6 +1810,12 @@ class Api {
                     offlineConfigUrl:
                         item['offline_config_url']?.toString() ?? '',
                     rendererProfile: item['renderer_profile']?.toString() ?? '',
+                    paperFormat: item['paper_format']?.toString() ?? 'a4',
+                    paperWidthMm:
+                        int.tryParse(
+                          item['paper_width_mm']?.toString() ?? '',
+                        ) ??
+                        210,
                   );
                 })
                 .where((layout) => layout.id.isNotEmpty)
@@ -1904,12 +1910,21 @@ class Api {
 
   Future<ErpInvoicePdf> finalizedSaleInvoicePdf(
     String accessToken,
-    String transactionId,
-  ) => _invoicePdf(
-    accessToken,
-    ApiEndPoints.saleInvoicePdfUrl(transactionId),
-    'invoice-$transactionId.pdf',
-  );
+    String transactionId, {
+    String? invoiceLayoutId,
+  }) {
+    final uri = Uri.parse(ApiEndPoints.saleInvoicePdfUrl(transactionId));
+    return _invoicePdf(
+      accessToken,
+      (invoiceLayoutId == null || invoiceLayoutId.isEmpty
+              ? uri
+              : uri.replace(
+                  queryParameters: {'invoice_layout_id': invoiceLayoutId},
+                ))
+          .toString(),
+      'invoice-$transactionId.pdf',
+    );
+  }
 
   Future<RestaurantSettings> restaurantSettings({
     required String accessToken,

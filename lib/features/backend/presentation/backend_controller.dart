@@ -379,6 +379,7 @@ class BackendController extends AsyncNotifier<void> {
             paymentMethod == 'credit' ? 'due' : paymentMethod,
             serverId: created.id,
             invoiceNo: created.invoiceNo,
+            locationId: register.locationId,
           );
       return sale;
     } on ApiException catch (error) {

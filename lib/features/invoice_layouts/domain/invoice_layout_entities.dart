@@ -25,6 +25,8 @@ class ErpInvoiceLayout {
     this.offlineSupported = false,
     this.offlineConfigUrl = '',
     this.rendererProfile = '',
+    this.paperFormat = 'a4',
+    this.paperWidthMm = 210,
   });
 
   final String id;
@@ -36,6 +38,16 @@ class ErpInvoiceLayout {
   final bool offlineSupported;
   final String offlineConfigUrl;
   final String rendererProfile;
+  final String paperFormat;
+  final int paperWidthMm;
+
+  bool get isThermal => paperFormat.startsWith('thermal_');
+
+  String get paperLabel => switch (paperFormat) {
+    'thermal_80mm' => 'Thermal 80 mm',
+    'thermal_58mm' => 'Thermal 58 mm',
+    _ => 'A4',
+  };
 }
 
 class OfflineInvoiceLayoutBundle {

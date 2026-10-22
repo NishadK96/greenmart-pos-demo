@@ -2,6 +2,91 @@ enum PrinterSection { billing, quotation, kitchen, barcode }
 
 enum BillingAudience { retail, business }
 
+class InvoicePrintRoute {
+  const InvoicePrintRoute({
+    required this.locationId,
+    required this.documentType,
+    required this.paperFormat,
+    this.enabled = true,
+    this.layoutId = '',
+    this.layoutName = '',
+    this.paperWidthMm = 210,
+    this.printerUrl = '',
+    this.printerName = '',
+    this.copies = 1,
+  });
+
+  final String locationId;
+  final String documentType;
+  final String paperFormat;
+  final bool enabled;
+  final String layoutId;
+  final String layoutName;
+  final int paperWidthMm;
+  final String printerUrl;
+  final String printerName;
+  final int copies;
+
+  String get key => routeKey(locationId, documentType, paperFormat);
+  bool get isConfigured =>
+      enabled && layoutId.isNotEmpty && printerUrl.isNotEmpty;
+
+  static String routeKey(
+    String locationId,
+    String documentType,
+    String paperFormat,
+  ) => '$locationId|$documentType|$paperFormat';
+
+  InvoicePrintRoute copyWith({
+    bool? enabled,
+    String? layoutId,
+    String? layoutName,
+    int? paperWidthMm,
+    String? printerUrl,
+    String? printerName,
+    int? copies,
+  }) => InvoicePrintRoute(
+    locationId: locationId,
+    documentType: documentType,
+    paperFormat: paperFormat,
+    enabled: enabled ?? this.enabled,
+    layoutId: layoutId ?? this.layoutId,
+    layoutName: layoutName ?? this.layoutName,
+    paperWidthMm: paperWidthMm ?? this.paperWidthMm,
+    printerUrl: printerUrl ?? this.printerUrl,
+    printerName: printerName ?? this.printerName,
+    copies: copies ?? this.copies,
+  );
+
+  Map<String, Object?> toJson() => {
+    'locationId': locationId,
+    'documentType': documentType,
+    'paperFormat': paperFormat,
+    'enabled': enabled,
+    'layoutId': layoutId,
+    'layoutName': layoutName,
+    'paperWidthMm': paperWidthMm,
+    'printerUrl': printerUrl,
+    'printerName': printerName,
+    'copies': copies,
+  };
+
+  factory InvoicePrintRoute.fromJson(
+    Map<String, dynamic> json,
+  ) => InvoicePrintRoute(
+    locationId: json['locationId']?.toString() ?? '',
+    documentType: json['documentType']?.toString() ?? 'pos',
+    paperFormat: json['paperFormat']?.toString() ?? 'a4',
+    enabled: json['enabled'] as bool? ?? true,
+    layoutId: json['layoutId']?.toString() ?? '',
+    layoutName: json['layoutName']?.toString() ?? '',
+    paperWidthMm: int.tryParse(json['paperWidthMm']?.toString() ?? '') ?? 210,
+    printerUrl: json['printerUrl']?.toString() ?? '',
+    printerName: json['printerName']?.toString() ?? '',
+    copies: (int.tryParse(json['copies']?.toString() ?? '') ?? 1).clamp(1, 9),
+  );
+}
+
 abstract final class PrinterTemplate {
   static const erp = 'ERP';
   static const bilingualReceipt = 'Arabic & English 3';
@@ -38,6 +123,7 @@ class PrinterSettings {
     },
     this.selectedPrinters = const {},
     this.additionalPrinters = const {},
+    this.invoicePrintRoutes = const {},
     this.kitchenPrinterBindings = const {},
     this.kitchenPrinterBindingNames = const {},
     this.defaultPrinterUrl,
@@ -61,6 +147,11 @@ class PrinterSettings {
   /// Additional print destinations keyed by the platform printer URL.
   /// The primary/default destination remains in [defaultPrinterUrl].
   final Map<String, String> additionalPrinters;
+
+  /// Location-scoped mappings between ERP layouts and physical printers.
+  /// A4 and thermal routes deliberately remain separate because each route
+  /// downloads a PDF rendered with its own authoritative ERP page format.
+  final Map<String, InvoicePrintRoute> invoicePrintRoutes;
 
   /// ERP kitchen printer id -> locally installed printer URL/name. The ERP
   /// decides which items belong to each printer; these bindings decide which
@@ -100,6 +191,7 @@ class PrinterSettings {
     Map<String, String>? templates,
     Map<String, String>? selectedPrinters,
     Map<String, String>? additionalPrinters,
+    Map<String, InvoicePrintRoute>? invoicePrintRoutes,
     Map<String, String>? kitchenPrinterBindings,
     Map<String, String>? kitchenPrinterBindingNames,
     String? defaultPrinterUrl,
@@ -120,6 +212,7 @@ class PrinterSettings {
     templates: templates ?? this.templates,
     selectedPrinters: selectedPrinters ?? this.selectedPrinters,
     additionalPrinters: additionalPrinters ?? this.additionalPrinters,
+    invoicePrintRoutes: invoicePrintRoutes ?? this.invoicePrintRoutes,
     kitchenPrinterBindings:
         kitchenPrinterBindings ?? this.kitchenPrinterBindings,
     kitchenPrinterBindingNames:
@@ -145,6 +238,9 @@ class PrinterSettings {
     'templates': templates,
     'selectedPrinters': selectedPrinters,
     'additionalPrinters': additionalPrinters,
+    'invoicePrintRoutes': invoicePrintRoutes.map(
+      (key, value) => MapEntry(key, value.toJson()),
+    ),
     'kitchenPrinterBindings': kitchenPrinterBindings,
     'kitchenPrinterBindingNames': kitchenPrinterBindingNames,
     'defaultPrinterUrl': defaultPrinterUrl,
@@ -176,6 +272,17 @@ class PrinterSettings {
       additionalPrinters: Map<String, String>.from(
         json['additionalPrinters'] as Map? ?? const {},
       ),
+      invoicePrintRoutes:
+          Map<String, dynamic>.from(
+            json['invoicePrintRoutes'] as Map? ?? const {},
+          ).map(
+            (key, value) => MapEntry(
+              key,
+              InvoicePrintRoute.fromJson(
+                Map<String, dynamic>.from(value as Map? ?? const {}),
+              ),
+            ),
+          ),
       kitchenPrinterBindings: Map<String, String>.from(
         json['kitchenPrinterBindings'] as Map? ?? const {},
       ),

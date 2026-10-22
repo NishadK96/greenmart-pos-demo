@@ -99,6 +99,8 @@ class OfflineInvoiceLayoutRepository {
               'offline_supported': layout.offlineSupported,
               'offline_config_url': layout.offlineConfigUrl,
               'renderer_profile': layout.rendererProfile,
+              'paper_format': layout.paperFormat,
+              'paper_width_mm': layout.paperWidthMm,
             },
           )
           .toList(growable: false),
@@ -133,6 +135,10 @@ class OfflineInvoiceLayoutRepository {
               offlineSupported: layout['offline_supported'] == true,
               offlineConfigUrl: layout['offline_config_url']?.toString() ?? '',
               rendererProfile: layout['renderer_profile']?.toString() ?? '',
+              paperFormat: layout['paper_format']?.toString() ?? 'a4',
+              paperWidthMm:
+                  int.tryParse(layout['paper_width_mm']?.toString() ?? '') ??
+                  210,
             );
           })
           .where((layout) => layout.id.isNotEmpty)

@@ -124,6 +124,22 @@ class PrinterDocumentService {
     return PdfPageFormat.a4;
   }
 
+  static PdfPageFormat formatForPaperMetadata(
+    String paperFormat,
+    int paperWidthMm,
+  ) {
+    if (paperFormat == 'a4') return PdfPageFormat.a4;
+    final width = paperWidthMm > 0
+        ? paperWidthMm
+        : paperFormat == 'thermal_58mm'
+        ? 58
+        : 80;
+    return PdfPageFormat(
+      width * PdfPageFormat.mm,
+      (width == 58 ? 220 : 260) * PdfPageFormat.mm,
+    );
+  }
+
   static bool _isThermal(PdfPageFormat format) =>
       format.width <= 80.5 * PdfPageFormat.mm;
 

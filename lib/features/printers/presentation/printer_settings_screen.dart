@@ -166,6 +166,50 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         },
                       ),
                       const SizedBox(height: 14),
+                      _InvoicePrintRoutesPanel(
+                        catalog: layoutState.asData?.value,
+                        settings: settings,
+                        printers: state.printers,
+                        onChanged: controller.update,
+                        onTest: (route) async {
+                          try {
+                            if (!route.isConfigured) {
+                              throw const ApiException(
+                                'Select an ERP layout and physical printer first.',
+                              );
+                            }
+                            if (previewTransactionId == null) {
+                              throw const ApiException(
+                                'Complete and synchronize at least one sale before testing this route.',
+                              );
+                            }
+                            final file = await layoutController.preview(
+                              route.layoutId,
+                              transactionId: previewTransactionId,
+                            );
+                            await PrinterDocumentService.printPdfBytes(
+                              file.bytes,
+                              name: file.fileName,
+                              printer: Printer(
+                                url: route.printerUrl,
+                                name: route.printerName,
+                              ),
+                              format:
+                                  PrinterDocumentService.formatForPaperMetadata(
+                                    route.paperFormat,
+                                    route.paperWidthMm,
+                                  ),
+                              fitThermalPrintableWidth: route.paperFormat
+                                  .startsWith('thermal_'),
+                            );
+                          } catch (error) {
+                            if (context.mounted) {
+                              _message(context, 'Test print failed: $error');
+                            }
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
                       const _InvoiceDesignsPanel(),
                       const SizedBox(height: 14),
                       _DocumentSettings(
@@ -389,6 +433,344 @@ class _ErpInvoiceLayoutsPanel extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _InvoicePrintRoutesPanel extends StatelessWidget {
+  const _InvoicePrintRoutesPanel({
+    required this.catalog,
+    required this.settings,
+    required this.printers,
+    required this.onChanged,
+    required this.onTest,
+  });
+
+  final ErpInvoiceLayoutCatalog? catalog;
+  final PrinterSettings settings;
+  final List<Printer> printers;
+  final ValueChanged<PrinterSettings> onChanged;
+  final Future<void> Function(InvoicePrintRoute) onTest;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = catalog;
+    if (value == null || value.layouts.isEmpty) return const SizedBox.shrink();
+    const formatOrder = ['a4', 'thermal_80mm', 'thermal_58mm'];
+    final formats = formatOrder
+        .where(
+          (format) =>
+              value.layouts.any((layout) => layout.paperFormat == format),
+        )
+        .toList(growable: false);
+    if (formats.isEmpty) return const SizedBox.shrink();
+
+    return Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                backgroundColor: Color(0xFFEAF6F2),
+                child: Icon(Icons.alt_route_rounded, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Automatic invoice routing',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'Map each ERP paper format to its physical printer. Enable A4, thermal, or both.',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 1000
+                  ? formats.length.clamp(1, 3)
+                  : constraints.maxWidth >= 650
+                  ? 2
+                  : 1;
+              final width =
+                  (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: formats
+                    .map((format) {
+                      final layouts = value.layouts
+                          .where((layout) => layout.paperFormat == format)
+                          .toList(growable: false);
+                      final routeKey = InvoicePrintRoute.routeKey(
+                        value.locationId,
+                        value.documentType,
+                        format,
+                      );
+                      final existing = settings.invoicePrintRoutes[routeKey];
+                      final route =
+                          existing ??
+                          InvoicePrintRoute(
+                            locationId: value.locationId,
+                            documentType: value.documentType,
+                            paperFormat: format,
+                            enabled: false,
+                            paperWidthMm: layouts.first.paperWidthMm,
+                          );
+                      return SizedBox(
+                        width: width,
+                        child: _InvoicePrintRouteCard(
+                          route: route,
+                          layouts: layouts,
+                          printers: printers,
+                          onTest: onTest,
+                          onChanged: (updated) {
+                            final routes = Map<String, InvoicePrintRoute>.from(
+                              settings.invoicePrintRoutes,
+                            )..[updated.key] = updated;
+                            onChanged(
+                              settings.copyWith(invoicePrintRoutes: routes),
+                            );
+                          },
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 18, color: AppColors.muted),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Printer assignments are stored on this device. ERP layouts remain managed in the web ERP.',
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvoicePrintRouteCard extends StatelessWidget {
+  const _InvoicePrintRouteCard({
+    required this.route,
+    required this.layouts,
+    required this.printers,
+    required this.onChanged,
+    required this.onTest,
+  });
+
+  final InvoicePrintRoute route;
+  final List<ErpInvoiceLayout> layouts;
+  final List<Printer> printers;
+  final ValueChanged<InvoicePrintRoute> onChanged;
+  final Future<void> Function(InvoicePrintRoute) onTest;
+
+  String get _title => switch (route.paperFormat) {
+    'thermal_80mm' => 'Thermal · 80 mm',
+    'thermal_58mm' => 'Thermal · 58 mm',
+    _ => 'A4 invoice',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final availablePrinters = <String, Printer>{
+      for (final printer in printers) printer.url: printer,
+      if (route.printerUrl.isNotEmpty &&
+          !printers.any((printer) => printer.url == route.printerUrl))
+        route.printerUrl: Printer(
+          url: route.printerUrl,
+          name: route.printerName.isEmpty
+              ? route.printerUrl
+              : route.printerName,
+        ),
+    }.values.toList(growable: false);
+    final selectedLayout = layouts.any((item) => item.id == route.layoutId)
+        ? route.layoutId
+        : null;
+    final selectedPrinter =
+        availablePrinters.any((item) => item.url == route.printerUrl)
+        ? route.printerUrl
+        : null;
+    final ready = route.layoutId.isNotEmpty && route.printerUrl.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: route.enabled ? const Color(0xFFF5FAF8) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: route.enabled
+              ? const Color(0xFF9CCEC0)
+              : const Color(0xFFDDE5E1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                route.paperFormat == 'a4'
+                    ? Icons.description_outlined
+                    : Icons.receipt_long_outlined,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Switch.adaptive(
+                value: route.enabled,
+                onChanged: (enabled) =>
+                    onChanged(route.copyWith(enabled: enabled)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('${route.key}-layout-$selectedLayout'),
+            initialValue: selectedLayout,
+            decoration: const InputDecoration(labelText: 'ERP layout'),
+            items: layouts
+                .map(
+                  (layout) => DropdownMenuItem(
+                    value: layout.id,
+                    child: Text(
+                      layout.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (id) {
+              if (id == null) return;
+              final layout = layouts.firstWhere((item) => item.id == id);
+              onChanged(
+                route.copyWith(
+                  layoutId: layout.id,
+                  layoutName: layout.name,
+                  paperWidthMm: layout.paperWidthMm,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('${route.key}-printer-$selectedPrinter'),
+            initialValue: selectedPrinter,
+            decoration: const InputDecoration(labelText: 'Physical printer'),
+            items: availablePrinters
+                .map(
+                  (printer) => DropdownMenuItem(
+                    value: printer.url,
+                    child: Text(
+                      printer.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (url) {
+              if (url == null) return;
+              final printer = availablePrinters.firstWhere(
+                (item) => item.url == url,
+              );
+              onChanged(
+                route.copyWith(
+                  printerUrl: printer.url,
+                  printerName: printer.name,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<int>(
+            initialValue: route.copies,
+            decoration: const InputDecoration(labelText: 'Copies'),
+            items: const [1, 2, 3]
+                .map(
+                  (copies) =>
+                      DropdownMenuItem(value: copies, child: Text('$copies')),
+                )
+                .toList(growable: false),
+            onChanged: (copies) {
+              if (copies != null) onChanged(route.copyWith(copies: copies));
+            },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                !route.enabled
+                    ? Icons.pause_circle_outline
+                    : ready
+                    ? Icons.check_circle_outline
+                    : Icons.warning_amber_rounded,
+                size: 17,
+                color: !route.enabled
+                    ? AppColors.muted
+                    : ready
+                    ? AppColors.primary
+                    : AppColors.danger,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  !route.enabled
+                      ? 'Route disabled'
+                      : ready
+                      ? 'Ready for automatic printing'
+                      : 'Select a layout and printer',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: !route.enabled
+                        ? AppColors.muted
+                        : ready
+                        ? AppColors.primary
+                        : AppColors.danger,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: ready ? () => onTest(route) : null,
+              icon: const Icon(Icons.print_outlined, size: 18),
+              label: const Text('Test this route'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _InvoiceDesignsPanel extends ConsumerStatefulWidget {
@@ -656,6 +1038,22 @@ class _ErpLayoutCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F3),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Text(
+            layout.paperLabel,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         if (showOfflineStatus)

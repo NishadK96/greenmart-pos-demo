@@ -117,6 +117,61 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     Iterable<Printer>? printers,
     bool arabic = false,
   }) async {
+    if (sale.serverId != null) {
+      final locationId = sale.locationId.isNotEmpty
+          ? sale.locationId
+          : _locationId;
+      final enabledRoutes = settings.invoicePrintRoutes.values
+          .where(
+            (route) =>
+                route.locationId == locationId &&
+                route.documentType == 'pos' &&
+                route.enabled,
+          )
+          .toList(growable: false);
+      if (enabledRoutes.isNotEmpty) {
+        final incomplete = enabledRoutes
+            .where((route) => !route.isConfigured)
+            .map((route) => route.paperFormat)
+            .join(', ');
+        if (incomplete.isNotEmpty) {
+          throw StateError(
+            'Automatic invoice printing is not fully configured for: '
+            '$incomplete. Select both an ERP layout and a physical printer.',
+          );
+        }
+        var printed = true;
+        for (final route in enabledRoutes) {
+          final file = await _finalizedSalePdf(
+            sale.serverId!,
+            invoiceLayoutId: route.layoutId,
+          );
+          final destination = Printer(
+            url: route.printerUrl,
+            name: route.printerName.isEmpty
+                ? route.printerUrl
+                : route.printerName,
+          );
+          for (var copy = 0; copy < route.copies; copy++) {
+            printed =
+                await PrinterDocumentService.printPdfBytes(
+                  file.bytes,
+                  name: file.fileName,
+                  printer: destination,
+                  format: PrinterDocumentService.formatForPaperMetadata(
+                    route.paperFormat,
+                    route.paperWidthMm,
+                  ),
+                  fitThermalPrintableWidth: route.paperFormat.startsWith(
+                    'thermal_',
+                  ),
+                ) &&
+                printed;
+          }
+        }
+        return printed;
+      }
+    }
     final file = await salePdf(
       sale: sale,
       businessName: businessName,
@@ -148,15 +203,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
     bool arabic = false,
   }) async {
     if (sale.serverId != null) {
-      final saleId = sale.serverId!;
-      final cachedFile = _salePdfCache[saleId];
-      final file =
-          cachedFile ??
-          await _authorized<ErpInvoicePdf>(
-            (token) =>
-                ref.read(apiProvider).finalizedSaleInvoicePdf(token, saleId),
-          );
-      _salePdfCache[saleId] = file;
+      final file = await _finalizedSalePdf(sale.serverId!);
       return PrinterDocumentService.previewPdfBytes(
         file.bytes,
         name: file.fileName,
@@ -183,13 +230,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   }) async {
     if (sale.serverId != null) {
       final saleId = sale.serverId!;
-      final cachedFile = _salePdfCache[saleId];
-      if (cachedFile != null) return cachedFile;
-      final file = await _authorized<ErpInvoicePdf>(
-        (token) => ref.read(apiProvider).finalizedSaleInvoicePdf(token, saleId),
-      );
-      _salePdfCache[saleId] = file;
-      return file;
+      return _finalizedSalePdf(saleId);
     }
     final offlineLayout = await ref
         .read(offlineInvoiceLayoutRepositoryProvider)
@@ -225,6 +266,26 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       ),
       fileName: 'Invoice ${sale.invoiceNo}.pdf',
     );
+  }
+
+  Future<ErpInvoicePdf> _finalizedSalePdf(
+    String saleId, {
+    String? invoiceLayoutId,
+  }) async {
+    final cacheKey = '$saleId|${invoiceLayoutId ?? 'default'}';
+    final cachedFile = _salePdfCache[cacheKey];
+    if (cachedFile != null) return cachedFile;
+    final file = await _authorized<ErpInvoicePdf>(
+      (token) => ref
+          .read(apiProvider)
+          .finalizedSaleInvoicePdf(
+            token,
+            saleId,
+            invoiceLayoutId: invoiceLayoutId,
+          ),
+    );
+    _salePdfCache[cacheKey] = file;
+    return file;
   }
 
   Future<ErpInvoiceLayoutCatalog> _load() async {

@@ -501,7 +501,12 @@ class AppStore extends Notifier<AppState> {
     lastSale: sale,
   );
 
-  Sale checkout(String method, {String? serverId, String? invoiceNo}) {
+  Sale checkout(
+    String method, {
+    String? serverId,
+    String? invoiceNo,
+    String locationId = '',
+  }) {
     final now = DateTime.now();
     final customer = state.customer ?? state.customers.first;
     final sale = Sale(
@@ -519,6 +524,7 @@ class AppStore extends Notifier<AppState> {
       grossDiscountType: state.grossDiscountType,
       grossDiscountRate: state.grossDiscountRate,
       syncStatus: serverId == null ? SyncStatus.pending : SyncStatus.synced,
+      locationId: locationId,
     );
     var products = [...state.products];
     for (final line in state.cart) {

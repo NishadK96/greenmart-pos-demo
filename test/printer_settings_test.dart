@@ -125,6 +125,42 @@ void main() {
     ]);
   });
 
+  test('A4 and thermal invoice routes persist independently', () async {
+    final repository = PrinterSettingsRepository();
+    const a4 = InvoicePrintRoute(
+      locationId: '3',
+      documentType: 'pos',
+      paperFormat: 'a4',
+      layoutId: '8',
+      layoutName: 'A4 Tax Invoice',
+      paperWidthMm: 210,
+      printerUrl: r'windows-printer://office-a4',
+      printerName: 'Office A4',
+    );
+    const thermal = InvoicePrintRoute(
+      locationId: '3',
+      documentType: 'pos',
+      paperFormat: 'thermal_80mm',
+      layoutId: '9',
+      layoutName: '80mm Receipt',
+      paperWidthMm: 80,
+      printerUrl: r'windows-printer://counter-thermal',
+      printerName: 'Counter thermal',
+      copies: 2,
+    );
+    await repository.save(
+      const PrinterSettings().copyWith(
+        invoicePrintRoutes: {a4.key: a4, thermal.key: thermal},
+      ),
+    );
+
+    final restored = await repository.load();
+    expect(restored.invoicePrintRoutes[a4.key]?.layoutId, '8');
+    expect(restored.invoicePrintRoutes[a4.key]?.printerName, 'Office A4');
+    expect(restored.invoicePrintRoutes[thermal.key]?.paperWidthMm, 80);
+    expect(restored.invoicePrintRoutes[thermal.key]?.copies, 2);
+  });
+
   test('ERP kitchen printers retain their local Windows pairings', () async {
     final repository = PrinterSettingsRepository();
     await repository.save(

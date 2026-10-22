@@ -1652,9 +1652,11 @@ void main() {
 
   test('ERP preview and finalized sale endpoints return PDF bytes', () async {
     final paths = <String>[];
+    final queries = <Map<String, String>>[];
     final api = Api(
       client: MockClient((request) async {
         paths.add(request.url.path);
+        queries.add(request.url.queryParameters);
         return http.Response.bytes(
           utf8.encode('%PDF-1.4\n%%EOF'),
           200,
@@ -1672,14 +1674,54 @@ void main() {
       locationId: '3',
       transactionId: '145',
     );
-    final finalPdf = await api.finalizedSaleInvoicePdf('token-123', '145');
+    final finalPdf = await api.finalizedSaleInvoicePdf(
+      'token-123',
+      '145',
+      invoiceLayoutId: '8',
+    );
 
     expect(paths, [
       '/connector/api/invoice-layouts/8/preview',
       '/connector/api/sell/145/pdf',
     ]);
+    expect(queries.last, {'invoice_layout_id': '8'});
     expect(preview.fileName, 'INVOICE-0145.pdf');
     expect(finalPdf.bytes, utf8.encode('%PDF-1.4\n%%EOF'));
+  });
+
+  test('invoice layouts expose paper routing metadata', () async {
+    final api = Api(
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'data': {
+              'location_id': 3,
+              'document_type': 'pos',
+              'current_layout_id': 8,
+              'layouts': [
+                {
+                  'id': 8,
+                  'name': 'Thermal receipt',
+                  'design': 'ar-recipt',
+                  'paper_format': 'thermal_80mm',
+                  'paper_width_mm': 80,
+                },
+              ],
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    final catalog = await api.invoiceLayouts(
+      accessToken: 'token-123',
+      locationId: '3',
+    );
+    expect(catalog.layouts.single.paperFormat, 'thermal_80mm');
+    expect(catalog.layouts.single.paperWidthMm, 80);
+    expect(catalog.layouts.single.paperLabel, 'Thermal 80 mm');
   });
 
   test('ERP preview rejects an implausibly large backend PDF', () async {

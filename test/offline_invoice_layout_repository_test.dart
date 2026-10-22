@@ -41,6 +41,8 @@ void main() {
           previewUrl: '/preview/4',
           offlineSupported: true,
           rendererProfile: 'thermal-80-v1',
+          paperFormat: 'thermal_80mm',
+          paperWidthMm: 80,
         ),
         ErpInvoiceLayout(
           id: '9',
@@ -51,6 +53,8 @@ void main() {
           previewUrl: '/preview/9',
           offlineSupported: true,
           rendererProfile: 'a4-bilingual-v1',
+          paperFormat: 'a4',
+          paperWidthMm: 210,
         ),
       ],
     );
@@ -61,6 +65,8 @@ void main() {
     expect(restored?.layouts.map((layout) => layout.id), ['4', '9']);
     expect(restored?.selectedLayout?.name, 'A4 bilingual');
     expect(restored?.layouts.first.offlineSupported, isTrue);
+    expect(restored?.layouts.first.paperFormat, 'thermal_80mm');
+    expect(restored?.layouts.first.paperWidthMm, 80);
   });
 }
 

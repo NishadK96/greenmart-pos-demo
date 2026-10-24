@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:collection/collection.dart';
@@ -16,10 +17,20 @@ import '../features/app_update/domain/app_update_info.dart';
 enum LoginFailure { invalidCredentials, network, server }
 
 class _RefreshingClient extends http.BaseClient {
-  _RefreshingClient(this._inner);
+  _RefreshingClient(this._inner, {http.Client Function()? clientFactory})
+    : _clientFactory = clientFactory;
 
-  final http.Client _inner;
+  http.Client _inner;
+  final http.Client Function()? _clientFactory;
   Future<String> Function()? accessTokenRefresher;
+
+  void resetTransport() {
+    final factory = _clientFactory;
+    if (factory == null) return;
+    final previous = _inner;
+    _inner = factory();
+    previous.close();
+  }
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -148,11 +159,27 @@ class WebAuthBootstrap {
 }
 
 class Api {
-  Api({http.Client? client, String? loginUrl})
-    : _client = _RefreshingClient(client ?? http.Client()),
-      _loginUrl = loginUrl ?? ApiEndPoints.loginUrl;
+  Api({
+    http.Client? client,
+    http.Client Function()? clientFactory,
+    String? loginUrl,
+    Duration authRequestTimeout = const Duration(seconds: 20),
+    Duration authRetryTimeout = const Duration(seconds: 30),
+    Duration authRetryDelay = const Duration(milliseconds: 600),
+  }) : assert(client == null || clientFactory == null),
+       _client = _RefreshingClient(
+         client ?? clientFactory?.call() ?? http.Client(),
+         clientFactory: clientFactory,
+       ),
+       _loginUrl = loginUrl ?? ApiEndPoints.loginUrl,
+       _authRequestTimeout = authRequestTimeout,
+       _authRetryTimeout = authRetryTimeout,
+       _authRetryDelay = authRetryDelay;
   final _RefreshingClient _client;
   final String _loginUrl;
+  final Duration _authRequestTimeout;
+  final Duration _authRetryTimeout;
+  final Duration _authRetryDelay;
 
   void setAccessTokenRefresher(Future<String> Function() refresh) {
     _client.accessTokenRefresher = refresh;
@@ -235,18 +262,45 @@ class Api {
     String password,
     Map<String, String> deviceHeaders,
   ) async {
-    final response = await _client
-        .post(
-          Uri.parse(ApiEndPoints.authLoginUrl),
-          headers: {
-            ...deviceHeaders,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'username': username, 'password': password}),
-        )
-        .timeout(const Duration(seconds: 20));
-    return _sessionResult(_requireObject(response, 'saved account login'));
+    const attempts = 2;
+    Object? lastFailure;
+    StackTrace? lastStackTrace;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        final response = await _client
+            .post(
+              Uri.parse(ApiEndPoints.authLoginUrl),
+              headers: {
+                ...deviceHeaders,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({'username': username, 'password': password}),
+            )
+            .timeout(attempt == 0 ? _authRequestTimeout : _authRetryTimeout);
+        return _sessionResult(_requireObject(response, 'saved account login'));
+      } catch (error, stackTrace) {
+        final transient = _isTransientAuthFailure(error);
+        if (transient) _client.resetTransport();
+        if (!transient || attempt + 1 >= attempts) {
+          rethrow;
+        }
+        lastFailure = error;
+        lastStackTrace = stackTrace;
+        await Future<void>.delayed(_authRetryDelay);
+      }
+    }
+    Error.throwWithStackTrace(lastFailure!, lastStackTrace!);
+  }
+
+  bool _isTransientAuthFailure(Object error) {
+    if (error is TimeoutException || error is http.ClientException) return true;
+    return switch (error.runtimeType.toString()) {
+      'SocketException' ||
+      '_ClientSocketException' ||
+      'HandshakeException' => true,
+      _ => false,
+    };
   }
 
   Future<List<SavedAccountSession>> savedSessions(

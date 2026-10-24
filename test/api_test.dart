@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -416,6 +417,101 @@ void main() {
 
     expect(result.isSuccess, isTrue);
     expect(result.accessToken, 'token-123');
+  });
+
+  test('saved account login retries one transient timeout', () async {
+    var attempts = 0;
+    final api = Api(
+      authRetryDelay: Duration.zero,
+      client: MockClient((request) async {
+        attempts++;
+        expect(request.method, 'POST');
+        expect(request.url.path, '/connector/api/auth/login');
+        if (attempts == 1) throw TimeoutException('temporary timeout');
+        return http.Response(
+          jsonEncode({
+            'data': {
+              'session_id': 'session-1',
+              'access_token': 'access-1',
+              'refresh_token': 'refresh-1',
+              'profile': {
+                'id': 7,
+                'username': 'cashier',
+                'name': 'Cashier',
+                'business_id': 1,
+              },
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    final result = await api.sessionLogin('cashier', 'password', {
+      'X-Connector-Device-Id': 'device-1',
+    });
+
+    expect(attempts, 2);
+    expect(result.accessToken, 'access-1');
+    expect(result.refreshToken, 'refresh-1');
+  });
+
+  test('saved account login recreates the transport after a timeout', () async {
+    var transports = 0;
+    final api = Api(
+      authRetryDelay: Duration.zero,
+      clientFactory: () {
+        transports++;
+        final transport = transports;
+        return MockClient((request) async {
+          if (transport == 1) throw TimeoutException('stuck connection');
+          return http.Response(
+            jsonEncode({
+              'data': {
+                'session_id': 'session-2',
+                'access_token': 'access-2',
+                'refresh_token': 'refresh-2',
+                'profile': {
+                  'id': 8,
+                  'username': 'cashier',
+                  'name': 'Cashier',
+                  'business_id': 1,
+                },
+              },
+            }),
+            200,
+          );
+        });
+      },
+    );
+
+    final result = await api.sessionLogin('cashier', 'password', const {});
+
+    expect(transports, 2);
+    expect(result.accessToken, 'access-2');
+  });
+
+  test('saved account login does not retry a validation response', () async {
+    var attempts = 0;
+    final api = Api(
+      authRetryDelay: Duration.zero,
+      client: MockClient((request) async {
+        attempts++;
+        return http.Response('{"message":"Invalid credentials"}', 401);
+      }),
+    );
+
+    await expectLater(
+      api.sessionLogin('cashier', 'wrong', const {}),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
+    );
+    expect(attempts, 1);
   });
 
   test('invalid_grant becomes an invalid credentials result', () async {

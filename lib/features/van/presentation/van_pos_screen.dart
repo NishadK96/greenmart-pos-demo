@@ -1,6 +1,7 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'package:eazy_pos/shared/widgets/localized_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:printing/printing.dart';
@@ -426,7 +427,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
     final catalog = _catalog(
       products,
       state.allowOverselling,
-      location?.name ?? 'Van location',
+      location?.name ?? context.tr('Van location'),
     );
     final bill = _bill(state, methods);
     return ColoredBox(
@@ -454,7 +455,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                 ),
                 if (!compact)
                   Text(
-                    location?.name ?? 'Van location',
+                    location?.name ?? context.tr('Van location'),
                     style: const TextStyle(color: AppColors.muted),
                   ),
               ],
@@ -497,7 +498,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Products · $location',
+            '${context.tr('Products')} · $location',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
@@ -574,7 +575,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          '${product.sku}  ·  catalog stock ${formatQuantity(product.stock)}',
+                          '${product.sku}  ·  ${context.tr('catalog stock')} ${formatQuantity(product.stock)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -595,7 +596,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    tooltip: 'Add ${product.name}',
+                    tooltip: '${context.tr('Add')} ${product.name}',
                     onPressed: () => _change(product, 1, allowOverselling),
                     style: IconButton.styleFrom(
                       backgroundColor: const Color(0xFFDDF4EC),

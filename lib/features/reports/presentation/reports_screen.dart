@@ -245,7 +245,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unable to complete report action: $error')),
+          SnackBar(
+            content: Text(
+              '${context.tr('Unable to complete report action')}: $error',
+            ),
+          ),
         );
       }
     } finally {
@@ -362,7 +366,7 @@ class _ReportFilters extends ConsumerWidget {
                         .map(
                           (count) => DropdownMenuItem(
                             value: count,
-                            child: Text('$count rows'),
+                            child: Text('$count ${context.tr('rows')}'),
                           ),
                         )
                         .toList(),
@@ -407,7 +411,7 @@ class _DateButton extends StatelessWidget {
       if (selected != null) onChanged(selected);
     },
     icon: const Icon(Icons.calendar_today_outlined, size: 17),
-    label: Text('$label: ${_shortDate(value)}'),
+    label: Text('${context.tr(label)}: ${_shortDate(value)}'),
   );
 }
 
@@ -605,14 +609,16 @@ class _Pagination extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Text('${result.total} records'),
+      Text('${result.total} ${context.tr('records')}'),
       const Spacer(),
       IconButton(
         tooltip: context.tr('Previous page'),
         onPressed: result.page > 1 ? () => onChanged(result.page - 1) : null,
         icon: const Icon(Icons.chevron_left),
       ),
-      Text('Page ${result.page} of ${result.lastPage}'),
+      Text(
+        '${context.tr('Page')} ${result.page} ${context.tr('of')} ${result.lastPage}',
+      ),
       IconButton(
         tooltip: context.tr('Next page'),
         onPressed: result.page < result.lastPage

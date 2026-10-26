@@ -1604,7 +1604,7 @@ class _PurchaseDocumentFormState extends ConsumerState<PurchaseDocumentForm> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '${_compact(itemCount)} items',
+                '${_compact(itemCount)} ${context.tr('items')}',
                 style: const TextStyle(color: AppColors.muted, fontSize: 12),
               ),
             ),

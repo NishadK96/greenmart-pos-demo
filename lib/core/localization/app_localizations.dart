@@ -605,6 +605,15 @@ const Map<String, String> _ar = {
   'purchase return': 'مرتجع شراء',
   'purchase returns': 'مرتجعات الشراء',
   'Create purchase order': 'إنشاء أمر شراء',
+  'Create Purchase Order': 'إنشاء أمر شراء',
+  'Edit Purchase Order': 'تعديل أمر الشراء',
+  'Order Details': 'تفاصيل الطلب',
+  'Order Summary': 'ملخص الطلب',
+  'Discount & Tax': 'الخصم والضريبة',
+  'Payment & Delivery': 'الدفع والتسليم',
+  'Item discount': 'خصم الصنف',
+  'Additional discount': 'خصم إضافي',
+  'Not set': 'غير محدد',
   'Create purchase invoice': 'إنشاء فاتورة شراء',
   'Create purchase return': 'إنشاء مرتجع شراء',
   'Edit purchase order': 'تعديل أمر الشراء',
@@ -632,6 +641,78 @@ const Map<String, String> _ar = {
   'Unable to load suppliers.': 'تعذر تحميل الموردين.',
   'Export': 'تصدير',
   'Export CSV': 'تصدير CSV',
+  'Sales totals, trends and invoice performance':
+      'إجماليات المبيعات والاتجاهات وأداء الفواتير',
+  'Product sales': 'مبيعات المنتجات',
+  'Product, category and variation performance':
+      'أداء المنتجات والفئات والمتغيرات',
+  'Purchase totals, dues and suppliers':
+      'إجماليات المشتريات والمستحقات والموردون',
+  'Taxes': 'الضرائب',
+  'Input and output tax summary': 'ملخص ضريبة المدخلات والمخرجات',
+  'Payments': 'المدفوعات',
+  'Payment methods and due collections': 'طرق الدفع وتحصيل المستحقات',
+  'Registers': 'الصناديق',
+  'Register session performance': 'أداء جلسات الصندوق',
+  'Inventory value': 'قيمة المخزون',
+  'Current cost and selling valuation': 'التقييم الحالي بالتكلفة وسعر البيع',
+  'Stock movements': 'حركات المخزون',
+  'Inventory movements and adjustments': 'حركات المخزون وتعديلاته',
+  'Sales and purchase returns': 'مرتجعات المبيعات والمشتريات',
+  'As of': 'حتى تاريخ',
+  'From': 'من',
+  'To': 'إلى',
+  'rows': 'صفاً',
+  'Row Count': 'عدد الصفوف',
+  'Total Before Tax': 'الإجمالي قبل الضريبة',
+  'Tax Amount': 'مبلغ الضريبة',
+  'Discount Amount': 'مبلغ الخصم',
+  'Paid Total': 'إجمالي المدفوع',
+  'Final Total': 'الإجمالي النهائي',
+  'Partial Total': 'الإجمالي الجزئي',
+  'Due Total': 'إجمالي المستحق',
+  'Top performance': 'أفضل أداء',
+  'Reference': 'المرجع',
+  'Variation': 'المتغير',
+  'Method': 'الطريقة',
+  'Paid on': 'تاريخ الدفع',
+  'Metric': 'المؤشر',
+  'Opened': 'فُتح',
+  'Closed': 'أُغلق',
+  'User': 'المستخدم',
+  'Movement': 'الحركة',
+  'Direction': 'الاتجاه',
+  'Value': 'القيمة',
+  'Original': 'الأصل',
+  'Contact': 'جهة الاتصال',
+  'Report sent to printer': 'تم إرسال التقرير إلى الطابعة',
+  'PDF report exported successfully': 'تم تصدير تقرير PDF بنجاح',
+  'Report exported successfully': 'تم تصدير التقرير بنجاح',
+  'Add payment': 'إضافة دفعة',
+  'Bulk status updates apply to purchase orders.':
+      'تنطبق تحديثات الحالة الجماعية على أوامر الشراء.',
+  'Create': 'إنشاء',
+  'Default pay term': 'مدة السداد الافتراضية',
+  'Document details': 'تفاصيل المستند',
+  'Document discount': 'خصم المستند',
+  'Grand total': 'الإجمالي الكلي',
+  'Other charges': 'رسوم أخرى',
+  'Purchase totals': 'إجماليات الشراء',
+  'Remove product': 'إزالة المنتج',
+  'Shipping': 'الشحن',
+  'Shipping and additional expenses': 'الشحن والمصاريف الإضافية',
+  'Total items': 'إجمالي الأصناف',
+  'Select a location': 'اختر موقعاً',
+  'Select a supplier': 'اختر مورداً',
+  'Search for products and add at least one line.':
+      'ابحث عن المنتجات وأضف صنفاً واحداً على الأقل.',
+  'No product lines were returned by the API.':
+      'لم تُرجع واجهة الخادم أي أصناف منتجات.',
+  'Enter a rate above zero': 'أدخل سعراً أكبر من صفر',
+  'Enter a valid payment term': 'أدخل مدة سداد صحيحة',
+  'Enter payment term (e.g. 30)': 'أدخل مدة السداد (مثلاً 30)',
+  'Used for tax invoices and ZATCA supplier identification':
+      'يُستخدم للفواتير الضريبية وتعريف المورد لدى زاتكا',
   'No report records match these filters':
       'لا توجد سجلات تقارير تطابق عوامل التصفية',
   'Kitchen orders': 'طلبات المطبخ',
@@ -660,6 +741,10 @@ const Map<String, String> _ar = {
   'Held': 'معلقة',
   'Held orders': 'الطلبات المعلقة',
   'Hold': 'تعليق',
+  'Pay': 'دفع',
+  'Kitchen': 'المطبخ',
+  'Disc': 'خصم',
+  'Sub': 'الفرعي',
   'Mobile number': 'رقم الجوال',
   'No customers found.': 'لم يتم العثور على عملاء.',
   'No items match this filter.': 'لا توجد أصناف تطابق عامل التصفية.',
@@ -1354,4 +1439,829 @@ const Map<String, String> _ar = {
   'Remove': 'إزالة',
   'Submitting…': 'جارٍ الإرسال…',
   'Login failed. Please try again.': 'فشل تسجيل الدخول. حاول مرة أخرى.',
+  // Fuel checkout and validation.
+  'Add a UPI ID in Settings before using QR payment.':
+      'أضف معرّف UPI في الإعدادات قبل استخدام الدفع عبر رمز QR.',
+  'Enter a valid amount or quantity in litres.':
+      'أدخل مبلغاً أو كمية صحيحة باللترات.',
+  'Fuel checkout requires an online connection. The sale has not been submitted.':
+      'يتطلب إتمام بيع الوقود اتصالاً بالإنترنت. لم يتم إرسال عملية البيع.',
+  'Fuel product or register data is invalid. Refresh and retry.':
+      'بيانات منتج الوقود أو الصندوق غير صحيحة. حدّث الصفحة وحاول مرة أخرى.',
+  'Fuel sale': 'بيع وقود',
+  'Fuel sale completed, but the server did not return an invoice ID for printing.':
+      'اكتمل بيع الوقود، لكن الخادم لم يُرجع معرّف فاتورة للطباعة.',
+  'Open a cash register before checkout.':
+      'افتح صندوقاً نقدياً قبل إتمام الدفع.',
+  'Select a customer before checkout.': 'اختر عميلاً قبل إتمام الدفع.',
+  'Select a registered customer before creating a credit sale.':
+      'اختر عميلاً مسجلاً قبل إنشاء بيع آجل.',
+  'The fuel amount must be at least 0.01.': 'يجب ألا يقل مبلغ الوقود عن 0.01.',
+  'Unable to print the completed sale.': 'تعذرت طباعة عملية البيع المكتملة.',
+  'Unable to submit fuel sale. Check the connection and retry.':
+      'تعذر إرسال بيع الوقود. تحقق من الاتصال وحاول مرة أخرى.',
+
+  // Supplier and address details.
+  'All orders': 'جميع الطلبات',
+  'Contact person': 'جهة الاتصال',
+  'Contact person (Arabic)': 'جهة الاتصال (بالعربية)',
+  'Details': 'التفاصيل',
+  'Postal code': 'الرمز البريدي',
+  'State': 'المنطقة',
+  'Supplier / business name (Arabic)': 'اسم المورد / المنشأة (بالعربية)',
+  'Supplier name': 'اسم المورد',
+  'Supplier name (Arabic)': 'اسم المورد (بالعربية)',
+  'Transaction': 'المعاملة',
+  'Enter a mobile number': 'أدخل رقم الجوال',
+  'Enter a valid 15-digit Saudi VAT number':
+      'أدخل رقم ضريبة قيمة مضافة سعودي صحيحاً مكوناً من 15 رقماً',
+  'Enter a valid email address': 'أدخل عنوان بريد إلكتروني صحيحاً',
+  'Enter additional number': 'أدخل الرقم الإضافي',
+  'Enter address line 1': 'أدخل سطر العنوان الأول',
+  'Enter address line 2': 'أدخل سطر العنوان الثاني',
+  'Enter building number': 'أدخل رقم المبنى',
+  'Enter business name': 'أدخل اسم المنشأة',
+  'Enter city': 'أدخل المدينة',
+  'Enter contact name': 'أدخل اسم جهة الاتصال',
+  'Enter country': 'أدخل الدولة',
+  'Enter email': 'أدخل البريد الإلكتروني',
+  'Enter landmark': 'أدخل علامة مميزة',
+  'Enter mobile': 'أدخل رقم الجوال',
+  'Enter postal code': 'أدخل الرمز البريدي',
+  'Enter state': 'أدخل المنطقة',
+  'Enter street': 'أدخل اسم الشارع',
+  'Enter the VAT number': 'أدخل الرقم الضريبي',
+  'Enter the business name': 'أدخل اسم المنشأة',
+  'Enter the contact name': 'أدخل اسم جهة الاتصال',
+  'Saudi Arabia': 'المملكة العربية السعودية',
+
+  // Product creation and editing.
+  'Add an image and supporting product documents.':
+      'أضف صورة ومستندات داعمة للمنتج.',
+  'Add product details, pricing, inventory and availability.':
+      'أضف تفاصيل المنتج والأسعار والمخزون والتوفر.',
+  'Add product details, specifications or internal notes.':
+      'أضف تفاصيل المنتج أو المواصفات أو الملاحظات الداخلية.',
+  'Back to products': 'العودة إلى المنتجات',
+  'Basic information': 'المعلومات الأساسية',
+  'Basic information used to identify this product.':
+      'المعلومات الأساسية المستخدمة للتعريف بهذا المنتج.',
+  'Check availability': 'التحقق من التوفر',
+  'Choose spreadsheet': 'اختر ملف جدول البيانات',
+  'Choose where this product will be available for sale.':
+      'اختر المواقع التي سيتوفر فيها هذا المنتج للبيع.',
+  'Configure how this product will be taxed and sold.':
+      'اضبط كيفية فرض الضريبة على هذا المنتج وبيعه.',
+  'Configure stock tracking and inventory behaviour.':
+      'اضبط تتبع المخزون وسلوكه.',
+  'Create UOM': 'إنشاء وحدة قياس',
+  'Disabled': 'معطّل',
+  'Enabled': 'مفعّل',
+  'Enter a short name': 'أدخل اسماً مختصراً',
+  'Enter unit name': 'أدخل اسم الوحدة',
+  'Enter a valid number': 'أدخل رقماً صحيحاً',
+  'Enter the essential details needed to start selling.':
+      'أدخل التفاصيل الأساسية اللازمة لبدء البيع.',
+  'Enter the three values you work with. Tax counterparts are calculated automatically.':
+      'أدخل القيم الثلاث التي تستخدمها. تُحسب القيم الضريبية المقابلة تلقائياً.',
+  'Exclusive': 'غير شامل الضريبة',
+  'Inclusive': 'شامل الضريبة',
+  'Keep this item in inventory but prevent it from being sold through POS.':
+      'احتفظ بهذا الصنف في المخزون مع منع بيعه عبر نقطة البيع.',
+  'Locations': 'المواقع',
+  'Low-stock alert': 'تنبيه انخفاض المخزون',
+  'More save options': 'خيارات حفظ إضافية',
+  'No tax selected': 'لم يتم اختيار ضريبة',
+  'Product brochure (optional)': 'كتيب المنتج (اختياري)',
+  'Product image': 'صورة المنتج',
+  'Product information': 'معلومات المنتج',
+  'Product media': 'وسائط المنتج',
+  'Products / Create product': 'المنتجات / إنشاء منتج',
+  'Products / Quick add': 'المنتجات / إضافة سريعة',
+  'Purchase cost excluding tax': 'تكلفة الشراء غير شاملة الضريبة',
+  'Record unique serial/IMEI numbers for each sold unit.':
+      'سجّل الرقم التسلسلي أو IMEI الفريد لكل وحدة مباعة.',
+  'Selling price excluding tax': 'سعر البيع غير شامل الضريبة',
+  'Selling price including tax': 'سعر البيع شامل الضريبة',
+  'Single product': 'منتج مفرد',
+  'Tax & product type': 'الضريبة ونوع المنتج',
+  'Track serial / IMEI numbers': 'تتبع الأرقام التسلسلية / IMEI',
+  'Track stock quantities for this product.': 'تتبع كميات المخزون لهذا المنتج.',
+  'Tracking': 'التتبع',
+  'Untitled product': 'منتج بلا اسم',
+  'Update selected': 'تحديث المحدد',
+  'Upload brochure': 'رفع الكتيب',
+  'Upload product image': 'رفع صورة المنتج',
+  'Allow decimal quantities such as 1.5 or 2.25.':
+      'السماح بكميات عشرية مثل 1.5 أو 2.25.',
+  'Use whole quantities such as 1, 2 or 3.':
+      'استخدم كميات صحيحة مثل 1 أو 2 أو 3.',
+
+  // ZATCA and invoice compliance.
+  'Check status again': 'التحقق من الحالة مرة أخرى',
+  'Check / resubmit': 'تحقق / أعد الإرسال',
+  'Commercial registration no.': 'رقم السجل التجاري',
+  'Configured': 'تم الإعداد',
+  'Device onboarding required': 'يلزم تسجيل الجهاز',
+  'District': 'الحي',
+  'Download XML': 'تنزيل XML',
+  'Enter a valid VAT number': 'أدخل رقماً ضريبياً صحيحاً',
+  'Enter OTP': 'أدخل رمز التحقق',
+  'Environment': 'البيئة',
+  'Installed': 'مثبّت',
+  'Not installed': 'غير مثبّت',
+  'Not generated': 'لم يتم الإنشاء',
+  'Invoice awaiting submission': 'الفاتورة بانتظار الإرسال',
+  'Invoice counter value (ICV)': 'قيمة عداد الفاتورة (ICV)',
+  'Invoice submitted successfully': 'تم إرسال الفاتورة بنجاح',
+  'Location unavailable': 'الموقع غير متاح',
+  'No ZATCA records found.': 'لم يتم العثور على سجلات زاتكا.',
+  'No permitted locations are available.': 'لا توجد مواقع مسموح بها.',
+  'Onboard device': 'تسجيل الجهاز',
+  'Original invoice': 'الفاتورة الأصلية',
+  'Parent invoice': 'الفاتورة المرتبطة',
+  'Reconfigure': 'إعادة الإعداد',
+  'Save signed ZATCA XML': 'حفظ ملف XML الموقّع من زاتكا',
+  'Secondary / plot number': 'الرقم الإضافي / رقم القطعة',
+  'Select invoice(s) or returns and send them to ZATCA.':
+      'اختر الفواتير أو المرتجعات وأرسلها إلى زاتكا.',
+  'Signing time': 'وقت التوقيع',
+  'Street': 'الشارع',
+  'Submit credit note': 'إرسال الإشعار الدائن',
+  'Submit invoice': 'إرسال الفاتورة',
+  'Subscription disabled': 'الاشتراك معطّل',
+  'Subscription enabled': 'الاشتراك مفعّل',
+  'Sync start not configured': 'بداية المزامنة غير مُعدّة',
+  'Total invoices': 'إجمالي الفواتير',
+  'Transaction date': 'تاريخ المعاملة',
+  'Unavailable': 'غير متاح',
+  'UUID': 'المعرّف الفريد UUID',
+  'View QR': 'عرض رمز QR',
+
+  // Van sales and invoice documents.
+  'Enter a valid quantity within available stock.':
+      'أدخل كمية صحيحة ضمن المخزون المتاح.',
+  'Open a van cash register before selling.':
+      'افتح صندوق مبيعات المركبة قبل البيع.',
+  'Reconnect to download invoice PDF.': 'أعد الاتصال لتنزيل فاتورة PDF.',
+  'Save invoice PDF': 'حفظ فاتورة PDF',
+  'Select a customer before selling.': 'اختر عميلاً قبل البيع.',
+  'Select a registered customer for a credit sale.':
+      'اختر عميلاً مسجلاً للبيع الآجل.',
+  'The register location is unavailable.': 'موقع الصندوق غير متاح.',
+  'Van sale confirmed.': 'تم تأكيد بيع المركبة.',
+  'Unable to prepare invoice PDF.': 'تعذر تجهيز فاتورة PDF.',
+  'Unable to print invoice.': 'تعذرت طباعة الفاتورة.',
+  'Unable to submit van sale. Check the connection and retry.':
+      'تعذر إرسال بيع المركبة. تحقق من الاتصال وحاول مرة أخرى.',
+  'Van sales require an online connection.':
+      'تتطلب مبيعات المركبة اتصالاً بالإنترنت.',
+  'Van sale completed.': 'اكتمل بيع المركبة.',
+
+  // Application updates.
+  'App updates': 'تحديثات التطبيق',
+  'Check for updates': 'التحقق من التحديثات',
+  'Installed app version.': 'إصدار التطبيق المثبّت.',
+  'Last checked': 'آخر تحقق',
+  'Stable': 'مستقر',
+  'You have the latest version.': 'لديك أحدث إصدار.',
+  'Bug fixes and minor enhancements': 'إصلاحات أخطاء وتحسينات بسيطة',
+  'Download and install': 'تنزيل وتثبيت',
+  'File size': 'حجم الملف',
+  'Improved performance and stability': 'تحسين الأداء والاستقرار',
+  'Not available': 'غير متاح',
+  'Update Available': 'يتوفر تحديث',
+  'Update Required': 'التحديث مطلوب',
+  'The update could not be installed. Please try again.':
+      'تعذر تثبيت التحديث. يرجى المحاولة مرة أخرى.',
+  'Version': 'الإصدار',
+
+  // Subscription and user capacity.
+  'Add user': 'إضافة مستخدم',
+  'Additional users': 'مستخدمون إضافيون',
+  'Advance': 'متقدم',
+  'Available seats': 'المقاعد المتاحة',
+  'Basic': 'أساسي',
+  'Buy additional user': 'شراء مستخدم إضافي',
+  'Contact account manager': 'تواصل مع مدير الحساب',
+  'Included users': 'المستخدمون المشمولون',
+  'Lite': 'خفيف',
+  'No additional users': 'لا يوجد مستخدمون إضافيون',
+  'Paid users available': 'مستخدمون مدفوعون متاحون',
+  'Review package and user capacity.': 'راجع الباقة وسعة المستخدمين.',
+  'Standard': 'قياسي',
+  'Subscription & users': 'الاشتراك والمستخدمون',
+  'Unlimited': 'غير محدود',
+  'Upgrade package': 'ترقية الباقة',
+  'User limit reached': 'تم بلوغ حد المستخدمين',
+  'User setup': 'إعداد المستخدم',
+
+  // Printer routing and document preview.
+  'B2B billing': 'فوترة منشآت',
+  'B2C billing': 'فوترة أفراد',
+  'Barcode height': 'ارتفاع الباركود',
+  'Barcode width': 'عرض الباركود',
+  'Choose an invoice layout before previewing.':
+      'اختر قالب فاتورة قبل المعاينة.',
+  'Choose a printer before testing this route.':
+      'اختر طابعة قبل اختبار هذا المسار.',
+  'EazyERP invoice preview': 'معاينة فاتورة EazyERP',
+  'Preview opened in Windows PDF viewer':
+      'تم فتح المعاينة في عارض PDF في ويندوز',
+  'Ready for automatic printing': 'جاهز للطباعة التلقائية',
+  'Route disabled': 'مسار الطباعة معطّل',
+  'Select an ERP layout': 'اختر قالب ERP',
+  'Select a physical printer': 'اختر طابعة فعلية',
+  'Stickers per row': 'ملصقات في كل صف',
+  'Unable to render PDF preview.': 'تعذر عرض معاينة PDF.',
+  'Unable to open the Windows PDF viewer.': 'تعذر فتح عارض PDF في ويندوز.',
+  'Use the native Windows PDF viewer for this document.':
+      'استخدم عارض PDF الأصلي في ويندوز لهذا المستند.',
+
+  // Cash register opening, movements and reconciliation.
+  'Add a note about this register closing (optional)…':
+      'أضف ملاحظة عن إغلاق هذا الصندوق (اختياري)…',
+  'Bank transfer': 'تحويل بنكي',
+  'COUNTED': 'المعدود',
+  'EXPECTED': 'المتوقع',
+  'PAYMENT METHOD': 'طريقة الدفع',
+  'VARIANCE': 'الفرق',
+  'Counted': 'المعدود',
+  'Expected': 'المتوقع',
+  'Variance': 'الفرق',
+  'Cash added': 'تمت إضافة النقد',
+  'Cash removed': 'تم سحب النقد',
+  'Choose a location and enter the opening cash amount.':
+      'اختر موقعاً وأدخل مبلغ النقد الافتتاحي.',
+  'Choose location': 'اختر الموقع',
+  'Review expected totals and enter the amounts counted.':
+      'راجع الإجماليات المتوقعة وأدخل المبالغ المعدودة.',
+  'Enter a valid opening cash amount.': 'أدخل مبلغ نقد افتتاحي صحيحاً.',
+  'Enter a valid amount.': 'أدخل مبلغاً صحيحاً.',
+  'Record cash in/out': 'تسجيل إدخال / إخراج النقد',
+  'Register open': 'الصندوق مفتوح',
+  'Start shift': 'بدء الوردية',
+  'No open cash register was found.': 'لم يتم العثور على صندوق نقدي مفتوح.',
+  'You do not have permission to use this location.':
+      'ليس لديك صلاحية استخدام هذا الموقع.',
+  'Select an allowed location.': 'اختر موقعاً مسموحاً به.',
+
+  // Kitchen and restaurant workflows.
+  'Add item note': 'إضافة ملاحظة للصنف',
+  'Add modifiers': 'إضافة تعديلات',
+  'Add order note': 'إضافة ملاحظة للطلب',
+  'Back to menu': 'العودة إلى القائمة',
+  'Bill sent to printer.': 'تم إرسال الفاتورة إلى الطابعة.',
+  'Cached data is required to continue offline.':
+      'يلزم توفر بيانات محفوظة مؤقتاً للمتابعة دون اتصال.',
+  'Cash payment is not configured.': 'الدفع النقدي غير مُعد.',
+  'Card payment is not configured.': 'الدفع بالبطاقة غير مُعد.',
+  'Customer name is required.': 'اسم العميل مطلوب.',
+  'Customer mobile is required.': 'رقم جوال العميل مطلوب.',
+  'Delivery': 'توصيل',
+  'Dine in': 'محلي',
+  'Held order restored.': 'تمت استعادة الطلب المعلّق.',
+  'Kitchen order': 'طلب المطبخ',
+  'Open a cash register before using Bill & Pay.':
+      'افتح صندوقاً نقدياً قبل استخدام الفاتورة والدفع.',
+  'Order time': 'وقت الطلب',
+  'Recent orders require an online connection.':
+      'تتطلب الطلبات الأخيرة اتصالاً بالإنترنت.',
+  'Refresh data': 'تحديث البيانات',
+  'Restaurant order details require an online connection.':
+      'تتطلب تفاصيل طلب المطعم اتصالاً بالإنترنت.',
+  'Resume order': 'استئناف الطلب',
+  'Review orders': 'مراجعة الطلبات',
+  'Save order': 'حفظ الطلب',
+  'Clear order': 'مسح الطلب',
+  'Set up a printer before printing the bill.':
+      'قم بإعداد طابعة قبل طباعة الفاتورة.',
+  'Saving…': 'جارٍ الحفظ…',
+  'Search items': 'البحث عن الأصناف',
+  'Sent orders': 'الطلبات المرسلة',
+  'The order was not confirmed by the server.': 'لم يؤكد الخادم الطلب.',
+  'Update item': 'تحديث الصنف',
+  'View order': 'عرض الطلب',
+  'Edit print name': 'تعديل اسم الطباعة',
+  'Printed': 'تمت الطباعة',
+  'Set print name': 'تعيين اسم الطباعة',
+  'Optional': 'اختياري',
+  'Online tables': 'الطاولات المتصلة',
+  'Sent': 'تم الإرسال',
+  'Unable to verify POS access. Please reconnect and retry.':
+      'تعذر التحقق من صلاحية نقطة البيع. أعد الاتصال وحاول مرة أخرى.',
+  'Your role does not have access to': 'لا يملك دورك صلاحية الوصول إلى',
+  // Remaining shared navigation, filters and operational states.
+  'Activate': 'تفعيل',
+  'Deactivate': 'إلغاء التفعيل',
+  'All Products': 'جميع المنتجات',
+  'All customers': 'جميع العملاء',
+  'All sections': 'جميع الأقسام',
+  'Alternate contact number': 'رقم اتصال بديل',
+  'Amount high to low': 'المبلغ من الأعلى إلى الأقل',
+  'Amount low to high': 'المبلغ من الأقل إلى الأعلى',
+  'Amount range': 'نطاق المبلغ',
+  'Arabic name': 'الاسم بالعربية',
+  'Automatic invoice printing': 'طباعة الفواتير تلقائياً',
+  'Automatic invoice printing is on': 'الطباعة التلقائية للفواتير مفعّلة',
+  'Average order value': 'متوسط قيمة الطلب',
+  'Billing, quotation, kitchen and barcode printer profiles':
+      'ملفات طابعات الفواتير وعروض الأسعار والمطبخ والباركود',
+  'Bluetooth printer': 'طابعة بلوتوث',
+  'Both': 'كلاهما',
+  'Browser / system print dialog': 'نافذة طباعة المتصفح / النظام',
+  'Business & ZATCA details': 'بيانات المنشأة وزاتكا',
+  'Business settings': 'إعدادات المنشأة',
+  'Business settings require an online session.':
+      'تتطلب إعدادات المنشأة جلسة متصلة بالإنترنت.',
+  'Cards': 'البطاقات',
+  'Cart text size': 'حجم نص السلة',
+  'Cash or card payment is not configured for this location.':
+      'الدفع النقدي أو بالبطاقة غير مُعد لهذا الموقع.',
+  'Checking…': 'جارٍ التحقق…',
+  'Choose one': 'اختر واحداً',
+  'Choose the selling location and count the opening cash before taking payments.':
+      'اختر موقع البيع وعدّ النقد الافتتاحي قبل استلام المدفوعات.',
+  'Choose which methods appear at checkout, change their display names, and set their order.':
+      'اختر طرق الدفع الظاهرة عند الدفع، وعدّل أسماءها وترتيبها.',
+  'Choose which order types appear in POS, rename them, and set their order.':
+      'اختر أنواع الطلبات الظاهرة في نقطة البيع، وعدّل أسماءها وترتيبها.',
+  'Completed today': 'المكتمل اليوم',
+  'Configure invoice printers in Settings first':
+      'قم بإعداد طابعات الفواتير في الإعدادات أولاً',
+  'Configure printer routes in Settings before switching here.':
+      'قم بإعداد مسارات الطباعة في الإعدادات قبل التبديل هنا.',
+  'Connect to the server to refresh sales history.':
+      'اتصل بالخادم لتحديث سجل المبيعات.',
+  'Connected': 'متصل',
+  'Contact details': 'بيانات الاتصال',
+  'Contact your account manager': 'تواصل مع مدير حسابك',
+  'Create a ZATCA-ready business customer': 'إنشاء عميل منشأة متوافق مع زاتكا',
+  'Create a customer for simplified invoices': 'إنشاء عميل للفواتير المبسطة',
+  'Create category': 'إنشاء فئة',
+  'Create return': 'إنشاء مرتجع',
+  'Create subcategory': 'إنشاء فئة فرعية',
+  'Creating return...': 'جارٍ إنشاء المرتجع...',
+  'Current period': 'الفترة الحالية',
+  'Current stop': 'المحطة الحالية',
+  'Custom range': 'نطاق مخصص',
+  'Customer VAT': 'الرقم الضريبي للعميل',
+  'Date of birth': 'تاريخ الميلاد',
+  'Date range': 'نطاق التاريخ',
+  'Default billing customer': 'عميل الفوترة الافتراضي',
+  'Detailed tax invoice': 'فاتورة ضريبية مفصلة',
+  'Device onboarding, compliance status and invoice submissions':
+      'تسجيل الجهاز وحالة الامتثال وإرسال الفواتير',
+  'Discount rate': 'نسبة الخصم',
+  'Display name': 'اسم العرض',
+  'Edit Price': 'تعديل السعر',
+  'Edit category': 'تعديل الفئة',
+  'Edit item note': 'تعديل ملاحظة الصنف',
+  'Edit modifiers': 'تعديل الإضافات',
+  'Edit order note': 'تعديل ملاحظة الطلب',
+  'Enter a unit name': 'أدخل اسم الوحدة',
+  'Enter a valid 15-digit VAT number':
+      'أدخل رقماً ضريبياً صحيحاً مكوناً من 15 رقماً',
+  'Enter email address': 'أدخل عنوان البريد الإلكتروني',
+  'Enter mobile number': 'أدخل رقم الجوال',
+  'Enter state or province': 'أدخل المنطقة أو المحافظة',
+  'Enter the 6-digit OTP': 'أدخل رمز التحقق المكون من 6 أرقام',
+  'Expected total': 'الإجمالي المتوقع',
+  'Expenses': 'المصروفات',
+  'Favorites': 'المفضلة',
+  'First name': 'الاسم الأول',
+  'Gross discount': 'إجمالي الخصم',
+  'Held order removed.': 'تم حذف الطلب المعلّق.',
+  'Held orders will appear here.': 'ستظهر الطلبات المعلّقة هنا.',
+  'Hide password': 'إخفاء كلمة المرور',
+  'Importing…': 'جارٍ الاستيراد…',
+  'In stock': 'متوفر في المخزون',
+  'Installed app version and updates': 'إصدار التطبيق المثبّت والتحديثات',
+  'Invoice layout': 'قالب الفاتورة',
+  'Invoice printing disabled.': 'تم تعطيل طباعة الفواتير.',
+  'Invoice printing enabled.': 'تم تفعيل طباعة الفواتير.',
+  'Invoice printing is off': 'طباعة الفواتير متوقفة',
+  'Landline': 'الهاتف الثابت',
+  'Large': 'كبير',
+  'Last name': 'اسم العائلة',
+  'Line discounts': 'خصومات البنود',
+  'Line total': 'إجمالي البند',
+  'Loading…': 'جارٍ التحميل…',
+  'Low Stock': 'مخزون منخفض',
+  'Menu': 'القائمة',
+  'Middle name': 'الاسم الأوسط',
+  'Mobile number is required': 'رقم الجوال مطلوب',
+  'Mobile route sales from the selected van location':
+      'مبيعات المسار المتنقل من موقع المركبة المحدد',
+  'Move down': 'تحريك لأسفل',
+  'Move up': 'تحريك لأعلى',
+  'Mr / Mrs / Miss': 'السيد / السيدة / الآنسة',
+  'Net profit': 'صافي الربح',
+  'New customer': 'عميل جديد',
+  'Newest first': 'الأحدث أولاً',
+  'No customers are available': 'لا يوجد عملاء متاحون',
+  'No customers match this search': 'لا يوجد عملاء مطابقون للبحث',
+  'No default business tax': 'لا توجد ضريبة افتراضية للمنشأة',
+  'No matching product found': 'لم يتم العثور على منتج مطابق',
+  'No matching products in this van.': 'لا توجد منتجات مطابقة في هذه المركبة.',
+  'No open cash register.': 'لا يوجد صندوق نقدي مفتوح.',
+  'No payment methods enabled': 'لا توجد طرق دفع مفعّلة',
+  'No payments yet': 'لا توجد مدفوعات بعد',
+  'No permitted business locations were returned.':
+      'لم يتم إرجاع مواقع منشأة مسموح بها.',
+  'No products match these filters': 'لا توجد منتجات تطابق عوامل التصفية',
+  'No sales found. Try changing the date range or active filters.':
+      'لم يتم العثور على مبيعات. جرّب تغيير نطاق التاريخ أو عوامل التصفية.',
+  'No sales returns match this date range.':
+      'لا توجد مرتجعات مبيعات تطابق نطاق التاريخ.',
+  'No sales yet': 'لا توجد مبيعات بعد',
+  'No saved orders': 'لا توجد طلبات محفوظة',
+  'No tax': 'بدون ضريبة',
+  'No transactions': 'لا توجد معاملات',
+  'Oldest first': 'الأقدم أولاً',
+  'Open Drawer': 'فتح درج النقد',
+  'Order type': 'نوع الطلب',
+  'Order type name': 'اسم نوع الطلب',
+  'Out of Stock': 'نفد المخزون',
+  'Pay now': 'ادفع الآن',
+  'Payment method name': 'اسم طريقة الدفع',
+  'Payment methods': 'طرق الدفع',
+  'Piece': 'قطعة',
+  'Position / designation': 'المنصب / المسمى الوظيفي',
+  'Price Check': 'التحقق من السعر',
+  'Price range': 'نطاق السعر',
+  'Printers & documents': 'الطابعات والمستندات',
+  'Printing off': 'الطباعة متوقفة',
+  'Printing…': 'جارٍ الطباعة…',
+  'Product activated.': 'تم تفعيل المنتج.',
+  'Product card style': 'نمط بطاقة المنتج',
+  'Product deactivated.': 'تم إلغاء تفعيل المنتج.',
+  'Quantity added per product tap': 'الكمية المضافة عند النقر على المنتج',
+  'Quick Product': 'منتج سريع',
+  'Recent': 'الأحدث',
+  'Rename': 'إعادة تسمية',
+  'Reset defaults': 'استعادة الإعدادات الافتراضية',
+  'Sales overview': 'نظرة عامة على المبيعات',
+  'Sales returns': 'مرتجعات المبيعات',
+  'Search invoice, customer or amount...':
+      'ابحث بالفاتورة أو العميل أو المبلغ...',
+  'Search or scan product': 'ابحث عن منتج أو امسح الباركود',
+  'Search return, original invoice or customer...':
+      'ابحث بالمرتجع أو الفاتورة الأصلية أو العميل...',
+  'Select a layout and printer': 'اختر قالباً وطابعة',
+  'Select product': 'اختر المنتج',
+  'Selected modifiers': 'الإضافات المحددة',
+  'Service item': 'صنف خدمة',
+  'Setup': 'إعداد',
+  'Shipping address': 'عنوان الشحن',
+  'Show password': 'إظهار كلمة المرور',
+  'Sign in again': 'تسجيل الدخول مرة أخرى',
+  'Sign in to access POS.': 'سجّل الدخول للوصول إلى نقطة البيع.',
+  'Sign in to refresh sales history.': 'سجّل الدخول لتحديث سجل المبيعات.',
+  'Simple cards': 'بطاقات بسيطة',
+  'Small': 'صغير',
+  'Stock levels look good': 'مستويات المخزون جيدة',
+  'Stock range': 'نطاق المخزون',
+  'Switch': 'تبديل',
+  'Switch invoice printer': 'تبديل طابعة الفاتورة',
+  'Sync status': 'حالة المزامنة',
+  'Synchronized': 'تمت المزامنة',
+  'Thermal': 'حرارية',
+  'Thermal 58 mm': 'حرارية 58 مم',
+  'Thermal 80 mm': 'حرارية 80 مم',
+  'Time': 'الوقت',
+  'Top Selling': 'الأكثر مبيعاً',
+  'Total Products': 'إجمالي المنتجات',
+  'Total Stock Value': 'إجمالي قيمة المخزون',
+  'Total customers': 'إجمالي العملاء',
+  'Total purchases': 'إجمالي المشتريات',
+  'Uncategorized': 'غير مصنف',
+  'Updating…': 'جارٍ التحديث…',
+  'Username': 'اسم المستخدم',
+  'VAT display name': 'اسم عرض الضريبة',
+  'Vehicle': 'المركبة',
+  'View all': 'عرض الكل',
+  'With images': 'مع الصور',
+  'You are using the latest version.': 'أنت تستخدم أحدث إصدار.',
+  // Error, empty and recovery states shown to users.
+  'A login seat is available': 'يوجد مقعد تسجيل دخول متاح',
+  'Add an item before sending an order.': 'أضف صنفاً قبل إرسال الطلب.',
+  'An update is available, but its download details are incomplete.':
+      'يتوفر تحديث، لكن تفاصيل تنزيله غير مكتملة.',
+  'Cached customer and location data are required.':
+      'يلزم توفر بيانات العملاء والمواقع المحفوظة مؤقتاً.',
+  'Complete and synchronize at least one sale before previewing an ERP invoice layout.':
+      'أكمل عملية بيع واحدة على الأقل وقم بمزامنتها قبل معاينة قالب فاتورة ERP.',
+  'Complete and synchronize at least one sale before testing an ERP invoice layout.':
+      'أكمل عملية بيع واحدة على الأقل وقم بمزامنتها قبل اختبار قالب فاتورة ERP.',
+  'Complete and synchronize at least one sale before testing this route.':
+      'أكمل عملية بيع واحدة على الأقل وقم بمزامنتها قبل اختبار هذا المسار.',
+  'Connect and sign in to check for updates.':
+      'اتصل بالإنترنت وسجّل الدخول للتحقق من التحديثات.',
+  'Connect once with an open register to authorize this device for offline sales.':
+      'اتصل مرة واحدة مع صندوق مفتوح للسماح لهذا الجهاز بالمبيعات دون اتصال.',
+  'Could not discover system printers.': 'تعذر اكتشاف طابعات النظام.',
+  'Could not render the receipt for Bluetooth printing.':
+      'تعذر تجهيز الإيصال للطباعة عبر البلوتوث.',
+  'Invoice-linked refunds synchronized with EazyERP.':
+      'تمت مزامنة المرتجعات المرتبطة بالفواتير مع EazyERP.',
+  'Kitchen job history is unavailable for this account. Ask the backend administrator to grant sales access for kitchen print jobs.':
+      'سجل مهام المطبخ غير متاح لهذا الحساب. اطلب من مسؤول النظام منح صلاحية المبيعات لمهام طباعة المطبخ.',
+  'Kitchen job printed.': 'تمت طباعة مهمة المطبخ.',
+  'Kitchen order saved, but no printer jobs were generated.':
+      'تم حفظ طلب المطبخ، لكن لم يتم إنشاء مهام طباعة.',
+  'Kitchen order synced without a transaction ID. Retry with the same order.':
+      'تمت مزامنة طلب المطبخ دون معرّف معاملة. أعد المحاولة بالطلب نفسه.',
+  'Kitchen settings require an online session.':
+      'تتطلب إعدادات المطبخ جلسة متصلة بالإنترنت.',
+  'Kitchen transaction ID is missing.': 'معرّف معاملة المطبخ مفقود.',
+  'No active kitchen printer route is configured. Add a category route below and pair its ERP printer with this device before sending another kitchen order.':
+      'لا يوجد مسار طباعة مطبخ نشط. أضف مسار فئة واربط طابعة ERP بهذا الجهاز قبل إرسال طلب مطبخ آخر.',
+  'No available printer was found. Connect a printer, scan again, and set it as default.':
+      'لم يتم العثور على طابعة متاحة. صِل طابعة، وأعد البحث، ثم عيّنها كافتراضية.',
+  'No kitchen printer jobs are available for this order.':
+      'لا توجد مهام طباعة مطبخ لهذا الطلب.',
+  'No kitchen ticket was printed. Configure an active category printer route in Printer settings, then retry printing from Kitchen orders.':
+      'لم تتم طباعة تذكرة المطبخ. اضبط مسار طابعة فئة نشطاً في إعدادات الطابعة، ثم أعد الطباعة من طلبات المطبخ.',
+  'No paired Bluetooth printer found. Pair your printer in Android Settings, then scan again.':
+      'لم يتم العثور على طابعة بلوتوث مقترنة. قم بإقرانها من إعدادات أندرويد ثم أعد البحث.',
+  'No physical default printer is selected. Open Printer settings, scan for printers, and set one as default.':
+      'لم يتم اختيار طابعة فعلية افتراضية. افتح إعدادات الطابعة وابحث عن الطابعات ثم عيّن إحداها كافتراضية.',
+  'Offline POS is not prepared. Connect once and prepare offline mode from Sync.':
+      'نقطة البيع غير مهيأة للعمل دون اتصال. اتصل مرة واحدة وهيئ وضع عدم الاتصال من المزامنة.',
+  'Offline access has expired. Connect to the server to sign in again.':
+      'انتهت صلاحية الوصول دون اتصال. اتصل بالخادم لتسجيل الدخول مرة أخرى.',
+  'Offline data is unavailable. Connect once and synchronize this device.':
+      'بيانات وضع عدم الاتصال غير متاحة. اتصل مرة واحدة وقم بمزامنة هذا الجهاز.',
+  'Offline sale saved': 'تم حفظ البيع دون اتصال',
+  'Open a cash register before completing this sale.':
+      'افتح صندوقاً نقدياً قبل إتمام هذا البيع.',
+  'Open the cash register to continue with Bill & Pay.':
+      'افتح الصندوق النقدي للمتابعة إلى الفاتورة والدفع.',
+  'Order saved; kitchen printing pending.':
+      'تم حفظ الطلب؛ طباعة المطبخ قيد الانتظار.',
+  'Overselling is disabled for POS sales.':
+      'البيع بأكثر من المخزون معطّل لمبيعات نقطة البيع.',
+  'Overselling is enabled for POS sales.':
+      'البيع بأكثر من المخزون مفعّل لمبيعات نقطة البيع.',
+  'Please sign in to this account again.':
+      'يرجى تسجيل الدخول إلى هذا الحساب مرة أخرى.',
+  'Prepare offline mode for this location from Sync while connected.':
+      'هيئ وضع عدم الاتصال لهذا الموقع من المزامنة أثناء الاتصال.',
+  'Refresh customer and business location data before billing.':
+      'حدّث بيانات العميل وموقع المنشأة قبل الفوترة.',
+  'Refresh customer and business location data before saving.':
+      'حدّث بيانات العميل وموقع المنشأة قبل الحفظ.',
+  'Refresh customer and business location data before sending.':
+      'حدّث بيانات العميل وموقع المنشأة قبل الإرسال.',
+  'Refresh data directly from EazyERP.': 'حدّث البيانات مباشرة من EazyERP.',
+  'Restaurant order details require an online session.':
+      'تتطلب تفاصيل طلب المطعم جلسة متصلة بالإنترنت.',
+  'Restaurant tables require an online session.':
+      'تتطلب طاولات المطعم جلسة متصلة بالإنترنت.',
+  'Sale data is incomplete. Refresh and retry.':
+      'بيانات البيع غير مكتملة. حدّث وحاول مرة أخرى.',
+  'Save or clear the current order before starting another one.':
+      'احفظ الطلب الحالي أو امسحه قبل بدء طلب آخر.',
+  'Save or send the order before printing its bill.':
+      'احفظ الطلب أو أرسله قبل طباعة فاتورته.',
+  'Secure connection failed. Check the computer date, network, or antivirus HTTPS scanning.':
+      'فشل الاتصال الآمن. تحقق من تاريخ الجهاز والشبكة وفحص HTTPS في برنامج الحماية.',
+  'Select an ERP invoice layout before previewing.':
+      'اختر قالب فاتورة ERP قبل المعاينة.',
+  'Select an ERP layout and physical printer first.':
+      'اختر قالب ERP وطابعة فعلية أولاً.',
+  'Select an ERP layout and synchronize at least one sale before previewing.':
+      'اختر قالب ERP وقم بمزامنة عملية بيع واحدة على الأقل قبل المعاينة.',
+  'Set up a kitchen printer route in Printer settings first.':
+      'قم بإعداد مسار طابعة المطبخ في إعدادات الطابعة أولاً.',
+  'Submission was not confirmed. Retry this same order to avoid a duplicate sale.':
+      'لم يتم تأكيد الإرسال. أعد محاولة الطلب نفسه لتجنب تكرار البيع.',
+  'The backend is unavailable; continue in offline mode.':
+      'الخادم غير متاح؛ تابع في وضع عدم الاتصال.',
+  'The cart is empty.': 'السلة فارغة.',
+  'The kitchen sale response did not include a transaction ID. Retry with the same order.':
+      'لم تتضمن استجابة بيع المطبخ معرّف معاملة. أعد المحاولة بالطلب نفسه.',
+  'The open cash register belongs to another location. Close it and open a register for this store.':
+      'الصندوق المفتوح تابع لموقع آخر. أغلقه وافتح صندوقاً لهذا المتجر.',
+  'The open cash register does not match an available business location.':
+      'الصندوق المفتوح لا يطابق موقع منشأة متاحاً.',
+  'The open register location is not allowed for this account.':
+      'موقع الصندوق المفتوح غير مسموح لهذا الحساب.',
+  'The printer rejected the print job.': 'رفضت الطابعة مهمة الطباعة.',
+  'The register location is unavailable. Refresh and retry.':
+      'موقع الصندوق غير متاح. حدّث وحاول مرة أخرى.',
+  'The sale was confirmed by the server.': 'تم تأكيد البيع من الخادم.',
+  'This POS location is not assigned to your account.':
+      'موقع نقطة البيع هذا غير معيّن لحسابك.',
+  'This location is not assigned to your POS account.':
+      'هذا الموقع غير معيّن لحساب نقطة البيع الخاص بك.',
+  'This order has not been synced yet.': 'لم تتم مزامنة هذا الطلب بعد.',
+  'This order is waiting to sync and cannot be edited yet.':
+      'هذا الطلب ينتظر المزامنة ولا يمكن تعديله بعد.',
+  'This payment method is not enabled for offline sales at this location.':
+      'طريقة الدفع هذه غير مفعّلة للمبيعات دون اتصال في هذا الموقع.',
+  'This register belongs to a location that is not allowed for this account.':
+      'هذا الصندوق تابع لموقع غير مسموح لهذا الحساب.',
+  'Unable to check for updates right now.': 'تعذر التحقق من التحديثات حالياً.',
+  'Unable to create customer. Please try again.':
+      'تعذر إنشاء العميل. يرجى المحاولة مرة أخرى.',
+  'Unable to create the sale return. Please retry.':
+      'تعذر إنشاء مرتجع البيع. يرجى المحاولة مرة أخرى.',
+  'Unable to prepare the invoice PDF. Please retry.':
+      'تعذر تجهيز فاتورة PDF. يرجى المحاولة مرة أخرى.',
+  'Unable to save this customer. Please try again.':
+      'تعذر حفظ هذا العميل. يرجى المحاولة مرة أخرى.',
+  'Unable to sign in to this account.': 'تعذر تسجيل الدخول إلى هذا الحساب.',
+  'Unable to submit sale. Check your connection and retry.':
+      'تعذر إرسال البيع. تحقق من الاتصال وحاول مرة أخرى.',
+  'Unable to verify your allowed POS locations. Reconnect and retry.':
+      'تعذر التحقق من مواقع نقطة البيع المسموح بها. أعد الاتصال وحاول مرة أخرى.',
+  'Van checkout requires an online connection. No sale was recorded.':
+      'يتطلب إتمام بيع المركبة اتصالاً بالإنترنت. لم يتم تسجيل البيع.',
+  'Windows PDF viewer is unavailable.': 'عارض PDF في ويندوز غير متاح.',
+  'Windows updates are only available on Windows.':
+      'تحديثات ويندوز متاحة على ويندوز فقط.',
+  'Your saved session has expired.': 'انتهت صلاحية جلستك المحفوظة.',
+  'Your session has expired.': 'انتهت صلاحية جلستك.',
+  'Your session has expired. Please sign in again.':
+      'انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.',
+  'Your session has expired. Please sign in.':
+      'انتهت صلاحية جلستك. يرجى تسجيل الدخول.',
+  'A4 invoice': 'فاتورة A4',
+  'A4 printer': 'طابعة A4',
+  'Add a note about this register closing (optional)':
+      'أضف ملاحظة عن إغلاق هذا الصندوق (اختياري)',
+  'Add order note…': 'أضف ملاحظة للطلب…',
+  'Add products from the van to start an order.':
+      'أضف منتجات من المركبة لبدء الطلب.',
+  'Android print service': 'خدمة الطباعة في أندرويد',
+  'B2B': 'منشآت',
+  'B2B invoices use the company VAT and registered address for ZATCA clearance.':
+      'تستخدم فواتير المنشآت الرقم الضريبي والعنوان المسجل لإجراءات زاتكا.',
+  'B2C': 'أفراد',
+  'B2C customers use the simplified invoice flow. Business tax fields are not required.':
+      'يستخدم عملاء الأفراد مسار الفاتورة المبسطة، ولا تُطلب الحقول الضريبية للمنشأة.',
+  'Bill sent to the selected billing printer.':
+      'تم إرسال الفاتورة إلى طابعة الفواتير المحددة.',
+  'Browsers do not allow websites to enumerate or silently select installed printers.':
+      'لا تسمح المتصفحات للمواقع بعرض الطابعات المثبّتة أو اختيارها تلقائياً.',
+  'Cash added.': 'تمت إضافة النقد.',
+  'Cash removed.': 'تم سحب النقد.',
+  'Choose a printer in the Android print dialog':
+      'اختر طابعة من نافذة الطباعة في أندرويد',
+  'Choose an installed printer when the dialog opens':
+      'اختر طابعة مثبّتة عند فتح النافذة',
+  'Choose up to one': 'اختر خياراً واحداً كحد أقصى',
+  'Compact price label': 'تسمية سعر مختصرة',
+  'Company name is required.': 'اسم المنشأة مطلوب.',
+  'Contact ID': 'معرّف جهة الاتصال',
+  'Customer group ID': 'معرّف مجموعة العملاء',
+  'Customer name is required': 'اسم العميل مطلوب',
+  'Enter street name': 'أدخل اسم الشارع',
+  'Kitchen order ticket': 'تذكرة طلب المطبخ',
+  'Leave empty to use the business name on kitchen tickets.':
+      'اتركه فارغاً لاستخدام اسم المنشأة على تذاكر المطبخ.',
+  'Live stock reported by EazyERP.': 'المخزون المباشر كما ورد من EazyERP.',
+  'No ZATCA records match these filters.':
+      'لا توجد سجلات زاتكا تطابق عوامل التصفية.',
+  'Not prepared': 'غير مهيأ',
+  'Onboarding…': 'جارٍ التسجيل…',
+  'Open': 'مفتوح',
+  'Opening invoice preview…': 'جارٍ فتح معاينة الفاتورة…',
+  'PDF, document, spreadsheet, ZIP or image':
+      'PDF أو مستند أو جدول بيانات أو ZIP أو صورة',
+  'POS access': 'صلاحية نقطة البيع',
+  'POS order types': 'أنواع طلبات نقطة البيع',
+  'Paired Bluetooth (ESC/POS)': 'بلوتوث مقترن (ESC/POS)',
+  'Performance reported by EazyERP.': 'الأداء كما ورد من EazyERP.',
+  'Prefix': 'اللقب',
+  'Press the arrow keys to select this item.':
+      'استخدم مفاتيح الأسهم لتحديد هذا الصنف.',
+  'Press the down arrow after the last cart item to select.':
+      'اضغط السهم لأسفل بعد آخر صنف في السلة للتحديد.',
+  'Preview opened in your Windows PDF viewer':
+      'تم فتح المعاينة في عارض PDF في ويندوز',
+  'Printer discovery returned no devices. The saved default printer will still be used for direct printing.':
+      'لم يعثر البحث على طابعات. سيستمر استخدام الطابعة الافتراضية المحفوظة للطباعة المباشرة.',
+  'Ready': 'جاهز',
+  'Recall': 'استدعاء',
+  'Recall the order before printing.': 'استدعِ الطلب قبل الطباعة.',
+  'Recent kitchen orders require an online session.':
+      'تتطلب طلبات المطبخ الأخيرة جلسة متصلة بالإنترنت.',
+  'Reconnect to download the invoice PDF.': 'أعد الاتصال لتنزيل فاتورة PDF.',
+  'Record a unique serial or IMEI number for each item.':
+      'سجّل رقماً تسلسلياً أو IMEI فريداً لكل صنف.',
+  'Record cash placed into the open drawer.':
+      'سجّل النقد المضاف إلى الدرج المفتوح.',
+  'Record cash taken from the open drawer.':
+      'سجّل النقد المسحوب من الدرج المفتوح.',
+  'Reprint Bill': 'إعادة طباعة الفاتورة',
+  'Required updates appear after sign in. Check here for optional updates.':
+      'تظهر التحديثات المطلوبة بعد تسجيل الدخول. تحقق هنا من التحديثات الاختيارية.',
+  'Resume an unfinished kitchen order.': 'استأنف طلب مطبخ غير مكتمل.',
+  'Retail sale totals do not reconcile.': 'إجماليات بيع التجزئة غير متطابقة.',
+  'Return documents': 'مستندات المرتجعات',
+  'Return history': 'سجل المرتجعات',
+  'Return unavailable for this line': 'الإرجاع غير متاح لهذا البند',
+  'Review completed and recently sent kitchen orders.':
+      'راجع طلبات المطبخ المكتملة والمرسلة مؤخراً.',
+  'Review your package and login-user allowance.':
+      'راجع باقتك وحد مستخدمي تسجيل الدخول.',
+  'SKU is already in use.': 'رمز SKU مستخدم بالفعل.',
+  'SKU is available.': 'رمز SKU متاح.',
+  'SKU will be generated': 'سيتم إنشاء رمز SKU',
+  'Saving...': 'جارٍ الحفظ...',
+  'Search item name, SKU or barcode…': 'ابحث باسم الصنف أو SKU أو الباركود…',
+  'Select one or more invoices and send them to ZATCA together.':
+      'اختر فاتورة واحدة أو أكثر وأرسلها إلى زاتكا معاً.',
+  'Select one or more returns and send them to ZATCA together.':
+      'اختر مرتجعاً واحداً أو أكثر وأرسله إلى زاتكا معاً.',
+  'Selected. Press Enter to choose a payment method.':
+      'تم التحديد. اضغط Enter لاختيار طريقة الدفع.',
+  'Sell from vehicle stock at each stop on your route.':
+      'بِع من مخزون المركبة في كل محطة على مسارك.',
+  'Sending…': 'جارٍ الإرسال…',
+  'Sent kitchen orders will appear here.': 'ستظهر طلبات المطبخ المرسلة هنا.',
+  'Simplified quotation': 'عرض سعر مبسّط',
+  'Start a cashier shift': 'بدء وردية أمين الصندوق',
+  'Submit this invoice to generate its compliance data.':
+      'أرسل هذه الفاتورة لإنشاء بيانات الامتثال الخاصة بها.',
+  'Submit this sales return to create and send its ZATCA credit note. The backend validates, signs and transmits the document.':
+      'أرسل مرتجع البيع لإنشاء إشعاره الدائن وإرساله إلى زاتكا. يتحقق الخادم من المستند ويوقّعه ويرسله.',
+  'Supports quantities such as 0.5 kg or 1.25 L.':
+      'يدعم كميات مثل 0.5 كجم أو 1.25 لتر.',
+  'Tel': 'هاتف',
+  'Thank you': 'شكراً لك',
+  'The PDF does not contain any pages.': 'ملف PDF لا يحتوي على صفحات.',
+  'The ZATCA service did not respond in time. Check the backend connection and try again.':
+      'لم تستجب خدمة زاتكا في الوقت المحدد. تحقق من اتصال الخادم وحاول مرة أخرى.',
+  'The business name will be printed on kitchen tickets.':
+      'سيُطبع اسم المنشأة على تذاكر المطبخ.',
+  'The current cart and held sales will be cleared from this device.':
+      'سيتم مسح السلة الحالية والمبيعات المعلّقة من هذا الجهاز.',
+  'The invoice PDF does not contain any pages.':
+      'فاتورة PDF لا تحتوي على صفحات.',
+  'The invoice pages could not be rendered.': 'تعذر عرض صفحات الفاتورة.',
+  'The invoice preview could not be generated.': 'تعذر إنشاء معاينة الفاتورة.',
+  'The kitchen print-job PDF response was not a valid PDF.':
+      'استجابة PDF لمهمة طباعة المطبخ ليست ملف PDF صالحاً.',
+  'The receipt has no printable pages.':
+      'الإيصال لا يحتوي على صفحات قابلة للطباعة.',
+  'The update checksum does not match.': 'بصمة ملف التحديث غير متطابقة.',
+  'The update download must use HTTPS.': 'يجب تنزيل التحديث عبر HTTPS.',
+  'The update file is larger than expected.':
+      'ملف التحديث أكبر من الحجم المتوقع.',
+  'The update file is not a Windows installer.':
+      'ملف التحديث ليس مثبّت ويندوز.',
+  'The update redirected to an insecure URL.':
+      'أعاد التحديث التوجيه إلى رابط غير آمن.',
+  'The web app is updated automatically.': 'يتم تحديث تطبيق الويب تلقائياً.',
+  'This Bluetooth printer is only supported in the Android app.':
+      'طابعة البلوتوث هذه مدعومة في تطبيق أندرويد فقط.',
+  'This update cannot be installed on this device.':
+      'لا يمكن تثبيت هذا التحديث على هذا الجهاز.',
+  'Track stock quantities and receive low-stock alerts.':
+      'تتبع كميات المخزون واستلم تنبيهات انخفاضه.',
+  'Unable to open the Windows PDF viewer': 'تعذر فتح عارض PDF في ويندوز',
+  'Unique identifier (UUID)': 'المعرّف الفريد (UUID)',
+  'Update the company details shown on documents.':
+      'حدّث بيانات المنشأة الظاهرة على المستندات.',
+  'Use Add Item or scan a barcode to start a sale':
+      'استخدم إضافة صنف أو امسح الباركود لبدء البيع',
+  'Use YYYY-MM-DD': 'استخدم YYYY-MM-DD',
+  'Use whole quantities only, such as 1 box or 2 pieces.':
+      'استخدم كميات صحيحة فقط، مثل صندوق واحد أو قطعتين.',
+  'Van stock value': 'قيمة مخزون المركبة',
+  'View your package, included users and available seats':
+      'اعرض باقتك والمستخدمين المشمولين والمقاعد المتاحة',
+  'ZATCA module available': 'وحدة زاتكا متاحة',
+  'ZATCA sale returns': 'مرتجعات مبيعات زاتكا',
+  'ZATCA sales invoices': 'فواتير مبيعات زاتكا',
+  'ZATCA setup unavailable': 'إعداد زاتكا غير متاح',
+  'ZATCA…': 'زاتكا…',
+  'This account cannot create a sale. Ask an administrator to enable Sell Create or Direct Sell Access.':
+      'لا يمكن لهذا الحساب إنشاء عملية بيع. اطلب من المسؤول تفعيل صلاحية إنشاء البيع أو الوصول المباشر للبيع.',
+  'This account cannot settle an existing kitchen order. Ask an administrator to enable the Sell Update permission.':
+      'لا يمكن لهذا الحساب تسوية طلب مطبخ موجود. اطلب من المسؤول تفعيل صلاحية تحديث المبيعات.',
+  'This cart contains local-only data and cannot be synchronized offline.':
+      'تحتوي هذه السلة على بيانات محلية فقط ولا يمكن مزامنتها دون اتصال.',
+  'This held order has no server ID and cannot be removed.':
+      'لا يملك هذا الطلب المعلّق معرّفاً على الخادم ولا يمكن حذفه.',
+  'This kitchen order contains local-only data and cannot sync.':
+      'يحتوي طلب المطبخ على بيانات محلية فقط ولا يمكن مزامنته.',
+  'This kitchen order is already synchronizing. Wait for sync before editing it.':
+      'تجري مزامنة طلب المطبخ بالفعل. انتظر اكتمال المزامنة قبل تعديله.',
+  'Some kitchen jobs are still marked as printing. Check their printer status before retrying to avoid duplicate tickets.':
+      'لا تزال بعض مهام المطبخ قيد الطباعة. تحقق من حالة الطابعة قبل إعادة المحاولة لتجنب تكرار التذاكر.',
+  'You can add another login user within your current allowance.':
+      'يمكنك إضافة مستخدم تسجيل دخول آخر ضمن الحد الحالي.',
+  'You can view kitchen configuration, but this account cannot change templates, receipt settings, or printer routes. Business Settings permission is required.':
+      'يمكنك عرض إعدادات المطبخ، لكن لا يمكن لهذا الحساب تغيير القوالب أو إعدادات الإيصال أو مسارات الطباعة. يلزم امتلاك صلاحية إعدادات المنشأة.',
+  'Your package has an available seat. User creation needs role and location options from the server, which are not currently exposed to this app.':
+      'تحتوي باقتك على مقعد متاح. يتطلب إنشاء المستخدم خيارات الدور والموقع من الخادم، وهي غير متاحة حالياً في التطبيق.',
+  'Unable to complete report action': 'تعذر إكمال إجراء التقرير',
+  'records': 'سجلات',
+  'Page': 'الصفحة',
+  'of': 'من',
 };

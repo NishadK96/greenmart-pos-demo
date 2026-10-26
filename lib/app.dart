@@ -40,9 +40,11 @@ class _PosModeGate extends ConsumerWidget {
       .watch(posRoleAccessProvider)
       .when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(
+        error: (_, __) => Center(
           child: Text(
-            'Unable to verify POS access. Please reconnect and retry.',
+            AppLocalizations.of(
+              context,
+            ).tr('Unable to verify POS access. Please reconnect and retry.'),
           ),
         ),
         data: (access) => access.allows(mode)
@@ -51,7 +53,7 @@ class _PosModeGate extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Your role does not have access to ${mode.label}.',
+                    '${AppLocalizations.of(context).tr('Your role does not have access to')} ${AppLocalizations.of(context).tr(mode.label)}.',
                     textAlign: TextAlign.center,
                   ),
                 ),

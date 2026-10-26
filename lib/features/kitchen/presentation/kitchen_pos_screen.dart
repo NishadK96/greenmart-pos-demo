@@ -2519,11 +2519,11 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Sub ${moneyAmount(subtotal)}',
+                '${context.tr('Sub')} ${moneyAmount(subtotal)}',
                 style: const TextStyle(fontSize: 11),
               ),
               Text(
-                'Tax ${moneyAmount(tax)}',
+                '${context.tr('Tax')} ${moneyAmount(tax)}',
                 style: const TextStyle(fontSize: 11),
               ),
               InkWell(
@@ -2531,7 +2531,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                     ? null
                     : _editGrossDiscount,
                 child: Text(
-                  'Disc ${moneyAmount(_grossDiscount)}',
+                  '${context.tr('Disc')} ${moneyAmount(_grossDiscount)}',
                   style: const TextStyle(fontSize: 11),
                 ),
               ),
@@ -2844,7 +2844,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 style: modeStyle(_keypadMode == 'qty'),
                 child: Text(
                   _keypadMode == 'qty' && _keypadInput.isNotEmpty
-                      ? 'Qty $_keypadInput'
+                      ? '${context.tr('Qty')} $_keypadInput'
                       : 'Qty',
                 ),
               ),
@@ -2867,7 +2867,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                 style: modeStyle(_keypadMode == 'discount'),
                 child: Text(
                   _keypadMode == 'discount' && _keypadInput.isNotEmpty
-                      ? 'Disc $_keypadInput'
+                      ? '${context.tr('Disc')} $_keypadInput'
                       : 'Disc',
                 ),
               ),

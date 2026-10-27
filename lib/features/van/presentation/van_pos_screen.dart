@@ -37,6 +37,7 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
   String? _customerId;
   String _payment = 'cash';
   bool _busy = false;
+  bool _showMobileCart = false;
   String? _error;
   String? _pendingId;
   String? _pendingFingerprint;
@@ -463,8 +464,25 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
             const SizedBox(height: 18),
             Expanded(
               child: compact
-                  ? ListView(
-                      children: [catalog, const SizedBox(height: 12), bill],
+                  ? Column(
+                      children: [
+                        _mobileWorkspaceSwitcher(),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            key: ValueKey(
+                              _showMobileCart
+                                  ? 'van-mobile-cart'
+                                  : 'van-mobile-products',
+                            ),
+                            child: _showMobileCart ? bill : catalog,
+                          ),
+                        ),
+                        if (!_showMobileCart && _cart.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          _mobileCartBar(),
+                        ],
+                      ],
                     )
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -486,6 +504,121 @@ class _VanPosScreenState extends ConsumerState<VanPosScreen> {
       ),
     );
   }
+
+  Widget _mobileWorkspaceSwitcher() => Container(
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE8F0ED),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: _mobileWorkspaceButton(
+            label: context.tr('Products'),
+            icon: Icons.inventory_2_outlined,
+            selected: !_showMobileCart,
+            onPressed: () => setState(() => _showMobileCart = false),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _mobileWorkspaceButton(
+            label: '${context.tr('Current order')} (${_cart.length})',
+            icon: Icons.shopping_cart_outlined,
+            selected: _showMobileCart,
+            onPressed: () => setState(() => _showMobileCart = true),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _mobileWorkspaceButton({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) => Material(
+    color: selected ? Colors.white : Colors.transparent,
+    borderRadius: BorderRadius.circular(9),
+    child: InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(9),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 19,
+              color: selected ? AppColors.primary : AppColors.muted,
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.primaryDark : AppColors.muted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _mobileCartBar() => Material(
+    color: Colors.white,
+    elevation: 8,
+    shadowColor: const Color(0x24173B32),
+    borderRadius: BorderRadius.circular(14),
+    child: Padding(
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${_cart.length} ${context.tr(_cart.length == 1 ? 'item' : 'items')}',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  money(_total),
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () => setState(() => _showMobileCart = true),
+            icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 19),
+            label: const Text('View cart'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              backgroundColor: AppColors.primaryDark,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _catalog(
     List<Product> products,

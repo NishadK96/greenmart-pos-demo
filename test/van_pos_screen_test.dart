@@ -87,11 +87,9 @@ void main() {
       await tester.tap(find.byTooltip('Add Bottled water'));
       await tester.pumpAndSettle();
       if (width < 850) {
-        await tester.scrollUntilVisible(
-          find.text('Current order'),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
+        expect(find.text('View cart'), findsOneWidget);
+        await tester.tap(find.text('View cart'));
+        await tester.pumpAndSettle();
       }
       expect(find.text('Current order'), findsOneWidget);
       await tester.ensureVisible(find.text('Price'));

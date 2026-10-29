@@ -273,6 +273,12 @@ class EazyErpBackendRepository implements BackendRepository {
   );
 
   @override
+  Future<Customer> customerDetail({
+    required String accessToken,
+    required String id,
+  }) => _api.customerDetail(accessToken, id);
+
+  @override
   Future<Customer> updateCustomer({
     required String accessToken,
     required Customer customer,

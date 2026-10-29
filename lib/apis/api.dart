@@ -1150,6 +1150,19 @@ class Api {
     return data.map(_customerFromJson).toList(growable: false);
   }
 
+  Future<Customer> customerDetail(String accessToken, String id) async {
+    final response = await _client
+        .get(
+          Uri.parse('${ApiEndPoints.customersUrl}/$id'),
+          headers: _authorizedHeaders(accessToken),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'customer');
+    final raw = payload['data'];
+    final item = raw is List && raw.isNotEmpty ? raw.first : raw;
+    return _customerFromJson(_map(item));
+  }
+
   Future<List<Supplier>> suppliers(String accessToken) async {
     final uri = Uri.parse(
       ApiEndPoints.customersUrl,
@@ -3519,7 +3532,45 @@ class Api {
         )
         .timeout(const Duration(seconds: 20));
     final payload = _requireObject(response, 'customer');
-    return _customerFromJson(_map(payload['data']));
+    final returned = _customerFromJson(_map(payload['data']));
+    // Some Connector deployments return a lightweight or stale contact object
+    // after an update. The request was accepted, so keep the submitted values
+    // in local state rather than replacing them with missing response fields.
+    return Customer(
+      id: returned.id.isNotEmpty ? returned.id : customer.id,
+      name: name,
+      phone: mobile,
+      email: email,
+      taxNumber: taxNumber,
+      businessName: businessName,
+      commercialRegistrationNumber: commercialRegistrationNumber,
+      addressLine1: addressLine1,
+      addressLine2: addressLine2,
+      city: city,
+      state: state,
+      country: country,
+      zipCode: zipCode,
+      landmark: landmark,
+      streetName: streetName,
+      buildingNumber: buildingNumber,
+      additionalNumber: additionalNumber,
+      customField1: customField1,
+      customField2: customField2,
+      customField3: customField3,
+      customField4: customField4,
+      contactId: contactId,
+      prefix: prefix,
+      middleName: middleName,
+      lastName: lastName,
+      alternateNumber: alternateNumber,
+      landline: landline,
+      dateOfBirth: dateOfBirth,
+      customerGroupId: customerGroupId,
+      payTermNumber: payTermNumber,
+      payTermType: payTermType,
+      shippingAddress: shippingAddress,
+      position: position,
+    );
   }
 
   Map<String, String> _authorizedHeaders(
@@ -3660,7 +3711,6 @@ class Api {
     id: json['id'].toString(),
     name:
         [
-              json['name'],
               json['full_name'],
               [
                     json['prefix'],
@@ -3670,6 +3720,7 @@ class Api {
                   ]
                   .where((part) => part?.toString().trim().isNotEmpty == true)
                   .join(' '),
+              json['name'],
               json['supplier_business_name'],
             ]
             .map((value) => value?.toString().trim() ?? '')
@@ -3690,7 +3741,13 @@ class Api {
     taxNumber: json['tax_number']?.toString(),
     businessName: json['supplier_business_name']?.toString() ?? '',
     commercialRegistrationNumber:
-        json['commercial_registration_number']?.toString() ?? '',
+        (json['commercial_registration_number'] ??
+                json['commercial_registration_no'] ??
+                json['cr_number'] ??
+                json['crn'] ??
+                json['registration_number'])
+            ?.toString() ??
+        '',
     addressLine1: json['address_line_1']?.toString() ?? '',
     addressLine2: json['address_line_2']?.toString() ?? '',
     city: json['city']?.toString() ?? '',

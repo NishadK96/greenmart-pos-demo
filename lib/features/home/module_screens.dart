@@ -2715,6 +2715,7 @@ class CustomersScreen extends ConsumerStatefulWidget {
 
 class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   String query = '';
+  String? loadingCustomerId;
 
   @override
   Widget build(BuildContext context) {
@@ -2759,7 +2760,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 itemBuilder: (_, i) {
                   final c = customers[i];
                   return ListTile(
-                    onTap: () => _customerForm(context, ref, c),
+                    onTap: loadingCustomerId == null
+                        ? () => _editCustomer(c)
+                        : null,
                     leading: CircleAvatar(
                       child: Icon(
                         c.isBusiness
@@ -2773,23 +2776,30 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                           : c.name,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    subtitle: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: c.phone.isEmpty
-                                ? 'Default billing customer'
-                                : c.phone,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          [
+                            if (c.phone.isNotEmpty) c.phone,
+                            if (c.isBusiness && c.name.isNotEmpty)
+                              '${context.tr('Contact person')}: ${c.name}',
+                            c.isBusiness ? 'B2B' : 'B2C',
+                          ].join('  •  '),
+                        ),
+                        if (c.commercialRegistrationNumber.isNotEmpty)
+                          Text(
+                            '${context.tr('Commercial registration number')}: '
+                            '${c.commercialRegistrationNumber}',
                           ),
-                          if (c.isBusiness && c.name.isNotEmpty)
-                            TextSpan(text: '  •  ${c.name}'),
-                          TextSpan(
-                            text: '  •  ${c.isBusiness ? 'B2B' : 'B2C'}',
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: loadingCustomerId == c.id
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
                   );
                 },
               ),
@@ -2798,6 +2808,31 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _editCustomer(Customer summary) async {
+    setState(() => loadingCustomerId = summary.id);
+    try {
+      final customer = await ref
+          .read(backendControllerProvider.notifier)
+          .customerDetail(summary.id);
+      if (!mounted) return;
+      ref.read(appStoreProvider.notifier).updateCustomer(customer);
+      await _customerForm(context, ref, customer);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              'Complete customer details could not be loaded. Please try again.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => loadingCustomerId = null);
+    }
   }
 
   Future<void> _customerForm(

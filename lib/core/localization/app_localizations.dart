@@ -1464,6 +1464,10 @@ const Map<String, String> _ar = {
   // Supplier and address details.
   'All orders': 'جميع الطلبات',
   'Contact person': 'جهة الاتصال',
+  'Complete customer details could not be loaded. Please try again.':
+      'تعذر تحميل بيانات العميل الكاملة. يرجى المحاولة مرة أخرى.',
+  'The backend did not confirm the updated customer name or commercial registration number. Please try again.':
+      'لم يؤكد الخادم تحديث اسم العميل أو رقم السجل التجاري. يرجى المحاولة مرة أخرى.',
   'Contact person (Arabic)': 'جهة الاتصال (بالعربية)',
   'Details': 'التفاصيل',
   'Postal code': 'الرمز البريدي',

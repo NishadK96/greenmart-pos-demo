@@ -57,6 +57,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
   @override
   Widget build(BuildContext context) {
     final workspace = ref.watch(purchaseControllerProvider);
+    final supplierDirectory = ref.watch(supplierDirectoryProvider);
     final narrow = MediaQuery.sizeOf(context).width < 800;
     return Padding(
       padding: EdgeInsets.all(narrow ? 12 : 22),
@@ -67,39 +68,50 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
             'Suppliers',
             subtitle: 'Profiles, purchase history and payments.',
             action: FilledButton.icon(
-              onPressed: workspace.hasValue ? () => _edit(null) : null,
+              onPressed: supplierDirectory.hasValue ? () => _edit(null) : null,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add supplier'),
             ),
           ),
           const SizedBox(height: 14),
           Expanded(
-            child: workspace.when(
+            child: supplierDirectory.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text('Unable to load suppliers.'),
+                    const SizedBox(height: 4),
+                    Text(
+                      error is ApiException ? error.message : '$error',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.muted),
+                    ),
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: () =>
-                          ref.invalidate(purchaseControllerProvider),
+                      onPressed: () {
+                        ref.invalidate(supplierDirectoryProvider);
+                        ref.invalidate(purchaseControllerProvider);
+                      },
                       child: const Text('Retry'),
                     ),
                   ],
                 ),
               ),
-              data: (data) {
+              data: (suppliers) {
+                final data =
+                    workspace.asData?.value ??
+                    PurchaseWorkspaceState(suppliers: suppliers);
                 final query = search.trim().toLowerCase();
-                final filtered = data.suppliers.where((supplier) {
+                final filtered = suppliers.where((supplier) {
                   return query.isEmpty ||
                       supplier.name.toLowerCase().contains(query) ||
                       supplier.nameAr.contains(search.trim()) ||
                       supplier.contactName.toLowerCase().contains(query) ||
                       supplier.mobile.contains(query);
                 }).toList();
-                final selected = data.suppliers
+                final selected = suppliers
                     .where((item) => item.id == selectedId)
                     .firstOrNull;
                 final list = _supplierList(filtered);
@@ -387,6 +399,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
       builder: (dialogContext) => _SupplierForm(existing: existing),
     );
     if (result == null || !mounted) return;
+    ref.invalidate(supplierDirectoryProvider);
     ref.invalidate(purchaseControllerProvider);
     _select(result);
   }

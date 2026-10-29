@@ -142,6 +142,11 @@ abstract interface class BackendRepository {
     String position,
   });
 
+  Future<Customer> customerDetail({
+    required String accessToken,
+    required String id,
+  });
+
   Future<Customer> updateCustomer({
     required String accessToken,
     required Customer customer,

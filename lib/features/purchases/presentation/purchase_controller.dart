@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../apis/api.dart';
 import '../../../shared/models/entities.dart';
@@ -28,6 +30,30 @@ final purchaseControllerProvider =
       PurchaseController.new,
     );
 
+final supplierDirectoryProvider = FutureProvider<List<Supplier>>((ref) async {
+  const tokenTimeout = Duration(seconds: 8);
+  const requestTimeout = Duration(seconds: 20);
+  final auth = ref.watch(authControllerProvider);
+  final token =
+      auth.asData?.value ??
+      await ref
+          .watch(authControllerProvider.future)
+          .timeout(tokenTimeout, onTimeout: () => null);
+  if (token == null || token.isEmpty) {
+    throw const ApiException('Your session has expired. Please sign in.');
+  }
+  try {
+    return await ref
+        .watch(purchaseRepositoryProvider)
+        .suppliers(token)
+        .timeout(requestTimeout);
+  } on TimeoutException {
+    throw const ApiException(
+      'The supplier service did not respond in time. Please try again.',
+    );
+  }
+});
+
 class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
   @override
   Future<PurchaseWorkspaceState> build() async {
@@ -37,7 +63,7 @@ class PurchaseController extends AsyncNotifier<PurchaseWorkspaceState> {
       repository.list(token, PurchaseDocumentType.order),
       repository.list(token, PurchaseDocumentType.invoice),
       repository.list(token, PurchaseDocumentType.purchaseReturn),
-      repository.suppliers(token),
+      ref.watch(supplierDirectoryProvider.future),
       repository.paymentAccounts(token),
     ]);
     return PurchaseWorkspaceState(

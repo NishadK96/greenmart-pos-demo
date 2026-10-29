@@ -20,7 +20,7 @@ class ZatcaController extends AsyncNotifier<ZatcaIntegrationStatus> {
     // ZATCA configuration belongs to the active business session. Watching
     // authentication here prevents a status loaded for one saved account from
     // remaining visible after the cashier logs in to or switches businesses.
-    await ref.watch(authControllerProvider.future);
+    ref.watch(authControllerProvider);
     return _loadStatus();
   }
 

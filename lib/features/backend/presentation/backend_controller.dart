@@ -304,8 +304,29 @@ class BackendController extends AsyncNotifier<void> {
       shippingAddress: shippingAddress,
       position: position,
     );
-    store.updateCustomer(updated);
-    return updated;
+    final persisted = await repository.customerDetail(
+      accessToken: token,
+      id: updated.id,
+    );
+    final nameMatches = persisted.name.trim() == name.trim();
+    final registrationMatches =
+        commercialRegistrationNumber.trim().isEmpty ||
+        persisted.commercialRegistrationNumber.trim() ==
+            commercialRegistrationNumber.trim();
+    if (!nameMatches || !registrationMatches) {
+      throw const ApiException(
+        'The backend did not confirm the updated customer name or commercial registration number. Please try again.',
+      );
+    }
+    store.updateCustomer(persisted);
+    return persisted;
+  }
+
+  Future<Customer> customerDetail(String id) async {
+    final token = await _token();
+    return ref
+        .read(backendRepositoryProvider)
+        .customerDetail(accessToken: token, id: id);
   }
 
   Future<Sale> checkout(String paymentMethod, {String? serviceTypeCode}) =>

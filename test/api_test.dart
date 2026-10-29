@@ -653,6 +653,70 @@ void main() {
     expect(customer.customField1, 'Wholesale');
   });
 
+  test(
+    'customer detail maps CR number aliases used by the connector',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.method, 'GET');
+          expect(request.url.path, '/connector/api/contactapi/42');
+          return http.Response(
+            jsonEncode({
+              'data': {
+                'id': 42,
+                'name': 'Acme Trading',
+                'first_name': 'Ahmed Ali',
+                'supplier_business_name': 'Acme Trading',
+                'mobile': '0500000000',
+                'cr_number': 'CR-2048',
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final customer = await api.customerDetail('token-123', '42');
+
+      expect(customer.name, 'Ahmed Ali');
+      expect(customer.commercialRegistrationNumber, 'CR-2048');
+    },
+  );
+
+  test(
+    'customer update keeps submitted fields with a stale response',
+    () async {
+      final api = Api(
+        client: MockClient((request) async {
+          expect(request.method, 'PUT');
+          expect(request.url.path, '/connector/api/contactapi/42');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['first_name'], 'Updated contact');
+          expect(body['commercial_registration_number'], 'CR-4096');
+          return http.Response(
+            jsonEncode({
+              'data': {'id': 42, 'name': 'Old contact'},
+            }),
+            200,
+          );
+        }),
+      );
+
+      final customer = await api.updateCustomer(
+        accessToken: 'token-123',
+        customer: const Customer(id: '42', name: 'Old contact'),
+        name: 'Updated contact',
+        mobile: '0500000000',
+        businessName: 'Acme Trading',
+        commercialRegistrationNumber: 'CR-4096',
+      );
+
+      expect(customer.name, 'Updated contact');
+      expect(customer.businessName, 'Acme Trading');
+      expect(customer.commercialRegistrationNumber, 'CR-4096');
+    },
+  );
+
   test('sale return sends selected backend sell-line quantities', () async {
     final product = Product(
       id: '3',

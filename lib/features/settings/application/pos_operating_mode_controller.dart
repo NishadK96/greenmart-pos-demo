@@ -11,6 +11,38 @@ class PosRoleAccess {
   const PosRoleAccess(this.access);
   final ConnectorAccess access;
 
+  String _normalizeRole(String role) => role
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[_-]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ');
+
+  bool get isVanSalesUser =>
+      !access.isAdmin &&
+      access.roles.any(
+        (role) => const {
+          'van',
+          'van pos',
+          'van sale',
+          'van sales',
+        }.contains(_normalizeRole(role)),
+      );
+
+  bool allowsAny(Iterable<String> permissions) =>
+      access.isAdmin || permissions.any(access.permissions.contains);
+
+  bool get canUseVanSales =>
+      isVanSalesUser && allowsAny(const {'sell.view', 'sell.create'});
+
+  bool get canViewVanSuppliers =>
+      isVanSalesUser &&
+      allowsAny(const {
+        'supplier.view',
+        'suppliers.view',
+        'purchase.view',
+        'purchases.view',
+      });
+
   bool allows(PosOperatingMode mode) {
     if (access.isAdmin) return true;
     if (!access.hasRoleData) return false;
@@ -23,16 +55,10 @@ class PosRoleAccess {
         'restaurant pos',
       },
       PosOperatingMode.fuel: {'fuel', 'fuel pos', 'fuel station', 'fuel sales'},
-      PosOperatingMode.van: {'van', 'van pos', 'van sales'},
+      PosOperatingMode.van: {'van', 'van pos', 'van sale', 'van sales'},
     };
     return access.roles.any(
-      (role) => names[mode]!.contains(
-        role
-            .trim()
-            .toLowerCase()
-            .replaceAll(RegExp(r'[_-]+'), ' ')
-            .replaceAll(RegExp(r'\s+'), ' '),
-      ),
+      (role) => names[mode]!.contains(_normalizeRole(role)),
     );
   }
 

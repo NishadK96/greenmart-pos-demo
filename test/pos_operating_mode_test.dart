@@ -101,6 +101,21 @@ void main() {
       expect(van.allows(PosOperatingMode.kitchen), isFalse);
       expect(van.allows(PosOperatingMode.retail), isFalse);
       expect(van.effectiveMode(PosOperatingMode.retail), PosOperatingMode.van);
+      expect(van.isVanSalesUser, isTrue);
+      expect(van.canUseVanSales, isTrue);
+      expect(van.canViewVanSuppliers, isFalse);
+
+      const vanPurchaser = PosRoleAccess(
+        ConnectorAccess(
+          isAdmin: false,
+          permissions: {'sell.view', 'purchase.view'},
+          roles: ['VAN SALE'],
+          hasRoleData: true,
+        ),
+      );
+      expect(vanPurchaser.isVanSalesUser, isTrue);
+      expect(vanPurchaser.allows(PosOperatingMode.van), isTrue);
+      expect(vanPurchaser.canViewVanSuppliers, isTrue);
 
       const noRoles = PosRoleAccess(
         ConnectorAccess(isAdmin: false, permissions: {}, hasRoleData: true),

@@ -25,6 +25,7 @@ import '../cash_register/presentation/cash_register_controller.dart';
 import '../offline_pos/presentation/offline_pos_controller.dart';
 import '../../core/network/api_provider.dart';
 import '../auth/auth_controller.dart';
+import '../auth/account_menu.dart';
 import '../settings/application/pos_operating_mode_controller.dart';
 import '../settings/application/payment_method_settings_controller.dart';
 import '../settings/application/order_type_settings_controller.dart';
@@ -999,6 +1000,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appStoreProvider);
+    final vanCatalogOnly =
+        ref.watch(posRoleAccessProvider).asData?.value.isVanSalesUser == true;
     final normalizedQuery = query.trim().toLowerCase();
     final minStock = int.tryParse(_minStockController.text);
     final maxStock = int.tryParse(_maxStockController.text);
@@ -1064,7 +1067,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
     final mobile = MediaQuery.sizeOf(context).width < 700;
 
-    final productGrid = _productGrid(rows, visibleRows);
+    final productGrid = _productGrid(
+      rows,
+      visibleRows,
+      catalogOnly: vanCatalogOnly,
+    );
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1079,15 +1086,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: () => context.go('/products/create'),
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(context.tr('New product')),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 42),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+              if (!vanCatalogOnly)
+                FilledButton.icon(
+                  onPressed: () => context.go('/products/create'),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(context.tr('New product')),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
                 ),
-              ),
             ],
           )
         else
@@ -1101,32 +1109,33 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 'Products',
                 subtitle: 'Manage pricing, stock and barcodes.',
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => context.go('/products/import'),
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: Text(context.tr('Import')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => context.go('/products/bulk'),
-                    icon: const Icon(Icons.edit_note_outlined),
-                    label: Text(context.tr('Bulk update')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => context.go('/products/quick'),
-                    icon: const Icon(Icons.bolt_outlined),
-                    label: Text(context.tr('Quick add')),
-                  ),
-                  FilledButton.icon(
-                    onPressed: () => context.go('/products/create'),
-                    icon: const Icon(Icons.add),
-                    label: Text(context.tr('New product')),
-                  ),
-                ],
-              ),
+              if (!vanCatalogOnly)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/products/import'),
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: Text(context.tr('Import')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/products/bulk'),
+                      icon: const Icon(Icons.edit_note_outlined),
+                      label: Text(context.tr('Bulk update')),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go('/products/quick'),
+                      icon: const Icon(Icons.bolt_outlined),
+                      label: Text(context.tr('Quick add')),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => context.go('/products/create'),
+                      icon: const Icon(Icons.add),
+                      label: Text(context.tr('New product')),
+                    ),
+                  ],
+                ),
             ],
           ),
         const SizedBox(height: 16),
@@ -1285,7 +1294,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 
-  Widget _productGrid(List<Product> rows, List<Product> visibleRows) {
+  Widget _productGrid(
+    List<Product> rows,
+    List<Product> visibleRows, {
+    required bool catalogOnly,
+  }) {
     if (rows.isEmpty) {
       return const EmptyState('No products match these filters');
     }
@@ -1312,8 +1325,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             mainAxisSpacing: 12,
           ),
           itemBuilder: (_, index) => mobile
-              ? _mobileProductCard(visibleRows[index])
-              : _productCard(visibleRows[index]),
+              ? _mobileProductCard(visibleRows[index], catalogOnly: catalogOnly)
+              : _productCard(visibleRows[index], catalogOnly: catalogOnly),
         );
       },
     );
@@ -1463,7 +1476,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     }),
   );
 
-  Widget _mobileProductCard(Product product) {
+  Widget _mobileProductCard(Product product, {required bool catalogOnly}) {
     final out = product.stock <= 0;
     final low = !out && product.stock <= product.minimumStock;
     final stockColor = !product.active
@@ -1488,7 +1501,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go('/products/edit', extra: product),
+        onTap: catalogOnly
+            ? null
+            : () => context.go('/products/edit', extra: product),
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(
@@ -1504,27 +1519,31 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       fit: BoxFit.contain,
                     ),
                   ),
-                  PositionedDirectional(
-                    end: -8,
-                    top: -8,
-                    child: PopupMenuButton<String>(
-                      tooltip: context.tr('Product actions'),
-                      onSelected: (action) => _productAction(product, action),
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        PopupMenuItem(
-                          value: 'status',
-                          child: Text(
-                            product.active ? 'Deactivate' : 'Activate',
+                  if (!catalogOnly)
+                    PositionedDirectional(
+                      end: -8,
+                      top: -8,
+                      child: PopupMenuButton<String>(
+                        tooltip: context.tr('Product actions'),
+                        onSelected: (action) => _productAction(product, action),
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit'),
                           ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Delete product'),
-                        ),
-                      ],
+                          PopupMenuItem(
+                            value: 'status',
+                            child: Text(
+                              product.active ? 'Deactivate' : 'Activate',
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete product'),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
               Text(
@@ -1855,7 +1874,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     ],
   );
 
-  Widget _productCard(Product product) {
+  Widget _productCard(Product product, {required bool catalogOnly}) {
     final out = product.stock <= 0;
     final low = !out && product.stock <= product.minimumStock;
     final stockColor = !product.active
@@ -1881,7 +1900,9 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go('/products/edit', extra: product),
+        onTap: catalogOnly
+            ? null
+            : () => context.go('/products/edit', extra: product),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -1989,13 +2010,14 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     ),
                   ),
                   const SizedBox(width: 9),
-                  IconButton(
-                    tooltip: context.tr('Edit product'),
-                    onPressed: () =>
-                        context.go('/products/edit', extra: product),
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                  ),
+                  if (!catalogOnly)
+                    IconButton(
+                      tooltip: context.tr('Edit product'),
+                      onPressed: () =>
+                          context.go('/products/edit', extra: product),
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                    ),
                 ],
               ),
             ],
@@ -6672,6 +6694,9 @@ class SettingsScreen extends ConsumerWidget {
     final state = ref.watch(appStoreProvider);
     final preferredPosMode = ref.watch(posOperatingModeProvider);
     final roleAccess = ref.watch(posRoleAccessProvider).asData?.value;
+    if (roleAccess?.isVanSalesUser == true) {
+      return const _VanSalesSettings();
+    }
     final posMode =
         roleAccess?.effectiveMode(preferredPosMode) ?? preferredPosMode;
     final business = state.business;
@@ -6804,6 +6829,102 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VanSalesSettings extends ConsumerWidget {
+  const _VanSalesSettings();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(localeProvider).languageCode;
+    return PagePad(
+      child: ListView(
+        children: [
+          const PageTitle(
+            'Settings',
+            subtitle: 'Essential settings for this van sales device.',
+          ),
+          const SizedBox(height: 18),
+          const AppUpdateSettingsCard(),
+          const SizedBox(height: 10),
+          Surface(
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(child: Icon(Icons.language)),
+                  title: Text(
+                    context.tr('Language'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(locale == 'ar' ? 'العربية' : 'English'),
+                  trailing: DropdownButton<String>(
+                    value: locale,
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(value: 'en', child: Text('English')),
+                      DropdownMenuItem(value: 'ar', child: Text('العربية')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(localeProvider.notifier).setLanguage(value);
+                      }
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.print_outlined),
+                  ),
+                  title: Text(
+                    context.tr('Printers & documents'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    context.tr('Configure invoice layouts and printers'),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/settings/printers'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(child: Icon(Icons.sync)),
+                  title: Text(
+                    context.tr('Sync & status'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    context.tr('Review connection and pending sales'),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/sync'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.account_circle_outlined),
+                  ),
+                  title: Text(
+                    context.tr('Account & logout'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    context.tr('Switch cashier or end this session'),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => showAccountMenu(context, ref),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

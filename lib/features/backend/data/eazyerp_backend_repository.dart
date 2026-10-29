@@ -109,7 +109,7 @@ class EazyErpBackendRepository implements BackendRepository {
       _api.businessDetails(accessToken),
       _api.loggedInUser(accessToken),
       _api.units(accessToken),
-      _api.taxes(accessToken),
+      _optionalTaxes(accessToken),
       _api.brands(accessToken),
     ]);
     final products = await productsFuture;
@@ -136,6 +136,19 @@ class EazyErpBackendRepository implements BackendRepository {
       taxes: results[6] as List<LookupOption>,
       brands: results[7] as List<LookupOption>,
     );
+  }
+
+  Future<List<LookupOption>> _optionalTaxes(String accessToken) async {
+    try {
+      return await _api.taxes(accessToken);
+    } on ApiException catch (error) {
+      // Cashiers can sell products whose tax is already included in the
+      // catalog without being allowed to manage tax rates. Treat that
+      // permission boundary as unavailable supporting data instead of
+      // blocking the entire POS bootstrap.
+      if (error.statusCode == 403) return const [];
+      rethrow;
+    }
   }
 
   @override

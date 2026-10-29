@@ -1385,6 +1385,40 @@ void main() {
     },
   );
 
+  test('create sale retries one transient transport failure safely', () async {
+    var attempts = 0;
+    final api = Api(
+      client: MockClient((request) async {
+        attempts++;
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final sell = (body['sells'] as List).single as Map<String, dynamic>;
+        expect(sell['client_transaction_id'], 'safe-retry-id');
+        if (attempts == 1) {
+          throw http.ClientException('stale mobile connection', request.url);
+        }
+        return http.Response(
+          '{"id":146,"official_invoice_no":"INV-000146",'
+          '"idempotent_replay":true}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.createSalePayload(
+      accessToken: 'token-123',
+      sell: const {
+        'client_transaction_id': 'safe-retry-id',
+        'location_id': 1,
+        'contact_id': 1,
+        'products': <Map<String, dynamic>>[],
+      },
+    );
+
+    expect(attempts, 2);
+    expect(result['id'], 146);
+    expect(result['idempotent_replay'], isTrue);
+  });
+
   test(
     'card sale sends a card payment line using the connector contract',
     () async {

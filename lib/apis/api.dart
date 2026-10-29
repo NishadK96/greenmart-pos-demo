@@ -2769,18 +2769,41 @@ class Api {
     required String accessToken,
     required Map<String, dynamic> sell,
   }) async {
-    final response = await _client
-        .post(
-          Uri.parse(ApiEndPoints.salesUrl),
-          headers: {
-            ..._authorizedHeaders(accessToken),
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'sells': [sell],
-          }),
-        )
-        .timeout(const Duration(seconds: 30));
+    http.Response? response;
+    StackTrace? lastStackTrace;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await _client
+            .post(
+              Uri.parse(ApiEndPoints.salesUrl),
+              headers: {
+                ..._authorizedHeaders(accessToken),
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'sells': [sell],
+              }),
+            )
+            .timeout(const Duration(seconds: 30));
+        break;
+      } catch (error, stackTrace) {
+        if (!_isTransientAuthFailure(error)) rethrow;
+        lastStackTrace = stackTrace;
+        _client.resetTransport();
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+        }
+      }
+    }
+    if (response == null) {
+      final error = const ApiException(
+        'The sale server could not be reached. The sale was not recorded; please retry.',
+      );
+      if (lastStackTrace != null) {
+        Error.throwWithStackTrace(error, lastStackTrace);
+      }
+      throw error;
+    }
     final decoded = _decodeAny(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(

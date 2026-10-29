@@ -470,6 +470,16 @@ const Map<String, String> _ar = {
   'Submit / retry': 'إرسال / إعادة المحاولة',
   'Successful': 'ناجح',
   'Switch cashier?': 'تبديل أمين الصندوق؟',
+  'Essential settings for this van sales device.':
+      'الإعدادات الأساسية لجهاز مبيعات الشاحنة هذا.',
+  'Configure invoice layouts and printers':
+      'تهيئة قوالب الفواتير والطابعات',
+  'Sync & status': 'المزامنة والحالة',
+  'Review connection and pending sales':
+      'مراجعة الاتصال والمبيعات المعلقة',
+  'Account & logout': 'الحساب وتسجيل الخروج',
+  'Switch cashier or end this session':
+      'تبديل أمين الصندوق أو إنهاء هذه الجلسة',
   'Switch user': 'تبديل المستخدم',
   'The new UOM will be available across product creation, purchasing and inventory.':
       'ستتوفر وحدة القياس الجديدة في إنشاء المنتجات والمشتريات والمخزون.',
@@ -2079,6 +2089,8 @@ const Map<String, String> _ar = {
   'Unable to sign in to this account.': 'تعذر تسجيل الدخول إلى هذا الحساب.',
   'Unable to submit sale. Check your connection and retry.':
       'تعذر إرسال البيع. تحقق من الاتصال وحاول مرة أخرى.',
+  'The sale server could not be reached. The sale was not recorded; please retry.':
+      'تعذر الاتصال بخادم المبيعات. لم يتم تسجيل البيع، يرجى المحاولة مرة أخرى.',
   'Unable to verify your allowed POS locations. Reconnect and retry.':
       'تعذر التحقق من مواقع نقطة البيع المسموح بها. أعد الاتصال وحاول مرة أخرى.',
   'Van checkout requires an online connection. No sale was recorded.':

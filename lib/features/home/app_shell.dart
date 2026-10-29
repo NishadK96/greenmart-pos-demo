@@ -163,21 +163,32 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.dispose();
   }
 
-  int index(String path) => destinations
-      .indexWhere((e) => path.startsWith(e.$1))
-      .clamp(0, destinations.length - 1);
+  bool _matchesRoute(String path, String route) =>
+      path == route || path.startsWith('$route/');
+
+  bool _vanRouteAllowed(String path, {required bool allowSuppliers}) {
+    if (path == '/van-pos' ||
+        path == '/products' ||
+        path == '/customers' ||
+        path == '/sales' ||
+        path == '/sync' ||
+        path == '/settings' ||
+        path == '/settings/printers' ||
+        path == '/receipt') {
+      return true;
+    }
+    return allowSuppliers && path == '/suppliers';
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = ref.watch(appStoreProvider);
     final preferredPosMode = ref.watch(posOperatingModeProvider);
-    final posMode = ref
-        .watch(posRoleAccessProvider)
-        .asData
-        ?.value
-        .effectiveMode(preferredPosMode);
+    final roleAccess = ref.watch(posRoleAccessProvider).asData?.value;
+    final posMode = roleAccess?.effectiveMode(preferredPosMode);
     final posRoute = posMode?.route ?? '/settings';
     final zatcaStatus = ref.watch(zatcaControllerProvider);
-    final shellDestinations = [
+    final allShellDestinations = [
       (
         posRoute,
         posMode?.label ?? 'POS access',
@@ -185,13 +196,29 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
       ...destinations.skip(1),
     ];
+    final isVanSalesUser = roleAccess?.isVanSalesUser == true;
+    final allowVanSuppliers = roleAccess?.canViewVanSuppliers == true;
+    final shellDestinations = isVanSalesUser
+        ? [
+            allShellDestinations.first,
+            allShellDestinations.firstWhere((item) => item.$1 == '/products'),
+            allShellDestinations.firstWhere((item) => item.$1 == '/sales'),
+            allShellDestinations.firstWhere((item) => item.$1 == '/customers'),
+            if (allowVanSuppliers)
+              allShellDestinations.firstWhere(
+                (item) => item.$1 == '/suppliers',
+              ),
+            allShellDestinations.firstWhere((item) => item.$1 == '/sync'),
+            allShellDestinations.firstWhere((item) => item.$1 == '/settings'),
+          ]
+        : allShellDestinations;
     // Keep the selected ERP layout manifest and its authenticated assets warm
     // while online so provisional receipts remain available without a network.
     ref.watch(invoiceLayoutControllerProvider);
     ref.watch(kitchenPrintingControllerProvider);
     final businessName = appState.business?.displayName(context.isArabic) ?? '';
     final userName = appState.user?.name ?? '';
-    final access = ref.watch(posRoleAccessProvider).asData?.value.access;
+    final access = roleAccess?.access;
     final visibleLocations = appState.locations
         .where((item) => access?.allowsLocation(item.id) == true)
         .toList(growable: false);
@@ -209,6 +236,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       sidebarInitialized = true;
     }
     final path = GoRouterState.of(context).uri.path;
+    if (isVanSalesUser &&
+        !_vanRouteAllowed(path, allowSuppliers: allowVanSuppliers)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) context.go('/van-pos');
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final compactPosSidebar =
         path == '/pos' ||
         path == '/kitchen-pos' ||
@@ -236,13 +270,21 @@ class _AppShellState extends ConsumerState<AppShell> {
         ? context.tr('Open register')
         : '${context.tr('Register')} ${register.id}';
     if (!desktop) {
-      final mobile = [
-        shellDestinations[0],
-        shellDestinations[2],
-        shellDestinations[8],
-        shellDestinations[5],
-        ('/settings', 'More', Icons.more_horiz),
-      ];
+      final mobile = isVanSalesUser
+          ? [
+              shellDestinations.firstWhere((item) => item.$1 == '/van-pos'),
+              shellDestinations.firstWhere((item) => item.$1 == '/products'),
+              shellDestinations.firstWhere((item) => item.$1 == '/sales'),
+              shellDestinations.firstWhere((item) => item.$1 == '/customers'),
+              ('/settings', 'More', Icons.more_horiz),
+            ]
+          : [
+              shellDestinations[0],
+              shellDestinations[2],
+              shellDestinations[8],
+              shellDestinations[5],
+              ('/settings', 'More', Icons.more_horiz),
+            ];
       final phone = width < 700;
       final mobileIndex = mobile.indexWhere((e) => path.startsWith(e.$1));
       return Scaffold(
@@ -353,11 +395,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                         const SizedBox(height: 3),
                         Row(
                           children: [
-                            _ZatcaPhaseBadge(
-                              status: zatcaStatus,
-                              compact: true,
-                            ),
-                            const SizedBox(width: 7),
+                            if (!isVanSalesUser) ...[
+                              _ZatcaPhaseBadge(
+                                status: zatcaStatus,
+                                compact: true,
+                              ),
+                              const SizedBox(width: 7),
+                            ],
                             StatusBadge(context.tr('Online')),
                             const SizedBox(width: 7),
                             StatusBadge(context.tr('Synced')),
@@ -430,8 +474,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                       PopupMenuItem(value: 'ar', child: Text('العربية')),
                     ],
                   ),
-                  _ZatcaPhaseBadge(status: zatcaStatus, compact: true),
-                  const SizedBox(width: 7),
+                  if (!isVanSalesUser) ...[
+                    _ZatcaPhaseBadge(status: zatcaStatus, compact: true),
+                    const SizedBox(width: 7),
+                  ],
                   StatusBadge(context.tr('Online')),
                   IconButton(
                     onPressed: () => context.go(posRoute),
@@ -548,7 +594,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                             child: Tooltip(
                               message: shellDestinations[i].$2,
                               child: Material(
-                                color: i == index(path)
+                                color:
+                                    _matchesRoute(path, shellDestinations[i].$1)
                                     ? const Color(0xFF245148)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(11),
@@ -565,7 +612,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                             width: 58,
                                             child: Icon(
                                               shellDestinations[i].$3,
-                                              color: i == index(path)
+                                              color:
+                                                  _matchesRoute(
+                                                    path,
+                                                    shellDestinations[i].$1,
+                                                  )
                                                   ? Colors.white
                                                   : Colors.white54,
                                               size: 21,
@@ -575,7 +626,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           Expanded(
                                             child: Icon(
                                               shellDestinations[i].$3,
-                                              color: i == index(path)
+                                              color:
+                                                  _matchesRoute(
+                                                    path,
+                                                    shellDestinations[i].$1,
+                                                  )
                                                   ? Colors.white
                                                   : Colors.white54,
                                               size: 21,
@@ -585,10 +640,18 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           Text(
                                             context.tr(shellDestinations[i].$2),
                                             style: TextStyle(
-                                              color: i == index(path)
+                                              color:
+                                                  _matchesRoute(
+                                                    path,
+                                                    shellDestinations[i].$1,
+                                                  )
                                                   ? Colors.white
                                                   : Colors.white70,
-                                              fontWeight: i == index(path)
+                                              fontWeight:
+                                                  _matchesRoute(
+                                                    path,
+                                                    shellDestinations[i].$1,
+                                                  )
                                                   ? FontWeight.w700
                                                   : FontWeight.w500,
                                             ),
@@ -764,8 +827,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ),
                       ],
                       const Spacer(),
-                      _ZatcaPhaseBadge(status: zatcaStatus),
-                      const SizedBox(width: 10),
+                      if (!isVanSalesUser) ...[
+                        _ZatcaPhaseBadge(status: zatcaStatus),
+                        const SizedBox(width: 10),
+                      ],
                       PopupMenuButton<String>(
                         tooltip: context.tr('Language'),
                         onSelected: (code) =>

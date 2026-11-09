@@ -2745,7 +2745,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final customers = s.customers
         .where(
           (customer) =>
-              customer.name.toLowerCase().contains(query.toLowerCase()) ||
+              customer.preferredName.toLowerCase().contains(
+                query.toLowerCase(),
+              ) ||
               customer.businessName.toLowerCase().contains(
                 query.toLowerCase(),
               ) ||
@@ -2793,9 +2795,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                       ),
                     ),
                     title: Text(
-                      c.isBusiness && c.businessName.isNotEmpty
-                          ? c.businessName
-                          : c.name,
+                      c.preferredName.isNotEmpty
+                          ? c.preferredName
+                          : context.tr('Unnamed customer'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Column(
@@ -2835,9 +2837,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   Future<void> _editCustomer(Customer summary) async {
     setState(() => loadingCustomerId = summary.id);
     try {
-      final customer = await ref
+      final detail = await ref
           .read(backendControllerProvider.notifier)
           .customerDetail(summary.id);
+      final customer = detail.mergeMissingFrom(summary);
       if (!mounted) return;
       ref.read(appStoreProvider.notifier).updateCustomer(customer);
       await _customerForm(context, ref, customer);

@@ -13,6 +13,7 @@ import '../features/invoice_layouts/domain/invoice_layout_entities.dart';
 import '../features/kitchen/domain/kitchen_entities.dart';
 import '../features/pos/domain/client_sale_calculation.dart';
 import '../features/app_update/domain/app_update_info.dart';
+import '../features/vouchers/domain/voucher_entities.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -2537,6 +2538,235 @@ class Api {
     );
   }
 
+  Future<VoucherPage> vouchers(
+    String accessToken, {
+    VoucherType? type,
+    int page = 1,
+    String party = '',
+    int? locationId,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.vouchersUrl).replace(
+      queryParameters: {
+        'page': '$page',
+        'per_page': '25',
+        if (type != null) 'type': type.code,
+        if (party.trim().isNotEmpty) 'party': party.trim(),
+        if (locationId != null) 'location_id': '$locationId',
+      },
+    );
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'vouchers');
+    final meta = _map(payload['meta']);
+    final items = (payload['data'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(_voucherFromJson)
+        .toList(growable: false);
+    return VoucherPage(
+      items: items,
+      page: _number(meta['current_page']).toInt() < 1
+          ? 1
+          : _number(meta['current_page']).toInt(),
+      lastPage: _number(meta['last_page']).toInt() < 1
+          ? 1
+          : _number(meta['last_page']).toInt(),
+      total: _number(meta['total']).toInt(),
+    );
+  }
+
+  Future<Voucher> voucher(String accessToken, int id) async {
+    final payload = await _getDataObject(
+      Uri.parse(ApiEndPoints.voucherUrl(id)),
+      accessToken,
+      'voucher',
+    );
+    return _voucherFromJson(payload);
+  }
+
+  Future<VoucherOptions> voucherOptions(
+    String accessToken,
+    VoucherType type, {
+    int? voucherId,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.voucherOptionsUrl).replace(
+      queryParameters: {
+        'type': type.code,
+        if (voucherId != null) 'voucher_id': '$voucherId',
+      },
+    );
+    final data = await _getDataObject(uri, accessToken, 'voucher options');
+    return VoucherOptions(
+      type: VoucherType.fromCode(data['type']?.toString() ?? type.code),
+      partyModes: (data['party_modes'] as List? ?? const [])
+          .map((item) => '$item')
+          .toList(growable: false),
+      paymentMethods: (data['payment_methods'] as List? ?? const [])
+          .map((item) => '$item')
+          .toList(growable: false),
+      accounts: (data['accounts'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (item) => VoucherAccount(
+              id: _number(item['id']).toInt(),
+              name: item['name']?.toString() ?? '',
+              primaryType: item['primary_type']?.toString() ?? '',
+              cashKind: item['cash_kind']?.toString(),
+              glCode: item['gl_code']?.toString(),
+              displayName: item['display_name']?.toString(),
+              partySelection: item['party_selection']?.toString(),
+            ),
+          )
+          .toList(growable: false),
+      sourceAccounts: (data['source_accounts'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_voucherAccountFromJson)
+          .toList(growable: false),
+      partyAccounts: (data['party_accounts'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_voucherAccountFromJson)
+          .toList(growable: false),
+      locations: (data['locations'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (item) => VoucherLocation(
+              id: _number(item['id']).toInt(),
+              name: item['name']?.toString() ?? '',
+              controlAccountId: item['control_account_id'] == null
+                  ? null
+                  : _number(item['control_account_id']).toInt(),
+              defaultSourceAccountId: item['default_source_account_id'] == null
+                  ? null
+                  : _number(item['default_source_account_id']).toInt(),
+            ),
+          )
+          .toList(growable: false),
+      defaultOperationDate: DateTime.tryParse(
+        _map(data['defaults'])['operation_date']?.toString() ?? '',
+      ),
+      defaultPaymentMethod: _map(
+        data['defaults'],
+      )['payment_method']?.toString(),
+    );
+  }
+
+  Future<List<VoucherParty>> voucherParties(
+    String accessToken,
+    VoucherType type, {
+    String query = '',
+    int? voucherId,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.voucherContactsUrl).replace(
+      queryParameters: {
+        'type': type.code,
+        'per_page': '100',
+        if (query.trim().isNotEmpty) 'q': query.trim(),
+        if (voucherId != null) 'voucher_id': '$voucherId',
+      },
+    );
+    final response = await _client
+        .get(uri, headers: _authorizedHeaders(accessToken))
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'voucher contacts');
+    return (payload['data'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => VoucherParty(
+            id: _number(item['id']).toInt(),
+            label: item['label']?.toString() ?? '',
+            type: item['type']?.toString() ?? '',
+            partySelection: item['party_selection']?.toString(),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<VoucherDues> voucherDues(
+    String accessToken, {
+    required VoucherType type,
+    required int locationId,
+    required int contactId,
+    String? amount,
+    int? voucherId,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.voucherDuesUrl).replace(
+      queryParameters: {
+        'type': type.code,
+        'location_id': '$locationId',
+        'contact_id': '$contactId',
+        if (amount?.trim().isNotEmpty == true) 'amount': amount!.trim(),
+        if (voucherId != null) 'voucher_id': '$voucherId',
+      },
+    );
+    final data = await _getDataObject(uri, accessToken, 'voucher dues');
+    return VoucherDues(
+      due: data['due']?.toString() ?? '0.0000',
+      advance: data['advance']?.toString(),
+    );
+  }
+
+  Future<Voucher> saveVoucher(
+    String accessToken,
+    VoucherDraft draft, {
+    int? id,
+  }) async {
+    final uri = Uri.parse(
+      id == null ? ApiEndPoints.vouchersUrl : ApiEndPoints.voucherUrl(id),
+    );
+    final response = id == null
+        ? await _client
+              .post(
+                uri,
+                headers: _authorizedHeaders(accessToken, json: true),
+                body: jsonEncode(draft.toJson()),
+              )
+              .timeout(const Duration(seconds: 20))
+        : await _client
+              .patch(
+                uri,
+                headers: _authorizedHeaders(accessToken, json: true),
+                body: jsonEncode(draft.toJson()),
+              )
+              .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'voucher');
+    return _voucherFromJson(_map(payload['data']));
+  }
+
+  Future<void> deleteVoucher(String accessToken, int id, int revision) async {
+    final response = await _client
+        .delete(
+          Uri.parse(ApiEndPoints.voucherUrl(id)),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({'revision': revision}),
+        )
+        .timeout(const Duration(seconds: 20));
+    _requireObject(response, 'voucher deletion');
+  }
+
+  Future<VoucherConfiguration> voucherConfiguration(String accessToken) async {
+    final data = await _getDataObject(
+      Uri.parse(ApiEndPoints.voucherConfigurationUrl),
+      accessToken,
+      'voucher configuration',
+    );
+    return _voucherConfigurationFromJson(data);
+  }
+
+  Future<VoucherConfiguration> updateVoucherConfiguration(
+    String accessToken,
+    List<Map<String, Object?>> accounts,
+  ) async {
+    final response = await _client
+        .patch(
+          Uri.parse(ApiEndPoints.voucherConfigurationUrl),
+          headers: _authorizedHeaders(accessToken, json: true),
+          body: jsonEncode({'accounts': accounts}),
+        )
+        .timeout(const Duration(seconds: 20));
+    final payload = _requireObject(response, 'voucher configuration');
+    return _voucherConfigurationFromJson(_map(payload['data']));
+  }
+
   Future<List<StockItem>> stockReport(String accessToken) async {
     final data = await _getAllPages(
       Uri.parse(ApiEndPoints.stockReportUrl),
@@ -2665,6 +2895,7 @@ class Api {
     required Customer customer,
     required List<CartLine> lines,
     String? paymentMethod,
+    List<PaymentAllocation> payments = const [],
     required int total,
     required int grossDiscount,
     required String clientTransactionId,
@@ -2752,9 +2983,19 @@ class Api {
           // require a register. Bill & Pay supplies a method and register, so
           // its payment must be recorded just like a normal POS sale.
           if (!isCreditSale && (!isKitchenOrder || paymentMethod != null))
-            'payments': [
-              {'amount': total / 100, 'method': paymentMethod ?? 'cash'},
-            ],
+            'payments': payments.isNotEmpty
+                ? [
+                    for (final payment in payments)
+                      {
+                        'amount': payment.amount / 100,
+                        'method': payment.method,
+                        if (payment.reference.trim().isNotEmpty)
+                          'note': payment.reference.trim(),
+                      },
+                  ]
+                : [
+                    {'amount': total / 100, 'method': paymentMethod ?? 'cash'},
+                  ],
         },
       ],
     };
@@ -2769,40 +3010,37 @@ class Api {
     required String accessToken,
     required Map<String, dynamic> sell,
   }) async {
-    http.Response? response;
-    StackTrace? lastStackTrace;
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        response = await _client
-            .post(
-              Uri.parse(ApiEndPoints.salesUrl),
-              headers: {
-                ..._authorizedHeaders(accessToken),
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode({
-                'sells': [sell],
-              }),
-            )
-            .timeout(const Duration(seconds: 30));
-        break;
-      } catch (error, stackTrace) {
-        if (!_isTransientAuthFailure(error)) rethrow;
-        lastStackTrace = stackTrace;
-        _client.resetTransport();
-        if (attempt == 0) {
-          await Future<void>.delayed(const Duration(milliseconds: 350));
-        }
-      }
-    }
-    if (response == null) {
-      final error = const ApiException(
-        'The sale server could not be reached. The sale was not recorded; please retry.',
+    late final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse(ApiEndPoints.salesUrl),
+            headers: {
+              ..._authorizedHeaders(accessToken),
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'sells': [sell],
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+    } on TimeoutException catch (error, stackTrace) {
+      _client.resetTransport();
+      Error.throwWithStackTrace(
+        const ApiException(
+          'The sale server did not respond within 30 seconds. Check Sales before retrying; the same transaction ID will be reused to prevent a duplicate sale.',
+        ),
+        stackTrace,
       );
-      if (lastStackTrace != null) {
-        Error.throwWithStackTrace(error, lastStackTrace);
-      }
-      throw error;
+    } catch (error, stackTrace) {
+      if (!_isTransientAuthFailure(error)) rethrow;
+      _client.resetTransport();
+      Error.throwWithStackTrace(
+        const ApiException(
+          'The sale server could not be reached. No confirmation was received; check Sales and retry.',
+        ),
+        stackTrace,
+      );
     }
     final decoded = _decodeAny(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -3730,8 +3968,102 @@ class Api {
 
   int _money(dynamic value) => (_number(value) * 100).round();
 
+  Voucher _voucherFromJson(Map<String, dynamic> json) {
+    final operationDate = DateTime.tryParse(
+      json['operation_date']?.toString() ?? '',
+    );
+    return Voucher(
+      id: _number(json['id']).toInt(),
+      type: VoucherType.fromCode(json['type']?.toString() ?? ''),
+      reference: (json['ref_no'] ?? json['reference'])?.toString() ?? '',
+      revision: _number(json['revision']).toInt(),
+      submissionKey: json['submission_key']?.toString() ?? '',
+      operationDate: operationDate ?? DateTime.now(),
+      locationId: _number(json['location_id']).toInt(),
+      partyMode: json['party_mode']?.toString() ?? 'none',
+      contactId: json['contact_id'] == null
+          ? null
+          : _number(json['contact_id']).toInt(),
+      payeeName: json['payee_name']?.toString(),
+      partyLabel: json['party_label']?.toString(),
+      cashAccountId: _number(json['cash_account_id']).toInt(),
+      counterAccountId: _number(json['counter_account_id']).toInt(),
+      amount: json['amount']?.toString() ?? '0.0000',
+      advanceAmount: json['advance_amount']?.toString() ?? '0.0000',
+      paymentMethod: json['payment_method']?.toString(),
+      paymentReference: json['payment_reference']?.toString(),
+      partySelection: json['party_selection']?.toString(),
+      description: json['description']?.toString(),
+      note: json['note']?.toString(),
+      lines: (json['lines'] as List? ?? const [])
+          .whereType<Map>()
+          .map((raw) => Map<String, dynamic>.from(raw))
+          .map(
+            (line) => VoucherLine(
+              accountId: _number(line['account_id']).toInt(),
+              type: line['type']?.toString() ?? '',
+              amount: line['amount']?.toString() ?? '0.0000',
+            ),
+          )
+          .toList(growable: false),
+      allocations: (json['allocations'] as List? ?? const [])
+          .whereType<Map>()
+          .map((raw) => Map<String, dynamic>.from(raw))
+          .map(
+            (allocation) => VoucherAllocation(
+              transactionId: _number(allocation['transaction_id']).toInt(),
+              amount: allocation['amount']?.toString() ?? '0.0000',
+              invoiceNo: allocation['invoice_no']?.toString(),
+              reference: allocation['ref_no']?.toString(),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  VoucherAccount _voucherAccountFromJson(Map<String, dynamic> item) =>
+      VoucherAccount(
+        id: _number(item['id']).toInt(),
+        name: item['name']?.toString() ?? '',
+        primaryType: item['primary_type']?.toString() ?? '',
+        cashKind: item['cash_kind']?.toString(),
+        glCode: item['gl_code']?.toString(),
+        displayName: item['display_name']?.toString(),
+        partySelection: item['party_selection']?.toString(),
+      );
+
+  VoucherConfiguration _voucherConfigurationFromJson(
+    Map<String, dynamic> data,
+  ) => VoucherConfiguration(
+    accounts: (data['accounts'] as List? ?? const [])
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .map(
+          (item) => VoucherConfigurationAccount(
+            id: _number(item['id']).toInt(),
+            name: item['name']?.toString() ?? '',
+            active: _bool(item['active'] ?? item['is_active'], fallback: true),
+            kind: item['voucher_cash_kind']?.toString(),
+            coreAccountId: item['voucher_payment_account_id'] == null
+                ? null
+                : _number(item['voucher_payment_account_id']).toInt(),
+          ),
+        )
+        .toList(growable: false),
+    coreAccounts: (data['core_accounts'] as List? ?? const [])
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .map(
+          (item) => VoucherCoreAccount(
+            id: _number(item['id']).toInt(),
+            name: item['name']?.toString() ?? '',
+          ),
+        )
+        .toList(growable: false),
+  );
+
   Customer _customerFromJson(Map<String, dynamic> json) => Customer(
-    id: json['id'].toString(),
+    id: (json['id'] ?? json['contact_id'])?.toString().trim() ?? '',
     name:
         [
               json['full_name'],

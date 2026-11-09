@@ -26,6 +26,7 @@ import 'features/subscription/presentation/subscription_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
 import 'features/app_update/presentation/windows_update_gate.dart';
 import 'features/app_update/presentation/app_update_settings_preview_screen.dart';
+import 'features/vouchers/presentation/vouchers_screen.dart';
 
 Page<void> _instantPage(GoRouterState state, Widget child) =>
     NoTransitionPage<void>(key: state.pageKey, child: child);
@@ -212,6 +213,11 @@ final _router = GoRouter(
         GoRoute(
           path: '/reports',
           pageBuilder: (_, state) => _instantPage(state, const ReportsScreen()),
+        ),
+        GoRoute(
+          path: '/vouchers',
+          pageBuilder: (_, state) =>
+              _instantPage(state, const VouchersScreen()),
         ),
         GoRoute(
           path: '/restaurant',

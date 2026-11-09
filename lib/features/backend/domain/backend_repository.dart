@@ -191,6 +191,7 @@ abstract interface class BackendRepository {
     required Customer customer,
     required List<CartLine> lines,
     required String paymentMethod,
+    List<PaymentAllocation> payments = const [],
     required int total,
     required int grossDiscount,
     required String clientTransactionId,

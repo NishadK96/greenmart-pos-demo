@@ -18,6 +18,40 @@ HOP_BY_HOP = {
     "upgrade",
 }
 
+LOCAL_AUTH_COOKIES = {
+    "XSRF-TOKEN",
+    "eazyerp_local_session",
+    "connector_device_id",
+    "connector_device_secret",
+}
+
+
+def filtered_cookie_header(raw_cookie, path):
+    """Keep localhost browser cookies from poisoning the isolated backend.
+
+    Browser cookies are scoped to 127.0.0.1 rather than its port, so unrelated
+    local apps and older EazyERP keys otherwise reach this backend. Bootstrap
+    intentionally starts clean and replaces the Eazy POS device/session cookies.
+    """
+    route = path.split("?", 1)[0]
+    if route == "/connector/web-auth/bootstrap" or not raw_cookie:
+        return None
+    accepted = {}
+    activate_prefix = "/connector/web-auth/sessions/"
+    activate_suffix = "/activate"
+    refresh_name = None
+    if route.startswith(activate_prefix) and route.endswith(activate_suffix):
+        session_id = route[len(activate_prefix) : -len(activate_suffix)].strip("/")
+        if session_id:
+            refresh_name = f"connector_refresh_{session_id}"
+    for entry in raw_cookie.split(";"):
+        name, separator, value = entry.strip().partition("=")
+        if not separator:
+            continue
+        if name in LOCAL_AUTH_COOKIES or name == refresh_name:
+            accepted[name] = value
+    return "; ".join(f"{name}={value}" for name, value in accepted.items()) or None
+
 
 class SameOriginHandler(SimpleHTTPRequestHandler):
     backend_host = "127.0.0.1"
@@ -30,8 +64,15 @@ class SameOriginHandler(SimpleHTTPRequestHandler):
         headers = {
             key: value
             for key, value in self.headers.items()
-            if key.lower() not in HOP_BY_HOP and key.lower() != "host"
+            if key.lower() not in HOP_BY_HOP
+            and key.lower() not in {"host", "cookie"}
         }
+        cookie = filtered_cookie_header(
+            self.headers.get("Cookie"),
+            self.path,
+        )
+        if cookie:
+            headers["Cookie"] = cookie
         default_port = 443 if self.backend_https else 80
         headers["Host"] = self.backend_host if self.backend_port == default_port else f"{self.backend_host}:{self.backend_port}"
         connection_type = HTTPSConnection if self.backend_https else HTTPConnection

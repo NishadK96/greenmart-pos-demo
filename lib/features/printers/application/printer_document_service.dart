@@ -59,8 +59,7 @@ class PrinterDocumentService {
       final results = await Future.wait(
         destinations.map((destination) async {
           try {
-            final printed =
-                destination.url.startsWith(AndroidBluetoothPrinter.urlPrefix)
+            final printed = AndroidBluetoothPrinter.handles(destination)
                 ? await AndroidBluetoothPrinter.printPdf(
                     destination,
                     printableBytes,
@@ -652,7 +651,11 @@ class PrinterDocumentService {
               ),
             ],
             PdfFonts.text(
-              sale.syncStatus == SyncStatus.pending
+              sale.status == 'open_order'
+                  ? arabic
+                        ? 'فاتورة أولية - طلب مفتوح'
+                        : 'INTERIM BILL — OPEN ORDER'
+                  : sale.syncStatus == SyncStatus.pending
                   ? arabic
                         ? 'إيصال مؤقت غير متصل'
                         : 'PROVISIONAL OFFLINE RECEIPT'
@@ -699,7 +702,16 @@ class PrinterDocumentService {
               _money(sale.total),
               bold: true,
             ),
-            if (sale.syncStatus == SyncStatus.pending) ...[
+            if (sale.payments.length > 1) ...[
+              pw.Divider(),
+              for (final payment in sale.payments)
+                _line(
+                  _paymentLabel(payment.method, arabic),
+                  _money(payment.amount),
+                ),
+            ],
+            if (sale.syncStatus == SyncStatus.pending &&
+                sale.status != 'open_order') ...[
               pw.SizedBox(height: 12),
               pw.Center(
                 child: pw.BarcodeWidget(
@@ -722,6 +734,19 @@ class PrinterDocumentService {
                 'The official invoice number and ZATCA status are issued after synchronization.',
                 textAlign: pw.TextAlign.center,
                 style: const pw.TextStyle(fontSize: 7),
+              ),
+            ],
+            if (sale.status == 'open_order') ...[
+              pw.SizedBox(height: 10),
+              pw.Text(
+                arabic
+                    ? 'طلب مفتوح — ليست فاتورة ضريبية'
+                    : 'OPEN ORDER — NOT A TAX INVOICE',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
             ],
             pw.SizedBox(height: 14),

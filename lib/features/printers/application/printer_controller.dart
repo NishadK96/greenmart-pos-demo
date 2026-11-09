@@ -134,10 +134,13 @@ class PrinterController extends Notifier<PrinterState> {
     }
     if (AndroidBluetoothPrinter.supported) {
       try {
-        printers.insertAll(0, await AndroidBluetoothPrinter.pairedPrinters());
+        printers.insertAll(
+          0,
+          await AndroidBluetoothPrinter.availablePrinters(),
+        );
       } catch (error) {
         message =
-            'Bluetooth printers unavailable: $error. Pair the printer in Android Settings, allow Nearby devices, then scan again.';
+            'Direct printers unavailable: $error. Connect the USB printer or pair a Bluetooth printer, allow the requested Android permissions, then scan again.';
       }
       printers.add(
         const Printer(
@@ -147,7 +150,7 @@ class PrinterController extends Notifier<PrinterState> {
         ),
       );
       message ??= printers.length == 1
-          ? 'No paired Bluetooth printer found. Pair your printer in Android Settings, then scan again.'
+          ? 'No direct printer found. Connect a USB printer or pair a Bluetooth printer, then scan again.'
           : null;
     } else if (printers.isEmpty) {
       message ??= state.settings.defaultPrinterUrl == null

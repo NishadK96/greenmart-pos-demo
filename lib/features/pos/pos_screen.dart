@@ -340,6 +340,15 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _showUnitPriceEditor(context, ref, selected ?? state.cart.last);
   }
 
+  Future<void> _printAndHoldRetailSale() async {
+    if (ref.read(appStoreProvider).cart.isEmpty) return;
+    ref.read(appStoreProvider.notifier).holdCart();
+    final held = ref.read(appStoreProvider).heldCarts.firstOrNull;
+    if (held != null && mounted) {
+      await _printHeldOrderDocument(context, ref, held);
+    }
+  }
+
   void _holdRetailSale() {
     if (ref.read(appStoreProvider).cart.isEmpty) return;
     ref.read(appStoreProvider.notifier).holdCart();
@@ -1557,7 +1566,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           optionsBuilder: (value) {
             final query = value.text.trim().toLowerCase();
             if (query.isEmpty) return const Iterable<Product>.empty();
-            return state.products
+            final matches = state.products
                 .where(
                   (product) =>
                       product.active &&
@@ -1567,7 +1576,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           product.sku.toLowerCase().contains(query) ||
                           product.barcode.toLowerCase().contains(query)),
                 )
-                .take(8);
+                .toList(growable: false);
+            matches.sort((a, b) {
+              final aAvailable = _canSell(a);
+              final bAvailable = _canSell(b);
+              if (aAvailable == bAvailable) return 0;
+              return aAvailable ? -1 : 1;
+            });
+            return matches.take(8);
           },
           onSelected: (product) => _addSearchSuggestion(product),
           fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
@@ -1591,126 +1607,209 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   isDense: true,
                 ),
               ),
-          optionsViewBuilder: (context, onSelected, options) => Builder(
-            builder: (optionsContext) {
-              final highlightedIndex = AutocompleteHighlightedOption.of(
-                optionsContext,
-              );
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted ||
-                    !_searchOptionsScrollController.hasClients ||
-                    highlightedIndex < 0 ||
-                    highlightedIndex >= options.length) {
-                  return;
-                }
-                final position = _searchOptionsScrollController.position;
-                const rowHeight = 48.0;
-                const topPadding = 5.0;
-                final rowTop = topPadding + highlightedIndex * rowHeight;
-                final rowBottom = rowTop + rowHeight;
-                final viewportBottom =
-                    position.pixels + position.viewportDimension;
-                final target = rowTop < position.pixels
-                    ? rowTop
-                    : rowBottom > viewportBottom
-                    ? rowBottom - position.viewportDimension
-                    : null;
-                if (target != null) {
-                  _searchOptionsScrollController.jumpTo(
-                    target.clamp(
-                      position.minScrollExtent,
-                      position.maxScrollExtent,
-                    ),
+          optionsViewBuilder: (context, onSelected, options) {
+            int? hoveredIndex;
+            return StatefulBuilder(
+              builder: (context, setOptionsState) => Builder(
+                builder: (optionsContext) {
+                  final highlightedIndex = AutocompleteHighlightedOption.of(
+                    optionsContext,
                   );
-                }
-              });
-              return Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(8),
-                  clipBehavior: Clip.antiAlias,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 340,
-                      maxWidth: 480,
-                      maxHeight: 300,
-                    ),
-                    child: ListView.builder(
-                      controller: _searchOptionsScrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (_, index) {
-                        final product = options.elementAt(index);
-                        return Builder(
-                          builder: (rowContext) {
-                            final highlighted =
-                                AutocompleteHighlightedOption.of(rowContext) ==
-                                index;
-                            return InkWell(
-                              onTap: () => onSelected(product),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 90),
-                                height: 48,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                color: highlighted
-                                    ? AppColors.primary.withValues(alpha: .11)
-                                    : Colors.white,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        product.displayName(context.isArabic),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: highlighted
-                                              ? FontWeight.w800
-                                              : FontWeight.w500,
-                                          color: highlighted
-                                              ? AppColors.primary
-                                              : AppColors.ink,
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted ||
+                        !_searchOptionsScrollController.hasClients ||
+                        highlightedIndex < 0 ||
+                        highlightedIndex >= options.length) {
+                      return;
+                    }
+                    final position = _searchOptionsScrollController.position;
+                    const rowHeight = 48.0;
+                    const topPadding = 5.0;
+                    final rowTop = topPadding + highlightedIndex * rowHeight;
+                    final rowBottom = rowTop + rowHeight;
+                    final viewportBottom =
+                        position.pixels + position.viewportDimension;
+                    final target = rowTop < position.pixels
+                        ? rowTop
+                        : rowBottom > viewportBottom
+                        ? rowBottom - position.viewportDimension
+                        : null;
+                    if (target != null) {
+                      _searchOptionsScrollController.jumpTo(
+                        target.clamp(
+                          position.minScrollExtent,
+                          position.maxScrollExtent,
+                        ),
+                      );
+                    }
+                  });
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(8),
+                      clipBehavior: Clip.antiAlias,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minWidth: 340,
+                          maxWidth: 480,
+                          maxHeight: 300,
+                        ),
+                        child: ListView.builder(
+                          controller: _searchOptionsScrollController,
+                          padding: const EdgeInsets.symmetric(vertical: 5),
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (_, index) {
+                            final product = options.elementAt(index);
+                            final available = _canSell(product);
+                            return Builder(
+                              builder: (rowContext) {
+                                final keyboardHighlighted =
+                                    AutocompleteHighlightedOption.of(
+                                      rowContext,
+                                    ) ==
+                                    index;
+                                final highlighted = hoveredIndex != null
+                                    ? hoveredIndex == index
+                                    : keyboardHighlighted;
+                                return InkWell(
+                                  mouseCursor: available
+                                      ? SystemMouseCursors.click
+                                      : SystemMouseCursors.forbidden,
+                                  hoverColor: AppColors.primary.withValues(
+                                    alpha: .11,
+                                  ),
+                                  onHover: (hovering) {
+                                    setOptionsState(() {
+                                      if (hovering) {
+                                        hoveredIndex = index;
+                                      } else if (hoveredIndex == index) {
+                                        hoveredIndex = null;
+                                      }
+                                    });
+                                  },
+                                  onTap: available
+                                      ? () => onSelected(product)
+                                      : null,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 90),
+                                    height: 48,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    color: highlighted
+                                        ? AppColors.primary.withValues(
+                                            alpha: .11,
+                                          )
+                                        : Colors.white,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            product.displayName(
+                                              context.isArabic,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: highlighted
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w500,
+                                              color: !available
+                                                  ? AppColors.muted
+                                                  : highlighted
+                                                  ? AppColors.primary
+                                                  : AppColors.ink,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 12),
+                                        if (!available) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.danger
+                                                  .withValues(alpha: .08),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              context.tr('Out of stock'),
+                                              style: const TextStyle(
+                                                color: AppColors.danger,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                        ],
+                                        Text(
+                                          money(product.sellingPrice),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: !available
+                                                ? AppColors.muted
+                                                : highlighted
+                                                ? AppColors.primary
+                                                : AppColors.ink,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 18),
-                                    Text(
-                                      money(product.sellingPrice),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: highlighted
-                                            ? AppColors.primary
-                                            : AppColors.ink,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                                  ),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ),
     ),
   );
 
   Future<void> _addSearchSuggestion(Product product) async {
+    // RawAutocomplete writes the selected product's display name into its
+    // controller before invoking onSelected. Reset its selection state before
+    // restoring the query so the same result can be added repeatedly.
+    final query = _query;
+    if (!_canSell(product)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.tr('Out of stock'))));
+      _restoreSearchQuery(query);
+      return;
+    }
     await _addProduct(product);
+    if (!mounted) return;
+    _restoreSearchQuery(query);
+  }
+
+  void _restoreSearchQuery(String query) {
     _searchController.clear();
-    if (mounted) setState(() => _query = '');
+    setState(() => _query = '');
     _searchFocus.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchController.value = TextEditingValue(
+        text: query,
+        selection: TextSelection.collapsed(offset: query.length),
+      );
+      setState(() => _query = query);
+    });
   }
 
   Future<void> _addFromBarcode(AppState state) async {
@@ -1781,8 +1880,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         .toList();
     if (!alwaysSelect && matches.length == 1) {
       await _addProduct(matches.first);
-      _searchController.clear();
-      setState(() => _query = '');
       return;
     }
     await _openProductSelector(state, initialQuery: query);
@@ -2518,6 +2615,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             state.cart.isEmpty ? null : _holdRetailSale,
           ),
           _bottomAction(
+            Icons.print_outlined,
+            'Print & Hold',
+            '',
+            state.cart.isEmpty ? null : _printAndHoldRetailSale,
+          ),
+          _bottomAction(
             Icons.history_rounded,
             'Recent Orders',
             'F7',
@@ -3215,10 +3318,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         .where((line) => line.lineId == lineId)
         .fold<double>(0, (total, line) => total + line.quantity);
     if (updatedQuantity <= previousQuantity) return;
-    _searchController.clear();
     ref.read(_posCartKeyboardProvider.notifier).select(lineId);
     setState(() {
-      _query = '';
       _recent.remove(product.id);
       _recent.insert(0, product.id);
       if (_recent.length > 12) _recent.removeLast();
@@ -3226,8 +3327,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _focusProductSearch();
   }
 
-  bool _canSell(Product product) =>
-      product.stock > 0 || ref.read(appStoreProvider).allowOverselling;
+  bool _canSell(Product product) {
+    final state = ref.read(appStoreProvider);
+    if (state.allowOverselling) return true;
+    final quantityInCart = state.cart
+        .where((line) => line.product.id == product.id)
+        .fold<double>(0, (total, line) => total + line.quantity);
+    return quantityInCart < product.stock;
+  }
 
   void _openCartSheet(BuildContext context) => _openRetailPaymentSheet();
 }
@@ -5414,11 +5521,13 @@ class _CurrentOrder extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${context.tr('Order')} #H${(state.heldCarts.length - index).toString().padLeft(3, '0')}',
+                      '${context.tr('Order')} ${held.id.substring(held.id.length - 6)}',
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                     Text(
-                      '$count ${context.tr('items')} • ${context.tr('Held sale')}',
+                      '${held.customer.preferredName} • $count ${context.tr('items')}\n'
+                      '${DateFormat('dd MMM, HH:mm').format(held.updatedAt)}'
+                      '${held.printRevision > 0 ? ' • ${context.tr('Revision')} ${held.printRevision}' : ''}',
                       style: const TextStyle(
                         fontSize: 10,
                         color: AppColors.muted,
@@ -5453,13 +5562,7 @@ class _CurrentOrder extends ConsumerWidget {
               const SizedBox(width: 6),
               IconButton.outlined(
                 tooltip: context.tr('Print'),
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      context.tr('Recall the order before printing.'),
-                    ),
-                  ),
-                ),
+                onPressed: () => _printHeldOrder(context, ref, held),
                 icon: const Icon(Icons.print_outlined, size: 17),
               ),
               const SizedBox(width: 6),
@@ -5478,6 +5581,54 @@ class _CurrentOrder extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _printHeldOrder(
+    BuildContext context,
+    WidgetRef ref,
+    HeldCart held,
+  ) async {
+    final revision = held.printRevision + 1;
+    final lineTotal = held.lines.fold<int>(
+      0,
+      (total, line) => total + line.total,
+    );
+    final sale = Sale(
+      localId: held.id,
+      invoiceNo:
+          '${held.id.substring(held.id.length - 6)} • ${context.tr('Revision')} $revision',
+      createdAt: held.createdAt,
+      updatedAt: held.updatedAt,
+      customer: held.customer,
+      items: held.lines,
+      paymentMethod: 'unpaid',
+      total: lineTotal - held.grossDiscount,
+      tax: held.lines.fold<int>(0, (total, line) => total + line.tax),
+      discount:
+          held.grossDiscount +
+          held.lines.fold<int>(0, (total, line) => total + line.discount),
+      grossDiscountType: held.grossDiscountType,
+      grossDiscountRate: held.grossDiscountRate,
+      syncStatus: SyncStatus.pending,
+      status: 'open_order',
+    );
+    final printerState = ref.read(printerControllerProvider);
+    try {
+      await PrinterDocumentService.printReceiptTo(
+        sale,
+        ref.read(appStoreProvider).business?.displayName(context.isArabic) ??
+            'Eazy POS',
+        printerState.settings,
+        printers: printerState.selectedPrinters,
+        arabic: context.isArabic,
+      );
+      ref.read(appStoreProvider.notifier).markHeldCartPrinted(held.id);
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.tr('Print failed')}: $error')),
+      );
+    }
   }
 
   KeyEventResult _handleCartKey(
@@ -6006,23 +6157,29 @@ class _CurrentOrder extends ConsumerWidget {
         children: [
           Expanded(
             child: TextButton.icon(
-              onPressed: () {
-                ref.read(appStoreProvider.notifier).holdCart();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(context.tr('Sale held.')),
-                    action: SnackBarAction(
-                      label: context.tr('Resume'),
-                      onPressed: () => ref
-                          .read(appStoreProvider.notifier)
-                          .resumeLastHeldCart(),
-                    ),
-                  ),
-                );
-              },
+              onPressed: state.cart.isEmpty
+                  ? null
+                  : () => ref.read(appStoreProvider.notifier).holdCart(),
               icon: const Icon(Icons.pause_rounded, size: 17),
               label: Text(context.tr('Hold Sale')),
             ),
+          ),
+          const SizedBox(width: 7),
+          IconButton.outlined(
+            tooltip: context.tr('Print & Hold'),
+            onPressed: state.cart.isEmpty
+                ? null
+                : () async {
+                    ref.read(appStoreProvider.notifier).holdCart();
+                    final held = ref
+                        .read(appStoreProvider)
+                        .heldCarts
+                        .firstOrNull;
+                    if (held != null && context.mounted) {
+                      await _printHeldOrder(context, ref, held);
+                    }
+                  },
+            icon: const Icon(Icons.print_outlined, size: 17),
           ),
           const SizedBox(width: 7),
           Expanded(
@@ -6892,6 +7049,41 @@ class _CurrentOrder extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  if (!submitting && paymentOptions.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final allocations = await _showSplitPaymentDialog(
+                              sheetContext,
+                              paymentOptions
+                                  .where(
+                                    (option) =>
+                                        option.code.toLowerCase() != 'credit',
+                                  )
+                                  .toList(growable: false),
+                              state.cartTotal,
+                            );
+                            if (allocations == null || !sheetContext.mounted) {
+                              return;
+                            }
+                            await _submitSplitPayment(
+                              sheetContext,
+                              ref,
+                              allocations,
+                              router,
+                              messenger,
+                              (value) =>
+                                  setSheetState(() => submitting = value),
+                            );
+                          },
+                          icon: const Icon(Icons.call_split_rounded),
+                          label: Text(context.tr('Split payment')),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -6899,6 +7091,204 @@ class _CurrentOrder extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<List<PaymentAllocation>?> _showSplitPaymentDialog(
+    BuildContext context,
+    List<PaymentOption> options,
+    int total,
+  ) async {
+    final controllers = {
+      for (final option in options) option.code: TextEditingController(),
+    };
+    int enteredTotal() => controllers.values.fold<int>(0, (sum, controller) {
+      final value = double.tryParse(controller.text.trim()) ?? 0;
+      return sum + (value * 100).round();
+    });
+
+    final result = await showDialog<List<PaymentAllocation>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final paid = enteredTotal();
+          final remaining = total - paid;
+          return AlertDialog(
+            title: Text(context.tr('Split payment')),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final option in options)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: TextField(
+                          controller: controllers[option.code],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (_) => setDialogState(() {}),
+                          decoration: InputDecoration(
+                            labelText: context.tr(option.label),
+                            prefixIcon: Icon(_paymentIcon(option.code)),
+                            hintText: '0.00',
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F7F5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          _splitPaymentTotal(context, 'Total', total),
+                          _splitPaymentTotal(context, 'Paid', paid),
+                          _splitPaymentTotal(
+                            context,
+                            remaining < 0 ? 'Overpaid' : 'Balance due',
+                            remaining.abs(),
+                            emphasized: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (remaining < 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          context.tr(
+                            'Payment amounts cannot exceed the bill total.',
+                          ),
+                          style: const TextStyle(color: AppColors.danger),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(context.tr('Cancel')),
+              ),
+              FilledButton.icon(
+                onPressed: remaining == 0
+                    ? () => Navigator.pop(dialogContext, [
+                        for (final option in options)
+                          if ((double.tryParse(
+                                    controllers[option.code]!.text.trim(),
+                                  ) ??
+                                  0) >
+                              0)
+                            PaymentAllocation(
+                              method: option.code,
+                              amount:
+                                  ((double.tryParse(
+                                                controllers[option.code]!.text
+                                                    .trim(),
+                                              ) ??
+                                              0) *
+                                          100)
+                                      .round(),
+                            ),
+                      ])
+                    : null,
+                icon: const Icon(Icons.check_rounded),
+                label: Text(context.tr('Complete payment')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+    });
+    return result;
+  }
+
+  Widget _splitPaymentTotal(
+    BuildContext context,
+    String label,
+    int amount, {
+    bool emphasized = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        Expanded(child: Text(context.tr(label))),
+        RiyalAmount(
+          amount,
+          style: TextStyle(
+            fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
+            color: emphasized ? AppColors.primary : AppColors.ink,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _submitSplitPayment(
+    BuildContext sheetContext,
+    WidgetRef ref,
+    List<PaymentAllocation> payments,
+    GoRouter router,
+    ScaffoldMessengerState messenger,
+    ValueChanged<bool> submitting,
+  ) async {
+    submitting(true);
+    final isArabic = sheetContext.isArabic;
+    final saleFailedLabel = sheetContext.tr('Sale failed');
+    try {
+      final availableOrderTypes = ref.read(orderTypeSettingsProvider).apply();
+      final selectedOrderType = ref.read(_retailOrderTypeProvider);
+      final sale = await ref
+          .read(backendControllerProvider.notifier)
+          .checkoutSplit(
+            payments,
+            serviceTypeCode:
+                availableOrderTypes.any(
+                  (option) => option.code == selectedOrderType,
+                )
+                ? selectedOrderType
+                : availableOrderTypes.firstOrNull?.code,
+          );
+      if (!sheetContext.mounted) return;
+      Navigator.pop(sheetContext);
+      router.go('/pos');
+      final printerState = ref.read(printerControllerProvider);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${sheetContext.tr('Sale complete')} • ${sale.invoiceNo}',
+          ),
+        ),
+      );
+      if (printerState.settings.posPrintingEnabled) {
+        await ref
+            .read(invoiceLayoutControllerProvider.notifier)
+            .printSale(
+              sale: sale,
+              businessName:
+                  ref.read(appStoreProvider).business?.displayName(isArabic) ??
+                  'Eazy POS',
+              settings: printerState.settings,
+              printers: printerState.selectedPrinters,
+              arabic: isArabic,
+            );
+      }
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('$saleFailedLabel: $error')),
+      );
+    } finally {
+      if (sheetContext.mounted) submitting(false);
+    }
   }
 
   bool _paymentMatches(String backendCode, String shortcut) {
@@ -7159,6 +7549,56 @@ class _CurrentOrder extends ConsumerWidget {
   };
 }
 
+Future<void> _printHeldOrderDocument(
+  BuildContext context,
+  WidgetRef ref,
+  HeldCart held,
+) async {
+  final revision = held.printRevision + 1;
+  final lineTotal = held.lines.fold<int>(
+    0,
+    (total, line) => total + line.total,
+  );
+  final sale = Sale(
+    localId: held.id,
+    invoiceNo:
+        '${held.id.substring(held.id.length - 6)} • ${context.tr('Revision')} $revision',
+    createdAt: held.createdAt,
+    updatedAt: held.updatedAt,
+    customer: held.customer,
+    items: held.lines,
+    paymentMethod: 'unpaid',
+    total: lineTotal - held.grossDiscount,
+    tax: held.lines.fold<int>(0, (total, line) => total + line.tax),
+    discount:
+        held.grossDiscount +
+        held.lines.fold<int>(0, (total, line) => total + line.discount),
+    grossDiscountType: held.grossDiscountType,
+    grossDiscountRate: held.grossDiscountRate,
+    syncStatus: SyncStatus.pending,
+    status: 'open_order',
+  );
+  final printerState = ref.read(printerControllerProvider);
+  final isArabic = context.isArabic;
+  final businessName =
+      ref.read(appStoreProvider).business?.displayName(isArabic) ?? 'Eazy POS';
+  try {
+    await PrinterDocumentService.printReceiptTo(
+      sale,
+      businessName,
+      printerState.settings,
+      printers: printerState.selectedPrinters,
+      arabic: isArabic,
+    );
+    ref.read(appStoreProvider.notifier).markHeldCartPrinted(held.id);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${context.tr('Print failed')}: $error')),
+    );
+  }
+}
+
 Future<void> showPosCustomerSelector(
   BuildContext context,
   WidgetRef ref,
@@ -7224,6 +7664,18 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
     super.dispose();
   }
 
+  bool _isSelected(Customer customer) {
+    final selected = widget.selectedCustomer;
+    if (selected == null) return false;
+    if (identical(selected, customer)) return true;
+    if (customer.id == 'walkin' || selected.id == 'walkin') {
+      return customer.id == selected.id;
+    }
+    return customer.hasValidBackendId &&
+        selected.hasValidBackendId &&
+        customer.id == selected.id;
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
@@ -7231,18 +7683,20 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
         _customers
             .where((customer) {
               if (query.isEmpty) return true;
-              return customer.name.toLowerCase().contains(query) ||
+              return customer.preferredName.toLowerCase().contains(query) ||
                   customer.businessName.toLowerCase().contains(query) ||
                   customer.phone.toLowerCase().contains(query) ||
                   customer.email.toLowerCase().contains(query);
             })
             .toList(growable: false)
           ..sort((a, b) {
-            if (a.id == widget.selectedCustomer?.id) return -1;
-            if (b.id == widget.selectedCustomer?.id) return 1;
+            if (_isSelected(a)) return -1;
+            if (_isSelected(b)) return 1;
             if (a.id == 'walkin') return -1;
             if (b.id == 'walkin') return 1;
-            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+            return a.preferredName.toLowerCase().compareTo(
+              b.preferredName.toLowerCase(),
+            );
           });
     final size = MediaQuery.sizeOf(context);
     final mobile = size.width < 700;
@@ -7587,17 +8041,13 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
   }
 
   Widget _customerRow(Customer customer) {
-    final selected = widget.selectedCustomer?.id == customer.id;
+    final selected = _isSelected(customer);
     final walkIn = customer.id == 'walkin';
-    final preferredName =
-        customer.isBusiness && customer.businessName.trim().isNotEmpty
-        ? customer.businessName.trim()
-        : customer.name.trim();
+    final selectable = walkIn || customer.hasValidBackendId;
+    final preferredName = customer.preferredName;
     final title = preferredName.isNotEmpty
         ? preferredName
-        : customer.phone.trim().isNotEmpty
-        ? customer.phone.trim()
-        : '${context.tr('Customer')} #${customer.id}';
+        : context.tr('Unnamed customer');
     final hasArabicName = RegExp(r'[\u0600-\u06FF]').hasMatch(title);
     final initials = customer.name
         .trim()
@@ -7612,10 +8062,12 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () {
-          widget.onSelected(customer);
-          Navigator.pop(context);
-        },
+        onTap: selectable
+            ? () {
+                widget.onSelected(customer);
+                Navigator.pop(context);
+              }
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
@@ -7679,7 +8131,8 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                     ),
                     if (customer.phone.isNotEmpty ||
                         customer.email.isNotEmpty ||
-                        (customer.isBusiness && customer.name.isNotEmpty))
+                        (customer.isBusiness && customer.name.isNotEmpty) ||
+                        !selectable)
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
@@ -7690,6 +8143,10 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                               customer.name,
                             if (customer.phone.isNotEmpty) customer.phone,
                             if (customer.email.isNotEmpty) customer.email,
+                            if (!selectable)
+                              context.tr(
+                                'Unavailable for sales — missing customer ID',
+                              ),
                           ].join('  •  '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -7703,7 +8160,15 @@ class _CustomerSelectorDialogState extends State<_CustomerSelectorDialog> {
                 ),
               ),
               const SizedBox(width: 10),
-              if (selected)
+              if (!selectable)
+                const Tooltip(
+                  message: 'Missing customer ID',
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.danger,
+                  ),
+                )
+              else if (selected)
                 const Icon(
                   Icons.check_circle_rounded,
                   color: AppColors.primary,

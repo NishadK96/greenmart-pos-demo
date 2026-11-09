@@ -8,6 +8,7 @@ import 'package:eazy_pos/apis/api.dart';
 import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:eazy_pos/features/purchases/domain/purchase_entities.dart';
 import 'package:eazy_pos/features/zatca/domain/zatca_entities.dart';
+import 'package:eazy_pos/features/vouchers/domain/voucher_entities.dart';
 
 void main() {
   test('customer list keeps Arabic names when name is empty', () async {
@@ -25,6 +26,26 @@ void main() {
 
     expect(customers.single.name, 'أحمد علي');
     expect(customers.single.phone, '0501234567');
+  });
+
+  test('customer list never converts a null id into the text null', () async {
+    final api = Api(
+      client: MockClient(
+        (request) async => http.Response(
+          '{"data":[{"id":null,"contact_id":null,"name":"NBEW",'
+          '"first_name":"NBEW","mobile":"2121211313"}]}',
+          200,
+          headers: const {'content-type': 'application/json'},
+        ),
+      ),
+    );
+
+    final customer = (await api.customers('token')).single;
+
+    expect(customer.id, isEmpty);
+    expect(customer.name, 'NBEW');
+    expect(customer.preferredName, 'NBEW');
+    expect(customer.hasValidBackendId, isFalse);
   });
 
   test('tax mutations use connector CRUD endpoints and payloads', () async {
@@ -682,6 +703,23 @@ void main() {
       expect(customer.commercialRegistrationNumber, 'CR-2048');
     },
   );
+
+  test('customer detail can preserve fields omitted by a sparse response', () {
+    const summary = Customer(
+      id: '42',
+      name: 'Rasheed',
+      phone: '0531381575',
+      commercialRegistrationNumber: 'CR-42',
+    );
+    const detail = Customer(id: '42', name: '');
+
+    final merged = detail.mergeMissingFrom(summary);
+
+    expect(merged.id, '42');
+    expect(merged.name, 'Rasheed');
+    expect(merged.phone, '0531381575');
+    expect(merged.commercialRegistrationNumber, 'CR-42');
+  });
 
   test(
     'customer update keeps submitted fields with a stale response',
@@ -1385,7 +1423,7 @@ void main() {
     },
   );
 
-  test('create sale retries one transient transport failure safely', () async {
+  test('create sale does not silently replay an unconfirmed request', () async {
     var attempts = 0;
     final api = Api(
       client: MockClient((request) async {
@@ -1393,30 +1431,24 @@ void main() {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         final sell = (body['sells'] as List).single as Map<String, dynamic>;
         expect(sell['client_transaction_id'], 'safe-retry-id');
-        if (attempts == 1) {
-          throw http.ClientException('stale mobile connection', request.url);
-        }
-        return http.Response(
-          '{"id":146,"official_invoice_no":"INV-000146",'
-          '"idempotent_replay":true}',
-          200,
-        );
+        throw http.ClientException('stale mobile connection', request.url);
       }),
     );
 
-    final result = await api.createSalePayload(
-      accessToken: 'token-123',
-      sell: const {
-        'client_transaction_id': 'safe-retry-id',
-        'location_id': 1,
-        'contact_id': 1,
-        'products': <Map<String, dynamic>>[],
-      },
+    await expectLater(
+      api.createSalePayload(
+        accessToken: 'token-123',
+        sell: const {
+          'client_transaction_id': 'safe-retry-id',
+          'location_id': 1,
+          'contact_id': 1,
+          'products': <Map<String, dynamic>>[],
+        },
+      ),
+      throwsA(isA<ApiException>()),
     );
 
-    expect(attempts, 2);
-    expect(result['id'], 146);
-    expect(result['idempotent_replay'], isTrue);
+    expect(attempts, 1);
   });
 
   test(
@@ -2316,6 +2348,141 @@ void main() {
 
     expect(result['current_page'], 2);
     expect((result['summary'] as Map)['final_total'], 1200);
+  });
+
+  test('voucher list preserves decimal strings and pagination', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/connector/api/accounting/vouchers');
+        expect(request.url.queryParameters['type'], 'receipt_voucher');
+        expect(request.url.queryParameters['party'], 'Ahmed');
+        expect(request.headers['Authorization'], 'Bearer token');
+        return http.Response(
+          '{"data":[{"id":42,"type":"receipt_voucher",'
+          '"ref_no":"RV-000042","revision":1,"submission_key":"key",'
+          '"operation_date":"2026-10-31T14:30","location_id":1,'
+          '"party_mode":"contact","contact_id":25,'
+          '"party_label":"Ahmed","cash_account_id":10,'
+          '"counter_account_id":20,"amount":"150.0000",'
+          '"advance_amount":"50.0000","payment_method":"cash"}],'
+          '"meta":{"current_page":2,"last_page":4,"total":76}}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.vouchers(
+      'token',
+      type: VoucherType.receipt,
+      page: 2,
+      party: 'Ahmed',
+    );
+
+    expect(result.page, 2);
+    expect(result.lastPage, 4);
+    expect(result.total, 76);
+    expect(result.items.single.amount, '150.0000');
+    expect(result.items.single.partyLabel, 'Ahmed');
+  });
+
+  test('voucher options map simplified parties, accounts and defaults', () async {
+    final api = Api(
+      client: MockClient((request) async {
+        expect(request.url.path, '/connector/api/accounting/vouchers/options');
+        return http.Response(
+          '{"data":{"type":"receipt_voucher","party_modes":["contact","ledger"],'
+          '"payment_methods":["cash"],'
+          '"accounts":[],"source_accounts":[{"id":10,"name":"Cash",'
+          '"display_name":"1010 · Main Cash","gl_code":"1010",'
+          '"primary_type":"asset","cash_kind":"cash"}],'
+          '"party_accounts":[{"id":40,"name":"Rent",'
+          '"display_name":"5100 · Rent","gl_code":"5100",'
+          '"primary_type":"expense","party_selection":"ledger:40"}],'
+          '"locations":[{"id":3,"name":"Main",'
+          '"control_account_id":20,"default_source_account_id":10}],'
+          '"defaults":{"operation_date":"2026-11-09T01:20:00+00:00",'
+          '"payment_method":"cash"}}}',
+          200,
+        );
+      }),
+    );
+
+    final options = await api.voucherOptions('token', VoucherType.receipt);
+
+    expect(options.sourceAccounts.single.label, '1010 · Main Cash');
+    expect(options.partyAccounts.single.partySelection, 'ledger:40');
+    expect(options.locations.single.defaultSourceAccountId, 10);
+    expect(options.defaultPaymentMethod, 'cash');
+    expect(options.defaultOperationDate, isNotNull);
+  });
+
+  test('voucher create sends the complete string-money snapshot', () async {
+    late http.Request captured;
+    final api = Api(
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"data":{"id":7,"type":"contra_voucher",'
+          '"ref_no":"CV-000007","revision":1,"submission_key":"uuid",'
+          '"operation_date":"2026-10-31T14:30","location_id":1,'
+          '"party_mode":"none","cash_account_id":10,'
+          '"counter_account_id":11,"amount":"500.0000"}}',
+          201,
+        );
+      }),
+    );
+    const draft = VoucherDraft(
+      type: VoucherType.contra,
+      submissionKey: 'uuid',
+      locationId: 1,
+      operationDate: '2026-10-31T14:30',
+      partyMode: 'none',
+      cashAccountId: 10,
+      counterAccountId: 11,
+      amount: '500.0000',
+      note: 'Cash deposited',
+    );
+
+    final result = await api.saveVoucher('token', draft);
+    final body = jsonDecode(captured.body) as Map<String, dynamic>;
+
+    expect(captured.method, 'POST');
+    expect(body['amount'], '500.0000');
+    expect(body['amount'], isA<String>());
+    expect(body['submission_key'], 'uuid');
+    expect(result.reference, 'CV-000007');
+  });
+
+  test('voucher account configuration sends an atomic batch', () async {
+    late http.Request captured;
+    final api = Api(
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"data":{"accounts":[{"id":10,"name":"Main cash",'
+          '"is_active":1,"voucher_cash_kind":"cash",'
+          '"voucher_payment_account_id":5}],'
+          '"core_accounts":[{"id":5,"name":"Cash drawer"}]}}',
+          200,
+        );
+      }),
+    );
+
+    final result = await api.updateVoucherConfiguration('token', const [
+      {'id': 10, 'kind': 'cash', 'core_id': 5},
+    ]);
+
+    expect(captured.method, 'PATCH');
+    expect(
+      captured.url.path,
+      '/connector/api/accounting/vouchers/configuration',
+    );
+    expect((jsonDecode(captured.body) as Map)['accounts'], [
+      {'id': 10, 'kind': 'cash', 'core_id': 5},
+    ]);
+    expect(result.accounts.single.kind, 'cash');
+    expect(result.coreAccounts.single.name, 'Cash drawer');
   });
 }
 

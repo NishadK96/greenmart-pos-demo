@@ -28,6 +28,7 @@ const destinations = [
   ('/inventory', 'Inventory', Icons.warehouse_outlined),
   ('/customers', 'Customers', Icons.people_outline),
   ('/sales', 'Sales', Icons.receipt_long_outlined),
+  ('/vouchers', 'Vouchers', Icons.account_balance_wallet_outlined),
   ('/reports', 'Reports', Icons.query_stats),
   ('/restaurant', 'Restaurant', Icons.restaurant_outlined),
   ('/sync', 'Sync', Icons.sync),
@@ -198,20 +199,31 @@ class _AppShellState extends ConsumerState<AppShell> {
     ];
     final isVanSalesUser = roleAccess?.isVanSalesUser == true;
     final allowVanSuppliers = roleAccess?.canViewVanSuppliers == true;
+    final canViewVouchers =
+        roleAccess?.access.isAdmin == true ||
+        roleAccess?.allowsAny(const {
+              'accounting.view_receipt_voucher',
+              'accounting.view_payment_voucher',
+              'accounting.view_contra_voucher',
+            }) ==
+            true;
+    final permittedDestinations = allShellDestinations
+        .where((item) => item.$1 != '/vouchers' || canViewVouchers)
+        .toList(growable: false);
     final shellDestinations = isVanSalesUser
         ? [
-            allShellDestinations.first,
-            allShellDestinations.firstWhere((item) => item.$1 == '/products'),
-            allShellDestinations.firstWhere((item) => item.$1 == '/sales'),
-            allShellDestinations.firstWhere((item) => item.$1 == '/customers'),
+            permittedDestinations.first,
+            permittedDestinations.firstWhere((item) => item.$1 == '/products'),
+            permittedDestinations.firstWhere((item) => item.$1 == '/sales'),
+            permittedDestinations.firstWhere((item) => item.$1 == '/customers'),
             if (allowVanSuppliers)
-              allShellDestinations.firstWhere(
+              permittedDestinations.firstWhere(
                 (item) => item.$1 == '/suppliers',
               ),
-            allShellDestinations.firstWhere((item) => item.$1 == '/sync'),
-            allShellDestinations.firstWhere((item) => item.$1 == '/settings'),
+            permittedDestinations.firstWhere((item) => item.$1 == '/sync'),
+            permittedDestinations.firstWhere((item) => item.$1 == '/settings'),
           ]
-        : allShellDestinations;
+        : permittedDestinations;
     // Keep the selected ERP layout manifest and its authenticated assets warm
     // while online so provisional receipts remain available without a network.
     ref.watch(invoiceLayoutControllerProvider);
@@ -279,10 +291,10 @@ class _AppShellState extends ConsumerState<AppShell> {
               ('/settings', 'More', Icons.more_horiz),
             ]
           : [
-              shellDestinations[0],
-              shellDestinations[2],
-              shellDestinations[8],
-              shellDestinations[5],
+              shellDestinations.first,
+              shellDestinations.firstWhere((item) => item.$1 == '/products'),
+              shellDestinations.firstWhere((item) => item.$1 == '/sales'),
+              shellDestinations.firstWhere((item) => item.$1 == '/suppliers'),
               ('/settings', 'More', Icons.more_horiz),
             ];
       final phone = width < 700;

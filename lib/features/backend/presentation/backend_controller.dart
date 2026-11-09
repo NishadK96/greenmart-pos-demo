@@ -304,10 +304,14 @@ class BackendController extends AsyncNotifier<void> {
       shippingAddress: shippingAddress,
       position: position,
     );
-    final persisted = await repository.customerDetail(
+    final persistedDetail = await repository.customerDetail(
       accessToken: token,
       id: updated.id,
     );
+    // Some Connector installations return only identifiers from the detail
+    // endpoint. Preserve the confirmed update response instead of clearing the
+    // submitted customer fields in local state.
+    final persisted = persistedDetail.mergeMissingFrom(updated);
     final nameMatches = persisted.name.trim() == name.trim();
     final registrationMatches =
         commercialRegistrationNumber.trim().isEmpty ||
@@ -329,16 +333,30 @@ class BackendController extends AsyncNotifier<void> {
         .customerDetail(accessToken: token, id: id);
   }
 
-  Future<Sale> checkout(String paymentMethod, {String? serviceTypeCode}) =>
-      _checkout(
-        paymentMethod,
-        serviceTypeCode: serviceTypeCode,
-        allowTokenRefresh: true,
-      );
+  Future<Sale> checkout(
+    String paymentMethod, {
+    String? serviceTypeCode,
+    List<PaymentAllocation> payments = const [],
+  }) => _checkout(
+    paymentMethod,
+    serviceTypeCode: serviceTypeCode,
+    payments: payments,
+    allowTokenRefresh: true,
+  );
+
+  Future<Sale> checkoutSplit(
+    List<PaymentAllocation> payments, {
+    String? serviceTypeCode,
+  }) => checkout(
+    'multiple',
+    serviceTypeCode: serviceTypeCode,
+    payments: payments,
+  );
 
   Future<Sale> _checkout(
     String paymentMethod, {
     String? serviceTypeCode,
+    List<PaymentAllocation> payments = const [],
     required bool allowTokenRefresh,
   }) async {
     final state = ref.read(appStoreProvider);
@@ -363,7 +381,11 @@ class BackendController extends AsyncNotifier<void> {
       final serviceTypeId = await _resolveServiceTypeId(token, serviceTypeCode);
       final fingerprint = _saleFingerprint(
         state,
-        paymentMethod,
+        payments.isEmpty
+            ? paymentMethod
+            : payments
+                  .map((payment) => '${payment.method}:${payment.amount}')
+                  .join('|'),
         register.locationId,
         register.id,
         serviceTypeCode,
@@ -382,6 +404,7 @@ class BackendController extends AsyncNotifier<void> {
             customer: state.customer ?? state.customers.first,
             lines: state.cart,
             paymentMethod: paymentMethod,
+            payments: payments,
             total: state.cartTotal,
             grossDiscount: state.cartGrossDiscount,
             clientTransactionId: _pendingClientTransactionId!,
@@ -398,6 +421,7 @@ class BackendController extends AsyncNotifier<void> {
           .read(appStoreProvider.notifier)
           .checkout(
             paymentMethod == 'credit' ? 'due' : paymentMethod,
+            payments: payments,
             serverId: created.id,
             invoiceNo: created.invoiceNo,
             locationId: register.locationId,
@@ -410,6 +434,7 @@ class BackendController extends AsyncNotifier<void> {
           return await _checkout(
             paymentMethod,
             serviceTypeCode: serviceTypeCode,
+            payments: payments,
             allowTokenRefresh: false,
           );
         } catch (_) {

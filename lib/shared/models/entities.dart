@@ -291,6 +291,93 @@ class Customer {
   bool get isBusiness =>
       businessName.trim().isNotEmpty || (taxNumber?.trim().isNotEmpty ?? false);
 
+  bool get hasValidBackendId =>
+      id.trim().isNotEmpty && int.tryParse(id.trim()) != null;
+
+  String get preferredName {
+    if (isBusiness && businessName.trim().isNotEmpty) {
+      return businessName.trim();
+    }
+    if (name.trim().isNotEmpty) return name.trim();
+    if (phone.trim().isNotEmpty) return phone.trim();
+    if (email.trim().isNotEmpty) return email.trim();
+    if (contactId.trim().isNotEmpty) return contactId.trim();
+    return '';
+  }
+
+  /// Keeps the richer value from this customer while filling fields omitted by
+  /// lightweight Connector responses from an already loaded customer record.
+  Customer mergeMissingFrom(Customer fallback) => Customer(
+    id: id.trim().isNotEmpty ? id : fallback.id,
+    name: name.trim().isNotEmpty ? name : fallback.name,
+    phone: phone.trim().isNotEmpty ? phone : fallback.phone,
+    email: email.trim().isNotEmpty ? email : fallback.email,
+    address: address.trim().isNotEmpty ? address : fallback.address,
+    taxNumber: taxNumber?.trim().isNotEmpty == true
+        ? taxNumber
+        : fallback.taxNumber,
+    businessName: businessName.trim().isNotEmpty
+        ? businessName
+        : fallback.businessName,
+    commercialRegistrationNumber: commercialRegistrationNumber.trim().isNotEmpty
+        ? commercialRegistrationNumber
+        : fallback.commercialRegistrationNumber,
+    addressLine1: addressLine1.trim().isNotEmpty
+        ? addressLine1
+        : fallback.addressLine1,
+    addressLine2: addressLine2.trim().isNotEmpty
+        ? addressLine2
+        : fallback.addressLine2,
+    city: city.trim().isNotEmpty ? city : fallback.city,
+    state: state.trim().isNotEmpty ? state : fallback.state,
+    country: country.trim().isNotEmpty ? country : fallback.country,
+    zipCode: zipCode.trim().isNotEmpty ? zipCode : fallback.zipCode,
+    landmark: landmark.trim().isNotEmpty ? landmark : fallback.landmark,
+    streetName: streetName.trim().isNotEmpty ? streetName : fallback.streetName,
+    buildingNumber: buildingNumber.trim().isNotEmpty
+        ? buildingNumber
+        : fallback.buildingNumber,
+    additionalNumber: additionalNumber.trim().isNotEmpty
+        ? additionalNumber
+        : fallback.additionalNumber,
+    customField1: customField1.trim().isNotEmpty
+        ? customField1
+        : fallback.customField1,
+    customField2: customField2.trim().isNotEmpty
+        ? customField2
+        : fallback.customField2,
+    customField3: customField3.trim().isNotEmpty
+        ? customField3
+        : fallback.customField3,
+    customField4: customField4.trim().isNotEmpty
+        ? customField4
+        : fallback.customField4,
+    contactId: contactId.trim().isNotEmpty ? contactId : fallback.contactId,
+    prefix: prefix.trim().isNotEmpty ? prefix : fallback.prefix,
+    middleName: middleName.trim().isNotEmpty ? middleName : fallback.middleName,
+    lastName: lastName.trim().isNotEmpty ? lastName : fallback.lastName,
+    alternateNumber: alternateNumber.trim().isNotEmpty
+        ? alternateNumber
+        : fallback.alternateNumber,
+    landline: landline.trim().isNotEmpty ? landline : fallback.landline,
+    dateOfBirth: dateOfBirth.trim().isNotEmpty
+        ? dateOfBirth
+        : fallback.dateOfBirth,
+    customerGroupId: customerGroupId.trim().isNotEmpty
+        ? customerGroupId
+        : fallback.customerGroupId,
+    payTermNumber: payTermNumber.trim().isNotEmpty
+        ? payTermNumber
+        : fallback.payTermNumber,
+    payTermType: payTermType.trim().isNotEmpty
+        ? payTermType
+        : fallback.payTermType,
+    shippingAddress: shippingAddress.trim().isNotEmpty
+        ? shippingAddress
+        : fallback.shippingAddress,
+    position: position.trim().isNotEmpty ? position : fallback.position,
+  );
+
   bool get isWalkIn {
     final normalized = name
         .trim()
@@ -599,18 +686,61 @@ class CartLine {
 
 class HeldCart {
   const HeldCart({
+    required this.id,
     required this.lines,
+    required this.customer,
+    required this.createdAt,
+    required this.updatedAt,
     this.grossDiscount = 0,
     this.grossDiscountType = 'fixed',
     this.grossDiscountRate = 0,
     this.orderTaxId = '',
+    this.printRevision = 0,
   });
 
+  final String id;
   final List<CartLine> lines;
+  final Customer customer;
+  final DateTime createdAt, updatedAt;
   final int grossDiscount;
   final String grossDiscountType;
   final double grossDiscountRate;
   final String orderTaxId;
+  final int printRevision;
+
+  HeldCart copyWith({
+    List<CartLine>? lines,
+    Customer? customer,
+    DateTime? updatedAt,
+    int? grossDiscount,
+    String? grossDiscountType,
+    double? grossDiscountRate,
+    String? orderTaxId,
+    int? printRevision,
+  }) => HeldCart(
+    id: id,
+    lines: lines ?? this.lines,
+    customer: customer ?? this.customer,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    grossDiscount: grossDiscount ?? this.grossDiscount,
+    grossDiscountType: grossDiscountType ?? this.grossDiscountType,
+    grossDiscountRate: grossDiscountRate ?? this.grossDiscountRate,
+    orderTaxId: orderTaxId ?? this.orderTaxId,
+    printRevision: printRevision ?? this.printRevision,
+  );
+}
+
+class PaymentAllocation {
+  const PaymentAllocation({
+    required this.method,
+    required this.amount,
+    this.reference = '',
+  });
+
+  final String method;
+  final int amount;
+  final String reference;
 }
 
 class Sale {
@@ -638,6 +768,7 @@ class Sale {
     this.serviceTypeId = '',
     this.saleNote = '',
     this.isKitchenOrder = false,
+    this.payments = const [],
   });
   final String localId, invoiceNo;
   final String? serverId;
@@ -653,6 +784,7 @@ class Sale {
   final String status, paymentStatus, locationId, tableId, waiterId;
   final String serviceTypeId, saleNote;
   final bool isKitchenOrder;
+  final List<PaymentAllocation> payments;
 
   Sale copyWith({
     String? serverId,
@@ -668,6 +800,7 @@ class Sale {
     String? serviceTypeId,
     String? saleNote,
     bool? isKitchenOrder,
+    List<PaymentAllocation>? payments,
   }) => Sale(
     localId: localId,
     serverId: serverId ?? this.serverId,
@@ -692,6 +825,7 @@ class Sale {
     serviceTypeId: serviceTypeId ?? this.serviceTypeId,
     saleNote: saleNote ?? this.saleNote,
     isKitchenOrder: isKitchenOrder ?? this.isKitchenOrder,
+    payments: payments ?? this.payments,
   );
 }
 

@@ -374,7 +374,8 @@ void main() {
     store.resumeLastHeldCart();
 
     expect(container.read(appStoreProvider).itemCount, 2);
-    expect(container.read(appStoreProvider).heldCarts, isEmpty);
+    expect(container.read(appStoreProvider).heldCarts, hasLength(1));
+    expect(container.read(appStoreProvider).activeHeldCartId, isNotEmpty);
   });
 
   test('edited unit price and gross discount update and survive held sale', () {

@@ -119,6 +119,13 @@ abstract final class ApiEndPoints {
   static const purchasesUrl = '${Config.baseUrl}/connector/api/purchases';
   static const purchaseReturnsUrl =
       '${Config.baseUrl}/connector/api/purchase-returns';
+  static const vouchersUrl =
+      '${Config.baseUrl}/connector/api/accounting/vouchers';
+  static String voucherUrl(int id) => '$vouchersUrl/$id';
+  static const voucherOptionsUrl = '$vouchersUrl/options';
+  static const voucherContactsUrl = '$vouchersUrl/contacts';
+  static const voucherDuesUrl = '$vouchersUrl/dues';
+  static const voucherConfigurationUrl = '$vouchersUrl/configuration';
   static const cashRegisterUrl =
       '${Config.baseUrl}/connector/api/cash-register';
   static const cashRegisterOpenUrl = '$cashRegisterUrl/open';

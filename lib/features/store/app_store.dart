@@ -30,6 +30,7 @@ class AppState {
     this.grossDiscountRate = 0,
     this.orderTaxId = '',
     this.allowOverselling = false,
+    this.activeHeldCartId = '',
   });
   final List<Product> products;
   final List<Category> categories;
@@ -63,6 +64,7 @@ class AppState {
   final Customer? customer;
   final Sale? lastSale;
   final List<HeldCart> heldCarts;
+  final String activeHeldCartId;
   final int grossDiscount;
   final String grossDiscountType;
   final double grossDiscountRate;
@@ -124,6 +126,7 @@ class AppState {
     double? grossDiscountRate,
     String? orderTaxId,
     bool? allowOverselling,
+    String? activeHeldCartId,
   }) => AppState(
     products: products ?? this.products,
     categories: categories ?? this.categories,
@@ -150,6 +153,7 @@ class AppState {
     grossDiscountRate: grossDiscountRate ?? this.grossDiscountRate,
     orderTaxId: orderTaxId ?? this.orderTaxId,
     allowOverselling: allowOverselling ?? this.allowOverselling,
+    activeHeldCartId: activeHeldCartId ?? this.activeHeldCartId,
   );
 }
 
@@ -235,6 +239,7 @@ class AppStore extends Notifier<AppState> {
     grossDiscount: 0,
     grossDiscountType: 'fixed',
     grossDiscountRate: 0,
+    activeHeldCartId: '',
   );
   void setOrderTax(String id) => state = state.copyWith(orderTaxId: id);
   void replaceTaxes(List<LookupOption> taxes) {
@@ -256,23 +261,47 @@ class AppStore extends Notifier<AppState> {
   );
   void holdCart() {
     if (state.cart.isEmpty) return;
+    final now = DateTime.now();
+    final customer =
+        state.customer ??
+        state.customers.firstOrNull ??
+        const Customer(id: 'walkin', name: 'Walk-in Customer');
+    final existingIndex = state.heldCarts.indexWhere(
+      (held) => held.id == state.activeHeldCartId,
+    );
+    final held = existingIndex >= 0
+        ? state.heldCarts[existingIndex].copyWith(
+            lines: [...state.cart],
+            customer: customer,
+            updatedAt: now,
+            grossDiscount: state.cartGrossDiscount,
+            grossDiscountType: state.grossDiscountType,
+            grossDiscountRate: state.grossDiscountRate,
+            orderTaxId: state.orderTaxId,
+          )
+        : HeldCart(
+            id: 'ORD-${now.microsecondsSinceEpoch}',
+            lines: [...state.cart],
+            customer: customer,
+            createdAt: now,
+            updatedAt: now,
+            grossDiscount: state.cartGrossDiscount,
+            grossDiscountType: state.grossDiscountType,
+            grossDiscountRate: state.grossDiscountRate,
+            orderTaxId: state.orderTaxId,
+          );
+    final heldCarts = existingIndex >= 0
+        ? [held, ...state.heldCarts.where((item) => item.id != held.id)]
+        : [held, ...state.heldCarts];
     state = state.copyWith(
-      heldCarts: [
-        HeldCart(
-          orderTaxId: state.orderTaxId,
-          lines: [...state.cart],
-          grossDiscount: state.cartGrossDiscount,
-          grossDiscountType: state.grossDiscountType,
-          grossDiscountRate: state.grossDiscountRate,
-        ),
-        ...state.heldCarts,
-      ],
+      heldCarts: heldCarts,
       cart: [],
       orderTaxId: '',
       grossDiscount: 0,
       grossDiscountType: 'fixed',
       grossDiscountRate: 0,
       clearCustomer: true,
+      activeHeldCartId: '',
     );
   }
 
@@ -284,7 +313,8 @@ class AppStore extends Notifier<AppState> {
       grossDiscount: state.heldCarts.first.grossDiscount,
       grossDiscountType: state.heldCarts.first.grossDiscountType,
       grossDiscountRate: state.heldCarts.first.grossDiscountRate,
-      heldCarts: state.heldCarts.skip(1).toList(growable: false),
+      customer: state.heldCarts.first.customer,
+      activeHeldCartId: state.heldCarts.first.id,
     );
   }
 
@@ -299,10 +329,23 @@ class AppStore extends Notifier<AppState> {
       grossDiscount: held.grossDiscount,
       grossDiscountType: held.grossDiscountType,
       grossDiscountRate: held.grossDiscountRate,
-      heldCarts: [
-        ...state.heldCarts.take(index),
-        ...state.heldCarts.skip(index + 1),
-      ],
+      customer: held.customer,
+      activeHeldCartId: held.id,
+    );
+  }
+
+  void markHeldCartPrinted(String id) {
+    state = state.copyWith(
+      heldCarts: state.heldCarts
+          .map(
+            (held) => held.id == id
+                ? held.copyWith(
+                    printRevision: held.printRevision + 1,
+                    updatedAt: DateTime.now(),
+                  )
+                : held,
+          )
+          .toList(growable: false),
     );
   }
 
@@ -503,6 +546,7 @@ class AppStore extends Notifier<AppState> {
 
   Sale checkout(
     String method, {
+    List<PaymentAllocation> payments = const [],
     String? serverId,
     String? invoiceNo,
     String locationId = '',
@@ -518,6 +562,7 @@ class AppStore extends Notifier<AppState> {
       customer: customer,
       items: [...state.cart],
       paymentMethod: method,
+      payments: payments,
       total: state.cartTotal,
       tax: state.cartTax,
       discount: state.cartDiscount,
@@ -539,6 +584,11 @@ class AppStore extends Notifier<AppState> {
     state = state.copyWith(
       products: products,
       sales: [sale, ...state.sales],
+      heldCarts: state.activeHeldCartId.isEmpty
+          ? state.heldCarts
+          : state.heldCarts
+                .where((held) => held.id != state.activeHeldCartId)
+                .toList(growable: false),
       cart: [],
       clearCustomer: true,
       lastSale: sale,
@@ -546,6 +596,7 @@ class AppStore extends Notifier<AppState> {
       grossDiscount: 0,
       grossDiscountType: 'fixed',
       grossDiscountRate: 0,
+      activeHeldCartId: '',
     );
     return sale;
   }

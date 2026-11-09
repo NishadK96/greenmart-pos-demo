@@ -87,6 +87,14 @@ const Map<String, String> _ar = {
   'Dine In': 'محلي',
   'Barcode': 'الباركود',
   'Saved Orders': 'الطلبات المحفوظة',
+  'Print & Hold': 'طباعة وحفظ الطلب',
+  'Split payment': 'دفع متعدد',
+  'Complete payment': 'إتمام الدفع',
+  'Balance due': 'المبلغ المتبقي',
+  'Overpaid': 'المدفوع الزائد',
+  'Revision': 'الإصدار',
+  'Payment amounts cannot exceed the bill total.':
+      'لا يمكن أن تتجاوز مبالغ الدفع إجمالي الفاتورة.',
   'Recent Orders': 'الطلبات الأخيرة',
   'Item Search': 'البحث عن صنف',
   'Order Discount': 'خصم الطلب',
@@ -470,13 +478,14 @@ const Map<String, String> _ar = {
   'Submit / retry': 'إرسال / إعادة المحاولة',
   'Successful': 'ناجح',
   'Switch cashier?': 'تبديل أمين الصندوق؟',
+  'Unnamed customer': 'عميل بدون اسم',
+  'Unavailable for sales — missing customer ID':
+      'غير متاح للبيع — معرّف العميل مفقود',
   'Essential settings for this van sales device.':
       'الإعدادات الأساسية لجهاز مبيعات الشاحنة هذا.',
-  'Configure invoice layouts and printers':
-      'تهيئة قوالب الفواتير والطابعات',
+  'Configure invoice layouts and printers': 'تهيئة قوالب الفواتير والطابعات',
   'Sync & status': 'المزامنة والحالة',
-  'Review connection and pending sales':
-      'مراجعة الاتصال والمبيعات المعلقة',
+  'Review connection and pending sales': 'مراجعة الاتصال والمبيعات المعلقة',
   'Account & logout': 'الحساب وتسجيل الخروج',
   'Switch cashier or end this session':
       'تبديل أمين الصندوق أو إنهاء هذه الجلسة',
@@ -2277,6 +2286,76 @@ const Map<String, String> _ar = {
   'Your package has an available seat. User creation needs role and location options from the server, which are not currently exposed to this app.':
       'تحتوي باقتك على مقعد متاح. يتطلب إنشاء المستخدم خيارات الدور والموقع من الخادم، وهي غير متاحة حالياً في التطبيق.',
   'Unable to complete report action': 'تعذر إكمال إجراء التقرير',
+  'Vouchers': 'السندات',
+  'Accounting vouchers': 'السندات المحاسبية',
+  'Create and manage receipts, payments and transfers.':
+      'إنشاء وإدارة سندات القبض والصرف والتحويلات.',
+  'New voucher': 'سند جديد',
+  'Account setup': 'إعداد الحسابات',
+  'Voucher account setup': 'إعداد حسابات السندات',
+  'Classify cash and bank ledgers used for voucher posting.':
+      'صنّف دفاتر النقد والبنك المستخدمة لترحيل السندات.',
+  'Classification': 'التصنيف',
+  'Not used': 'غير مستخدم',
+  'Core payment account': 'حساب الدفع الأساسي',
+  'No link': 'بدون ربط',
+  'Inactive ledger': 'دفتر غير نشط',
+  'Save setup': 'حفظ الإعداد',
+  'Voucher account setup saved.': 'تم حفظ إعداد حسابات السندات.',
+  'Each payment account can only be linked once.':
+      'يمكن ربط كل حساب دفع مرة واحدة فقط.',
+  'No asset ledgers are available.': 'لا تتوفر دفاتر أصول.',
+  'Voucher type': 'نوع السند',
+  'Receipt': 'سند قبض',
+  'Contra': 'سند تحويل',
+  'Search party or reference': 'ابحث بالطرف أو الرقم المرجعي',
+  'Party': 'الطرف',
+  'Party mode': 'نوع الطرف',
+  'Customer / supplier': 'عميل / مورد',
+  'Ledger payee': 'طرف دفتر الأستاذ',
+  'Payee name': 'اسم المستفيد',
+  'Cash / bank account': 'حساب النقد / البنك',
+  'Source account': 'الحساب المصدر',
+  'Counter account': 'الحساب المقابل',
+  'Destination account': 'الحساب الوجهة',
+  'Controlled by the selected location': 'يحدده الموقع المختار',
+  'Payment reference (optional)': 'مرجع الدفع (اختياري)',
+  'Operation date': 'تاريخ العملية',
+  'Note (optional)': 'ملاحظة (اختياري)',
+  'Preview outstanding dues before saving.':
+      'عاين المستحقات القائمة قبل الحفظ.',
+  'Preview dues': 'معاينة المستحقات',
+  'Save and post': 'حفظ وترحيل',
+  'Voucher saved.': 'تم حفظ السند.',
+  'Voucher deleted.': 'تم حذف السند.',
+  'Delete voucher?': 'حذف السند؟',
+  'This will unwind the voucher posting and cannot be undone.':
+      'سيؤدي هذا إلى عكس ترحيل السند ولا يمكن التراجع عنه.',
+  'Invoice allocations': 'تخصيصات الفواتير',
+  'No vouchers found.': 'لا توجد سندات.',
+  'You do not have permission to view vouchers.':
+      'ليست لديك صلاحية لعرض السندات.',
+  'You do not have permission for this voucher action.':
+      'ليست لديك صلاحية لتنفيذ هذا الإجراء على السند.',
+  'Accounting vouchers require an online connection.':
+      'تتطلب السندات المحاسبية اتصالاً بالإنترنت.',
+  'Sign in to access accounting vouchers.':
+      'سجّل الدخول للوصول إلى السندات المحاسبية.',
+  'Choose a location and both accounts.': 'اختر الموقع والحسابين.',
+  'Source and counter accounts must be different.':
+      'يجب أن يختلف الحساب المصدر عن الحساب المقابل.',
+  'Choose a customer or supplier.': 'اختر عميلاً أو مورداً.',
+  'Enter the payee name.': 'أدخل اسم المستفيد.',
+  'Enter a positive amount with up to 4 decimals.':
+      'أدخل مبلغاً موجباً وبحد أقصى أربع منازل عشرية.',
+  'Amount must be greater than zero.': 'يجب أن يكون المبلغ أكبر من صفر.',
+  'Unable to save voucher. Please try again.': 'تعذر حفظ السند. حاول مرة أخرى.',
+  'This voucher changed on the server. Reload it and try again.':
+      'تم تعديل هذا السند على الخادم. أعد تحميله ثم حاول مرة أخرى.',
+  'This voucher changed on the server. Close and reload it before editing.':
+      'تم تعديل هذا السند على الخادم. أغلقه وأعد تحميله قبل التعديل.',
+  'Account transfer': 'تحويل بين الحسابات',
+  'vouchers': 'سندات',
   'records': 'سجلات',
   'Page': 'الصفحة',
   'of': 'من',

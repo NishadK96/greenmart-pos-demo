@@ -202,6 +202,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   bool _quickActionOpen = false;
   bool _cartKeyboardActive = false;
   int _retailCartTextSize = 1;
+  double _orderPanelWidth = 390;
 
   static const _retailCartTextScales = <double>[1, 1.15, 1.3];
 
@@ -523,10 +524,64 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              _PaneResizeHandle(
+                tooltip: context.tr('Resize order panel'),
+                onDrag: (delta) {
+                  setState(() {
+                    _orderPanelWidth = (_orderPanelWidth - delta).clamp(
+                      320.0,
+                      width - 560.0,
+                    );
+                  });
+                },
+              ),
               SizedBox(
-                width: width >= 1380 ? 390 : 350,
-                child: const _CurrentOrder(retailPanel: true),
+                width: _orderPanelWidth.clamp(320.0, width - 560.0),
+                child: Column(
+                  children: [
+                    Expanded(child: const _CurrentOrder(retailPanel: true)),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: PopupMenuButton<double>(
+                        tooltip: context.tr('Order panel width'),
+                        onSelected: (value) =>
+                            setState(() => _orderPanelWidth = value),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 340,
+                            child: Text(context.tr('Narrow order panel')),
+                          ),
+                          PopupMenuItem(
+                            value: 390,
+                            child: Text(context.tr('Balanced layout')),
+                          ),
+                          PopupMenuItem(
+                            value: 460,
+                            child: Text(context.tr('Wide order panel')),
+                          ),
+                        ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.tune_rounded, size: 15),
+                              const SizedBox(width: 4),
+                              Text(
+                                context.tr('Adjust layout'),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -606,6 +661,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   SizedBox(width: 48, child: _quickPrintToggle()),
                   const SizedBox(width: 4),
                   SizedBox(width: 40, child: _contextTextSizeControl()),
+                  const SizedBox(width: 4),
+                  _orderPanelLayoutControl(compact: true),
                 ],
               ),
               const SizedBox(height: 4),
@@ -973,10 +1030,53 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           _quickPaperSizeControl(),
           _quickPrintToggle(),
           _contextTextSizeControl(),
+          _orderPanelLayoutControl(),
         ],
       ),
     );
   }
+
+  Widget _orderPanelLayoutControl({
+    bool compact = false,
+  }) => PopupMenuButton<double>(
+    tooltip: context.tr('Adjust layout'),
+    onSelected: (value) => setState(() => _orderPanelWidth = value),
+    itemBuilder: (context) => [
+      PopupMenuItem(value: 340, child: Text(context.tr('Narrow order panel'))),
+      PopupMenuItem(value: 390, child: Text(context.tr('Balanced layout'))),
+      PopupMenuItem(value: 460, child: Text(context.tr('Wide order panel'))),
+    ],
+    child: Container(
+      width: compact ? 40 : 64,
+      height: compact ? 30 : 60,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const BorderDirectional(
+          end: BorderSide(color: Color(0xFFE1E8E5)),
+        ),
+        borderRadius: compact ? BorderRadius.circular(7) : null,
+      ),
+      child: Center(
+        child: compact
+            ? const Icon(Icons.tune_rounded, size: 18)
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.tune_rounded, size: 20),
+                  const SizedBox(height: 2),
+                  Text(
+                    context.tr('Layout'),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    ),
+  );
 
   Widget _contextOrderTypeControl(List<PosOrderType> orderTypes) {
     final selected = ref.watch(_retailOrderTypeProvider);
@@ -4882,6 +4982,48 @@ class _RetailProductSelectorState extends State<_RetailProductSelector> {
       ),
     ],
     onChanged: (value) => setState(() => category = value ?? 'all'),
+  );
+}
+
+class _PaneResizeHandle extends StatelessWidget {
+  const _PaneResizeHandle({required this.onDrag, required this.tooltip});
+
+  final ValueChanged<double> onDrag;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.resizeLeftRight,
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      hint: context.tr('Drag left or right to resize'),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox(
+            width: 18,
+            child: Center(
+              child: Container(
+                width: 6,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD3E1DC),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.drag_indicator_rounded,
+                  size: 13,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
 

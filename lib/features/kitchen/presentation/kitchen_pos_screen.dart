@@ -110,6 +110,44 @@ class KitchenPosScreen extends ConsumerStatefulWidget {
   ConsumerState<KitchenPosScreen> createState() => _KitchenPosScreenState();
 }
 
+class _KitchenResizeHandle extends StatelessWidget {
+  const _KitchenResizeHandle({required this.onDrag});
+
+  final ValueChanged<double> onDrag;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.resizeLeftRight,
+    child: Semantics(
+      button: true,
+      label: 'Resize current order panel',
+      hint: 'Drag left or right to resize',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+        child: SizedBox(
+          width: 18,
+          child: Center(
+            child: Container(
+              width: 6,
+              height: 58,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD3E1DC),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.drag_indicator_rounded,
+                size: 13,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   static const _border = Color(0xFFDCE5E2);
   static const _categoryBackgrounds = <Color>[
@@ -161,6 +199,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   String _keypadMode = 'qty';
   bool _showMobileOrder = false;
   bool _sending = false;
+  double _orderPanelWidth = 360;
+  double _categoryPanelWidth = 148;
   String? _pendingClientTransactionId;
   String? _offlineDraftClientId;
   String? _savedTransactionId;
@@ -253,7 +293,6 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       _lines[lineId] = old == null
           ? newLine
           : old.copyWith(quantity: old.quantity + _addQuantity);
-      _search.clear();
     });
     _focus.requestFocus();
   }
@@ -376,6 +415,9 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   }
 
   void _sendToKitchen() => unawaited(_submitKitchenOrder());
+
+  void _sendToKitchenAndPrint() =>
+      unawaited(_submitKitchenOrder(printBill: true));
 
   String _composedSaleNote() => [
     _service,
@@ -575,7 +617,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
   }
 
-  Future<void> _billAndPay() async {
+  Future<void> _billAndPay({
+    bool sendToKitchen = true,
+    bool printCustomerBill = true,
+  }) async {
     if (_sending || _lines.isEmpty) return;
     final store = ref.read(appStoreProvider);
     final locationId = _locationId(store);
@@ -655,23 +700,29 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             );
       }
       String? kitchenPrintingWarning;
-      try {
-        await ref
-            .read(kitchenPrintingControllerProvider.notifier)
-            .processTransaction(transactionId, locationId: locationId);
-      } catch (error) {
-        kitchenPrintingWarning =
-            'No kitchen ticket was printed. Configure an active category printer route in Printer settings, then retry printing from Kitchen orders.';
-        debugPrint('Kitchen printing needs attention: $error');
+      if (sendToKitchen) {
+        try {
+          await ref
+              .read(kitchenPrintingControllerProvider.notifier)
+              .processTransaction(transactionId, locationId: locationId);
+        } catch (error) {
+          kitchenPrintingWarning =
+              'No kitchen ticket was printed. Configure an active category printer route in Printer settings, then retry printing from Kitchen orders.';
+          debugPrint('Kitchen printing needs attention: $error');
+        }
       }
       if (!mounted) return;
-      await _printBill(paymentMethod: method.code);
+      if (printCustomerBill) {
+        await _printBill(paymentMethod: method.code);
+      }
       if (!mounted) return;
       ref.invalidate(kitchenOrdersProvider(locationId));
       _resetOrder();
       _show(
         kitchenPrintingWarning == null
-            ? 'Order #$transactionId paid, completed and sent to the kitchen printer.'
+            ? sendToKitchen
+                  ? 'Order #$transactionId paid, completed and sent to the kitchen printer.'
+                  : 'Order #$transactionId billed and paid.'
             : 'Order #$transactionId is paid and saved. $kitchenPrintingWarning',
       );
     } on ApiException catch (error) {
@@ -1399,7 +1450,68 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     }
   }
 
-  Future<void> _submitKitchenOrder() async {
+  Future<void> _createBill({bool print = false}) async {
+    if (_sending || _lines.isEmpty) return;
+    final store = ref.read(appStoreProvider);
+    final locationId = _locationId(store);
+    final customer = _customer(store);
+    if (locationId == null || locationId.isEmpty || customer == null) {
+      _show('Refresh customer and business location data before billing.');
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      var transactionId = _savedTransactionId;
+      if (transactionId == null) {
+        _pendingClientTransactionId ??= _newClientTransactionId();
+        transactionId = await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .createKitchenOrder(
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              clientTransactionId: _pendingClientTransactionId!,
+              saleNote: _composedSaleNote(),
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              grossDiscount: _grossDiscount,
+            );
+        if (!mounted) return;
+        setState(() => _savedTransactionId = transactionId);
+      } else {
+        await ref
+            .read(kitchenPrintingControllerProvider.notifier)
+            .updateKitchenOrder(
+              transactionId: transactionId,
+              locationId: locationId,
+              customer: customer,
+              lines: _lines.values.toList(growable: false),
+              status: 'final',
+              tableId: _service == 'Dine in' ? _tableId : null,
+              serviceStaffId: _waiterId,
+              serviceTypeId: _serviceTypeId,
+              saleNote: _composedSaleNote(),
+              grossDiscount: _grossDiscount,
+            );
+      }
+      if (print) await _printBill(paymentMethod: 'due');
+      if (!mounted) return;
+      ref.invalidate(kitchenOrdersProvider(locationId));
+      _resetOrder();
+      _show(
+        print
+            ? 'Bill #$transactionId saved and printed.'
+            : 'Bill #$transactionId saved as due.',
+      );
+    } catch (error) {
+      if (mounted) _show('Unable to create this bill: $error');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _submitKitchenOrder({bool printBill = false}) async {
     if (_sending) return;
     if (_lines.isEmpty && _savedTransactionId == null) {
       _show('Add an item before sending an order.');
@@ -1483,6 +1595,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
         'Kitchen order #$transactionId saved and ${summary.printedCount} '
         'ticket(s) sent to the paired printer(s).',
       );
+      if (printBill) {
+        await _printBill();
+        if (!mounted) return;
+      }
       _resetOrder();
     } catch (error) {
       if (!mounted) return;
@@ -1572,8 +1688,16 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
                         Expanded(
                           child: _catalog(store, products, desktop: true),
                         ),
+                        _KitchenResizeHandle(
+                          onDrag: (delta) => setState(() {
+                            _orderPanelWidth = (_orderPanelWidth - delta).clamp(
+                              320.0,
+                              width - 560.0,
+                            );
+                          }),
+                        ),
                         SizedBox(
-                          width: width >= 1500 ? 360 : 330,
+                          width: _orderPanelWidth.clamp(320.0, width - 560.0),
                           child: _order(
                             total,
                             subtotal: subtotal,
@@ -2214,7 +2338,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       children: [
         SizedBox(
           key: const ValueKey('kitchen-category-panel'),
-          width: mobile ? 112 : 148,
+          width: mobile ? 112 : _categoryPanelWidth,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -2245,7 +2369,17 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        if (!mobile)
+          _KitchenResizeHandle(
+            onDrag: (delta) => setState(() {
+              _categoryPanelWidth = (_categoryPanelWidth + delta).clamp(
+                120.0,
+                280.0,
+              );
+            }),
+          )
+        else
+          const SizedBox(width: 8),
         Expanded(child: _productGrid(products, categories)),
       ],
     );
@@ -2592,95 +2726,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
           ),
           const SizedBox(height: 6),
         ],
-        if (desktop && MediaQuery.sizeOf(context).height < 720)
+        if (desktop && MediaQuery.sizeOf(context).height < 800)
           _compactOrderActions()
         else ...[
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _lines.isEmpty || _orderLocked || _sending
-                      ? null
-                      : () => unawaited(_saveDraft()),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    minimumSize: const Size(0, 38),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.pause_outlined, size: 18),
-                      SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          'Hold',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _savedTransactionId == null || _sending
-                      ? null
-                      : () => unawaited(_printBill()),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    minimumSize: const Size(0, 38),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.print_outlined, size: 18),
-                      SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          'Print',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.icon(
-                  key: const ValueKey('send-to-kitchen'),
-                  onPressed: _sending ? null : _sendToKitchen,
-                  icon: const Icon(Icons.soup_kitchen_rounded, size: 17),
-                  label: Text(_sending ? 'Sending…' : 'Kitchen'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    minimumSize: const Size(0, 38),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          FilledButton.icon(
-            onPressed: _lines.isEmpty || _sending
-                ? null
-                : () => unawaited(_billAndPay()),
-            icon: const Icon(Icons.point_of_sale_outlined),
-            label: const Text('Bill & Pay'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 40),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
+          _restaurantOrderActions(),
         ],
         if (desktop) ...[
-          SizedBox(height: MediaQuery.sizeOf(context).height < 720 ? 3 : 6),
+          SizedBox(height: MediaQuery.sizeOf(context).height < 720 ? 0 : 6),
           _numericKeypad(),
         ],
         if (_activeOrder != null) ...[
@@ -2700,6 +2752,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
   );
 
   Widget _compactOrderActions() {
+    return _restaurantOrderActions(compact: true);
+  }
+
+  Widget _restaurantOrderActions({bool compact = false}) {
     Widget action({
       Key? key,
       required String label,
@@ -2712,71 +2768,131 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
               key: key,
               onPressed: onPressed,
               icon: Icon(icon, size: 16),
-              label: Text(label),
+              label: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 38),
+                minimumSize: Size(0, compact ? 30 : 46),
                 padding: const EdgeInsets.symmetric(horizontal: 3),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(fontSize: 11),
+                textStyle: TextStyle(fontSize: compact ? 9 : 11),
               ),
             )
           : OutlinedButton.icon(
               key: key,
               onPressed: onPressed,
               icon: Icon(icon, size: 16),
-              label: Text(label),
+              label: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 38),
+                minimumSize: Size(0, compact ? 30 : 46),
                 padding: const EdgeInsets.symmetric(horizontal: 3),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(fontSize: 11),
+                textStyle: TextStyle(fontSize: compact ? 9 : 11),
               ),
             ),
     );
 
-    return Row(
+    Widget actionRow(List<Widget> children) => Row(
       children: [
-        action(
-          label: 'Hold',
-          icon: Icons.pause_outlined,
-          onPressed: _lines.isEmpty || _orderLocked || _sending
-              ? null
-              : () => unawaited(_saveDraft()),
-        ),
-        const SizedBox(width: 4),
-        action(
-          label: 'Print',
-          icon: Icons.print_outlined,
-          onPressed: _savedTransactionId == null || _sending
-              ? null
-              : () => unawaited(_printBill()),
-        ),
-        const SizedBox(width: 4),
-        action(
-          key: const ValueKey('send-to-kitchen'),
-          label: 'Kitchen',
-          icon: Icons.soup_kitchen_rounded,
-          onPressed: _sending ? null : _sendToKitchen,
-          filled: true,
-        ),
-        const SizedBox(width: 4),
-        action(
-          label: 'Pay',
-          icon: Icons.point_of_sale_outlined,
-          onPressed: _lines.isEmpty || _sending
-              ? null
-              : () => unawaited(_billAndPay()),
-          filled: true,
-        ),
+        for (var index = 0; index < children.length; index++) ...[
+          if (index > 0) const SizedBox(width: 5),
+          children[index],
+        ],
+      ],
+    );
+
+    final disabled = _lines.isEmpty || _sending;
+    return Column(
+      children: [
+        if (!compact) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _lines.isEmpty || _orderLocked || _sending
+                  ? null
+                  : () => unawaited(_saveDraft()),
+              icon: const Icon(Icons.pause_outlined, size: 17),
+              label: const Text('Save as Draft'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 38),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+        ],
+        actionRow([
+          if (compact)
+            action(
+              label: 'Draft',
+              icon: Icons.pause_outlined,
+              onPressed: _lines.isEmpty || _orderLocked || _sending
+                  ? null
+                  : () => unawaited(_saveDraft()),
+            ),
+          action(
+            key: const ValueKey('send-to-kitchen'),
+            label: 'Kitchen',
+            icon: Icons.soup_kitchen_rounded,
+            onPressed: disabled ? null : _sendToKitchen,
+            filled: true,
+          ),
+          action(
+            label: 'Kitchen & Print',
+            icon: Icons.print_outlined,
+            onPressed: disabled ? null : _sendToKitchenAndPrint,
+          ),
+          action(
+            label: 'Kitchen, Bill, Print & Pay',
+            icon: Icons.point_of_sale_outlined,
+            onPressed: disabled ? null : () => unawaited(_billAndPay()),
+            filled: true,
+          ),
+        ]),
+        SizedBox(height: compact ? 0 : 5),
+        actionRow([
+          action(
+            label: 'Bill',
+            icon: Icons.receipt_long_outlined,
+            onPressed: disabled ? null : () => unawaited(_createBill()),
+          ),
+          action(
+            label: 'Bill & Pay',
+            icon: Icons.payments_outlined,
+            onPressed: disabled
+                ? null
+                : () => unawaited(
+                    _billAndPay(sendToKitchen: false, printCustomerBill: false),
+                  ),
+            filled: true,
+          ),
+          action(
+            label: 'Bill & Print',
+            icon: Icons.print_rounded,
+            onPressed: disabled
+                ? null
+                : () => unawaited(_createBill(print: true)),
+          ),
+        ]),
       ],
     );
   }
 
   Widget _numericKeypad() {
     final compactHeight = MediaQuery.sizeOf(context).height < 720;
+    // VisualDensity.compact subtracts 8 logical pixels from the button's
+    // effective height, so request 42 to retain a 34px touch target.
     final keyHeight = compactHeight ? 42.0 : 27.0;
-    final modeHeight = compactHeight ? 40.0 : 26.0;
-    final keyFontSize = compactHeight ? 17.0 : 15.0;
+    final modeHeight = compactHeight ? 42.0 : 26.0;
+    final keyFontSize = compactHeight ? 15.0 : 15.0;
     Widget keypadKey(
       String label, {
       String? value,
@@ -2882,7 +2998,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: compactHeight ? 0 : 4),
         keypadRow([
           keypadKey('7'),
           keypadKey('8'),
@@ -2894,7 +3010,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             borderColor: const Color(0xFFACD2C8),
           ),
         ]),
-        const SizedBox(height: 4),
+        SizedBox(height: compactHeight ? 0 : 4),
         keypadRow([
           keypadKey('4'),
           keypadKey('5'),
@@ -2907,7 +3023,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             borderColor: const Color(0xFFACD2C8),
           ),
         ]),
-        const SizedBox(height: 4),
+        SizedBox(height: compactHeight ? 0 : 4),
         keypadRow([
           keypadKey('1'),
           keypadKey('2'),
@@ -2920,7 +3036,7 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             borderColor: const Color(0xFFE8CA8C),
           ),
         ]),
-        const SizedBox(height: 4),
+        SizedBox(height: compactHeight ? 0 : 4),
         keypadRow([
           keypadKey('0'),
           keypadKey('.'),

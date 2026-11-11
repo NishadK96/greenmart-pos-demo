@@ -14,6 +14,7 @@ import '../features/kitchen/domain/kitchen_entities.dart';
 import '../features/pos/domain/client_sale_calculation.dart';
 import '../features/app_update/domain/app_update_info.dart';
 import '../features/vouchers/domain/voucher_entities.dart';
+import 'http_client_factory.dart';
 
 enum LoginFailure { invalidCredentials, network, server }
 
@@ -169,7 +170,7 @@ class Api {
     Duration authRetryDelay = const Duration(milliseconds: 600),
   }) : assert(client == null || clientFactory == null),
        _client = _RefreshingClient(
-         client ?? clientFactory?.call() ?? http.Client(),
+         client ?? clientFactory?.call() ?? createHttpClient(),
          clientFactory: clientFactory,
        ),
        _loginUrl = loginUrl ?? ApiEndPoints.loginUrl,

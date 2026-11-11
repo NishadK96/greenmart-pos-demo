@@ -1514,7 +1514,21 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             : 'Bill #$transactionId saved as due.',
       );
     } catch (error) {
-      if (mounted) _show('Unable to create this bill: $error');
+      if (mounted) {
+        // A rejected bill (for example an inventory validation error) was
+        // leaving the idempotency marker set and locking the entire cart.
+        // Clear it for deterministic 4xx responses so the cashier can fix the
+        // order and continue adding products. Keep it for network/5xx errors,
+        // where the server may have accepted the original request.
+        final status = error is ApiException ? error.statusCode : null;
+        if (status != null && status >= 400 && status < 500 && status != 401) {
+          setState(() {
+            _pendingClientTransactionId = null;
+            _showMobileOrder = true;
+          });
+        }
+        _show('Unable to create this bill: $error');
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }

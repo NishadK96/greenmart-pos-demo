@@ -1377,7 +1377,12 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     });
   }
 
-  Future<void> _saveDraft() async {
+  Future<void> _printAndHoldKitchenOrder() async {
+    if (_lines.isEmpty || _orderLocked || _sending) return;
+    await _saveDraft(printBill: true);
+  }
+
+  Future<void> _saveDraft({bool printBill = false}) async {
     if (_sending || _orderLocked || _lines.isEmpty) return;
     final store = ref.read(appStoreProvider);
     final locationId = _locationId(store);
@@ -1433,6 +1438,10 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
       }
       ref.invalidate(kitchenOrdersProvider(locationId));
       if (!mounted) return;
+      if (printBill) {
+        await _printBill(paymentMethod: 'due');
+        if (!mounted) return;
+      }
       _show('Order #$transactionId saved as draft.');
       _resetOrder();
     } catch (error) {
@@ -2912,6 +2921,13 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             icon: Icons.soup_kitchen_rounded,
             onPressed: disabled ? null : _sendToKitchen,
             filled: true,
+          ),
+          action(
+            label: 'Print & Hold',
+            icon: Icons.print_outlined,
+            onPressed: _lines.isEmpty || _orderLocked || _sending
+                ? null
+                : _printAndHoldKitchenOrder,
           ),
           action(
             label: 'Kitchen & Print',

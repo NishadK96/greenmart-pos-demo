@@ -1774,6 +1774,72 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
     );
   }
 
+  Widget _quickPrintToggle() {
+    final printerState = ref.watch(printerControllerProvider);
+    final enabled = printerState.settings.posPrintingEnabled;
+    return Tooltip(
+      message: context.tr(
+        enabled
+            ? 'Automatic invoice printing is on'
+            : 'Invoice printing is off',
+      ),
+      child: InkWell(
+        onTap: printerState.loading
+            ? null
+            : () async {
+                final settings = ref.read(printerControllerProvider).settings;
+                await ref
+                    .read(printerControllerProvider.notifier)
+                    .update(settings.copyWith(posPrintingEnabled: !enabled));
+                if (!mounted) return;
+                ScaffoldMessenger.of(context)
+                  ..clearSnackBars()
+                  ..showSnackBar(
+                    SnackBar(
+                      duration: const Duration(seconds: 2),
+                      content: Text(
+                        context.tr(
+                          enabled
+                              ? 'Invoice printing disabled.'
+                              : 'Invoice printing enabled.',
+                        ),
+                      ),
+                    ),
+                  );
+              },
+        borderRadius: BorderRadius.circular(6),
+        child: Semantics(
+          button: true,
+          toggled: enabled,
+          label: context.tr('Automatic invoice printing'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  enabled
+                      ? Icons.print_outlined
+                      : Icons.print_disabled_outlined,
+                  size: 19,
+                  color: enabled ? Colors.white : const Color(0xFFFFB4AB),
+                ),
+                Text(
+                  context.tr(enabled ? 'On' : 'Off'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _header(
     bool desktop,
     _RestaurantContext? restaurant,
@@ -1798,6 +1864,8 @@ class _KitchenPosScreenState extends ConsumerState<KitchenPosScreen> {
             ),
           ),
         ),
+        _quickPrintToggle(),
+        const SizedBox(width: 4),
         IconButton(
           tooltip: 'New order',
           onPressed: _newOrder,

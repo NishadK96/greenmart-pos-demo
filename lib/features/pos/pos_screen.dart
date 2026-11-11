@@ -6294,56 +6294,86 @@ class _CurrentOrder extends ConsumerWidget {
     icon: Icon(icon, size: 17),
   );
 
-  Widget _cartActions(BuildContext context, WidgetRef ref, AppState state) =>
-      Row(
-        children: [
-          Expanded(
-            child: TextButton.icon(
-              onPressed: state.cart.isEmpty
-                  ? null
-                  : () => ref.read(appStoreProvider.notifier).holdCart(),
-              icon: const Icon(Icons.pause_rounded, size: 17),
-              label: Text(context.tr('Hold Sale')),
-            ),
+  Widget _cartActions(
+    BuildContext context,
+    WidgetRef ref,
+    AppState state,
+  ) => Row(
+    children: [
+      Expanded(
+        child: TextButton.icon(
+          onPressed: state.cart.isEmpty
+              ? null
+              : () => ref.read(appStoreProvider.notifier).holdCart(),
+          icon: const Icon(Icons.pause_rounded, size: 17),
+          label: Text(context.tr('Hold Sale')),
+        ),
+      ),
+      const SizedBox(width: 7),
+      IconButton.outlined(
+        tooltip: context.tr('Print & Hold'),
+        onPressed: state.cart.isEmpty
+            ? null
+            : () async {
+                ref.read(appStoreProvider.notifier).holdCart();
+                final held = ref.read(appStoreProvider).heldCarts.firstOrNull;
+                if (held != null && context.mounted) {
+                  await _printHeldOrder(context, ref, held);
+                }
+              },
+        icon: const Icon(Icons.print_outlined, size: 17),
+      ),
+      const SizedBox(width: 7),
+      Expanded(
+        child: TextButton.icon(
+          onPressed: state.cart.isEmpty
+              ? null
+              : () async {
+                  try {
+                    final created = await ref
+                        .read(backendControllerProvider.notifier)
+                        .saveQuotation();
+                    if (!context.mounted) return;
+                    ref.read(appStoreProvider.notifier).clearCart();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          '${context.tr('Quotation saved')} ${created.invoiceNo}',
+                        ),
+                      ),
+                    );
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                },
+          icon: const Icon(Icons.request_quote_outlined, size: 17),
+          label: Text(context.tr('Quotation')),
+        ),
+      ),
+      const SizedBox(width: 7),
+      Expanded(
+        child: TextButton.icon(
+          onPressed: () => ref.read(appStoreProvider.notifier).clearCart(),
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            size: 17,
+            color: AppColors.danger,
           ),
-          const SizedBox(width: 7),
-          IconButton.outlined(
-            tooltip: context.tr('Print & Hold'),
-            onPressed: state.cart.isEmpty
-                ? null
-                : () async {
-                    ref.read(appStoreProvider.notifier).holdCart();
-                    final held = ref
-                        .read(appStoreProvider)
-                        .heldCarts
-                        .firstOrNull;
-                    if (held != null && context.mounted) {
-                      await _printHeldOrder(context, ref, held);
-                    }
-                  },
-            icon: const Icon(Icons.print_outlined, size: 17),
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: TextButton.icon(
-              onPressed: () => ref.read(appStoreProvider.notifier).clearCart(),
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                size: 17,
-                color: AppColors.danger,
-              ),
-              label: Text(context.tr('Clear Cart')),
-            ),
-          ),
-          if (MediaQuery.sizeOf(context).width >= 700) ...[
-            const SizedBox(width: 7),
-            IconButton.outlined(
-              onPressed: () => _note(context),
-              icon: const Icon(Icons.more_horiz_rounded),
-            ),
-          ],
-        ],
-      );
+          label: Text(context.tr('Clear Cart')),
+        ),
+      ),
+      if (MediaQuery.sizeOf(context).width >= 700) ...[
+        const SizedBox(width: 7),
+        IconButton.outlined(
+          onPressed: () => _note(context),
+          icon: const Icon(Icons.more_horiz_rounded),
+        ),
+      ],
+    ],
+  );
 
   Widget _checkoutFooter(
     BuildContext context,

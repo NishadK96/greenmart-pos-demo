@@ -2808,11 +2808,15 @@ class Api {
   Future<List<Sale>> sales(
     String accessToken,
     List<Product> products,
-    List<Customer> customers,
-  ) async {
-    final uri = Uri.parse(
-      ApiEndPoints.salesUrl,
-    ).replace(queryParameters: const {'per_page': '-1'});
+    List<Customer> customers, {
+    String? status,
+  }) async {
+    final uri = Uri.parse(ApiEndPoints.salesUrl).replace(
+      queryParameters: {
+        'per_page': '-1',
+        if (status != null && status.isNotEmpty) 'status': status,
+      },
+    );
     final data = await _getDataList(uri, accessToken, 'sales');
     final productById = {for (final item in products) item.id: item};
     final customerById = {for (final item in customers) item.id: item};
@@ -2911,6 +2915,10 @@ class Api {
     String? serviceStaffId,
     String? serviceTypeId,
     bool isSuspended = false,
+    bool isQuotation = false,
+    String? quotationValidityDate,
+    String? quotationTerms,
+    String? quotationAttention,
   }) async {
     final body = {
       'sells': [
@@ -2920,7 +2928,15 @@ class Api {
           if (cashRegisterId != null && cashRegisterId.isNotEmpty)
             'cash_register_id': int.parse(cashRegisterId),
           'contact_id': int.parse(customer.id),
-          'status': status,
+          'status': isQuotation ? 'draft' : status,
+          if (isQuotation) 'sub_status': 'quotation',
+          if (isQuotation) 'is_quotation': 1,
+          if (quotationValidityDate?.trim().isNotEmpty == true)
+            'quotation_validity_date': quotationValidityDate!.trim(),
+          if (quotationTerms?.trim().isNotEmpty == true)
+            'quotation_terms': quotationTerms!.trim(),
+          if (quotationAttention?.trim().isNotEmpty == true)
+            'quotation_attention': quotationAttention!.trim(),
           'tax_rate_id': orderTaxId == null || orderTaxId.isEmpty
               ? null
               : int.parse(orderTaxId),
@@ -2983,7 +2999,9 @@ class Api {
           // Kitchen orders sent without a payment method stay due and do not
           // require a register. Bill & Pay supplies a method and register, so
           // its payment must be recorded just like a normal POS sale.
-          if (!isCreditSale && (!isKitchenOrder || paymentMethod != null))
+          if (!isQuotation &&
+              !isCreditSale &&
+              (!isKitchenOrder || paymentMethod != null))
             'payments': payments.isNotEmpty
                 ? [
                     for (final payment in payments)

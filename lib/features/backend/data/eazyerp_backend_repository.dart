@@ -382,6 +382,10 @@ class EazyErpBackendRepository implements BackendRepository {
     String? serviceTypeId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
+    bool isQuotation = false,
+    String? quotationValidityDate,
+    String? quotationTerms,
+    String? quotationAttention,
   }) async {
     final json = await _api.createSale(
       accessToken: accessToken,
@@ -400,6 +404,10 @@ class EazyErpBackendRepository implements BackendRepository {
       serviceTypeId: serviceTypeId,
       grossDiscountType: grossDiscountType,
       grossDiscountRate: grossDiscountRate,
+      isQuotation: isQuotation,
+      quotationValidityDate: quotationValidityDate,
+      quotationTerms: quotationTerms,
+      quotationAttention: quotationAttention,
     );
     return CreatedSale(
       id:

@@ -201,6 +201,10 @@ abstract interface class BackendRepository {
     String? serviceTypeId,
     String grossDiscountType = 'fixed',
     double grossDiscountRate = 0,
+    bool isQuotation = false,
+    String? quotationValidityDate,
+    String? quotationTerms,
+    String? quotationAttention,
   });
 
   Future<String> createSaleReturn({

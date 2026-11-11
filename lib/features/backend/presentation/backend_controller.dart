@@ -11,6 +11,7 @@ import '../../cash_register/presentation/cash_register_controller.dart';
 import '../../store/app_store.dart';
 import '../../offline_pos/presentation/offline_pos_controller.dart';
 import '../data/eazyerp_backend_repository.dart';
+import '../domain/backend_repository.dart';
 
 final backendControllerProvider =
     AsyncNotifierProvider<BackendController, void>(BackendController.new);
@@ -343,6 +344,42 @@ class BackendController extends AsyncNotifier<void> {
     payments: payments,
     allowTokenRefresh: true,
   );
+
+  Future<CreatedSale> saveQuotation({
+    String? validityDate,
+    String? terms,
+    String? attention,
+  }) async {
+    final state = ref.read(appStoreProvider);
+    if (state.cart.isEmpty ||
+        state.customers.isEmpty ||
+        state.locations.isEmpty) {
+      throw const ApiException(
+        'Add at least one product before saving a quotation.',
+      );
+    }
+    final token = await _token();
+    return ref
+        .read(backendRepositoryProvider)
+        .createSale(
+          accessToken: token,
+          locationId: state.locations.first.id,
+          cashRegisterId: '',
+          customer: state.customer ?? state.customers.first,
+          lines: state.cart,
+          paymentMethod: 'cash',
+          total: state.cartTotal,
+          grossDiscount: state.cartGrossDiscount,
+          clientTransactionId: _uuidV4(),
+          isQuotation: true,
+          quotationValidityDate: validityDate,
+          quotationTerms: terms,
+          quotationAttention: attention,
+          orderTaxId: state.orderTaxId,
+          grossDiscountType: state.grossDiscountType,
+          grossDiscountRate: state.grossDiscountRate,
+        );
+  }
 
   Future<Sale> checkoutSplit(
     List<PaymentAllocation> payments, {

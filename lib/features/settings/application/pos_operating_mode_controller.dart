@@ -47,12 +47,22 @@ class PosRoleAccess {
     if (access.isAdmin) return true;
     if (!access.hasRoleData) return false;
     const names = {
-      PosOperatingMode.retail: {'retail', 'retail pos', 'retail sales'},
+      // A standard cashier operates the retail register unless a more
+      // specific POS role (kitchen, fuel, or van) is assigned.
+      PosOperatingMode.retail: {
+        'retail',
+        'retail pos',
+        'retail sales',
+        'cashier',
+        'cashier pos',
+      },
       PosOperatingMode.kitchen: {
         'kitchen',
         'kitchen pos',
         'restaurant',
         'restaurant pos',
+        'cashier',
+        'cashier pos',
       },
       PosOperatingMode.fuel: {'fuel', 'fuel pos', 'fuel station', 'fuel sales'},
       PosOperatingMode.van: {'van', 'van pos', 'van sale', 'van sales'},

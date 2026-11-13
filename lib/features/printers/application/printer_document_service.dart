@@ -764,6 +764,8 @@ class PrinterDocumentService {
     Sale sale,
     OfflineInvoiceLayoutBundle bundle, {
     bool arabic = false,
+    String? fallbackBusinessName,
+    String? fallbackVatNumber,
   }) async {
     final manifest = bundle.manifest;
     final locale = _map(manifest['locale']);
@@ -822,7 +824,13 @@ class PrinterDocumentService {
               ? identityBusinessName
               : invoiceIdentity['business_name']?.toString() ??
                     layoutBusinessName
-        : layoutBusinessName;
+        : layoutBusinessName.isNotEmpty
+        ? layoutBusinessName
+        : (fallbackBusinessName ?? 'Eazy POS');
+    final vatNumber =
+        invoiceIdentity['vat_number']?.toString().trim().isNotEmpty == true
+        ? invoiceIdentity['vat_number'].toString().trim()
+        : (fallbackVatNumber ?? '').trim();
     final address = _map(location['address']);
     final addressText = arabic
         ? address['override_ar']?.toString() ?? ''
@@ -874,12 +882,9 @@ class PrinterDocumentService {
               location['name']?.toString() ?? '',
               textAlign: pw.TextAlign.center,
             ),
-          if (identityEnabled &&
-              showIdentity('vat_number') &&
-              invoiceIdentity['vat_number']?.toString().trim().isNotEmpty ==
-                  true)
+          if (showIdentity('vat_number') && vatNumber.isNotEmpty)
             PdfFonts.text(
-              '${label('vat_number', 'VAT')}: ${invoiceIdentity['vat_number']}',
+              '${label('vat_number', 'VAT')}: $vatNumber',
               textAlign: pw.TextAlign.center,
               style: const pw.TextStyle(fontSize: 9),
             ),

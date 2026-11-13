@@ -23,6 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _rememberChoiceChanged = false;
   bool obscure = true;
   bool resettingDevice = false;
+  bool submitting = false;
   bool deviceBusinessMismatch = false;
   String? error;
   final email = TextEditingController();
@@ -55,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    if (ref.read(authControllerProvider).isLoading) return;
+    if (submitting) return;
     FocusScope.of(context).unfocus();
     final username = email.text.trim();
     if (username.isEmpty || password.text.isEmpty) {
@@ -65,23 +66,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() {
       error = null;
       deviceBusinessMismatch = false;
+      submitting = true;
     });
-    final result = await ref
-        .read(authControllerProvider.notifier)
-        .login(username, password.text, remember: remember);
-    if (!mounted) return;
-    if (result.isSuccess) {
-      context.go('/dashboard');
-      return;
+    try {
+      final result = await ref
+          .read(authControllerProvider.notifier)
+          .login(username, password.text, remember: remember);
+      if (!mounted) return;
+      if (result.isSuccess) {
+        context.go('/dashboard');
+        return;
+      }
+      final message = _errorMessage(result);
+      final diagnosticCode = result.diagnosticCode;
+      setState(() {
+        error = diagnosticCode == null
+            ? message
+            : '$message\nDiagnostic code: $diagnosticCode';
+        deviceBusinessMismatch = _isDeviceBusinessMismatch(result);
+      });
+    } finally {
+      if (mounted) setState(() => submitting = false);
     }
-    final message = _errorMessage(result);
-    final diagnosticCode = result.diagnosticCode;
-    setState(() {
-      error = diagnosticCode == null
-          ? message
-          : '$message\nDiagnostic code: $diagnosticCode';
-      deviceBusinessMismatch = _isDeviceBusinessMismatch(result);
-    });
   }
 
   bool _isDeviceBusinessMismatch(LoginResult result) =>
@@ -178,7 +184,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final loading = auth.isLoading || resettingDevice;
+    // Restoring a saved native session must not disable a fresh login. The
+    // submit state is owned by this screen and only covers the active request.
+    final loading = submitting || resettingDevice;
     final size = MediaQuery.sizeOf(context);
     final showFeaturePanel = size.width >= 1200;
 

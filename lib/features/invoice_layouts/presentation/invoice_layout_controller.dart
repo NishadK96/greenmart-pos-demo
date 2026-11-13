@@ -13,6 +13,7 @@ import '../../store/app_store.dart';
 import '../domain/invoice_layout_entities.dart';
 import '../data/offline_invoice_layout_repository.dart';
 import '../application/offline_ar_receipt.dart';
+import '../application/offline_template_catalog.dart';
 
 final offlineInvoiceLayoutRepositoryProvider = Provider(
   (_) => OfflineInvoiceLayoutRepository(),
@@ -239,11 +240,13 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
       final saleId = sale.serverId!;
       return _finalizedSalePdf(saleId);
     }
-    final offlineLayout = await ref
-        .read(offlineInvoiceLayoutRepositoryProvider)
-        .load(_locationId, _documentType);
+    final offlineLayout =
+        await ref
+            .read(offlineInvoiceLayoutRepositoryProvider)
+            .load(_locationId, _documentType) ??
+        OfflineTemplateCatalog.bundle(_locationId, _documentType);
     final store = ref.read(appStoreProvider);
-    final manifest = offlineLayout?.manifest ?? const <String, dynamic>{};
+    final manifest = offlineLayout.manifest;
     final business = manifest['business'] is Map
         ? Map<String, dynamic>.from(manifest['business'] as Map)
         : const <String, dynamic>{};
@@ -257,20 +260,35 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
         '${business['name_en'] ?? business['name'] ?? ''}'.trim();
     final cachedVat =
         '${identity['vat_number'] ?? business['tax_number'] ?? ''}'.trim();
+    final bytes = offlineLayout.manifest['renderer_profile'] != null
+        ? await PrinterDocumentService.offlineLayoutReceipt(
+            sale,
+            offlineLayout,
+            arabic: arabic,
+            fallbackBusinessName: arabicBusinessName.isNotEmpty
+                ? arabicBusinessName
+                : businessName == 'Eazy POS' && cachedBusinessName.isNotEmpty
+                ? cachedBusinessName
+                : businessName,
+            fallbackVatNumber: store.business?.taxNumber.isNotEmpty == true
+                ? store.business!.taxNumber
+                : cachedVat,
+          )
+        : await OfflineArabicReceipt.pdf(
+            sale: sale,
+            businessName: arabicBusinessName.isNotEmpty
+                ? arabicBusinessName
+                : businessName == 'Eazy POS' && cachedBusinessName.isNotEmpty
+                ? cachedBusinessName
+                : businessName,
+            vatNumber: store.business?.taxNumber.isNotEmpty == true
+                ? store.business!.taxNumber
+                : cachedVat,
+            cashierName: store.user?.name ?? '',
+            layout: offlineLayout,
+          );
     return ErpInvoicePdf(
-      bytes: await OfflineArabicReceipt.pdf(
-        sale: sale,
-        businessName: arabicBusinessName.isNotEmpty
-            ? arabicBusinessName
-            : businessName == 'Eazy POS' && cachedBusinessName.isNotEmpty
-            ? cachedBusinessName
-            : businessName,
-        vatNumber: store.business?.taxNumber.isNotEmpty == true
-            ? store.business!.taxNumber
-            : cachedVat,
-        cashierName: store.user?.name ?? '',
-        layout: offlineLayout,
-      ),
+      bytes: bytes,
       fileName: 'Invoice ${sale.invoiceNo}.pdf',
     );
   }
@@ -381,7 +399,7 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
           .read(offlineInvoiceLayoutRepositoryProvider)
           .loadCatalog(_locationId, _documentType);
       if (cached != null) return cached;
-      rethrow;
+      return OfflineTemplateCatalog.catalog(_locationId, _documentType);
     }
   }
 

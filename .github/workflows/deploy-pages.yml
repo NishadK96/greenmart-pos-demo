@@ -37,7 +37,7 @@ jobs:
         run: flutter test --dart-define=use_arabic=true
 
       - name: Build web application
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/" --dart-define=use_arabic=true
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/" --dart-define=use_bidi=false --dart-define=use_arabic=true
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

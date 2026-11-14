@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
@@ -28,6 +27,12 @@ final invoiceDesignsProvider = FutureProvider<List<ErpInvoiceDesign>>(
   (ref) => ref.read(invoiceLayoutControllerProvider.notifier).designs(),
 );
 
+final selectedOfflineInvoiceTemplateProvider = FutureProvider<String>((ref) {
+  return ref
+      .read(invoiceLayoutControllerProvider.notifier)
+      .selectedOfflineTemplateId();
+});
+
 class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   String _locationId = '';
   String _documentType = 'pos';
@@ -49,12 +54,14 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   Future<void> selectLocation(String locationId) async {
     if (locationId == _locationId) return;
     _locationId = locationId;
+    ref.invalidate(selectedOfflineInvoiceTemplateProvider);
     await refresh();
   }
 
   Future<void> selectDocumentType(String documentType) async {
     if (documentType == _documentType) return;
     _documentType = documentType;
+    ref.invalidate(selectedOfflineInvoiceTemplateProvider);
     await refresh();
   }
 
@@ -70,6 +77,128 @@ class InvoiceLayoutController extends AsyncNotifier<ErpInvoiceLayoutCatalog?> {
   Future<ErpInvoicePdf> previewDesign(String design) => _authorized(
     (token) => ref.read(apiProvider).previewInvoiceDesign(token, design),
   );
+
+  Future<String> selectedOfflineTemplateId() async {
+    final bundle = await ref
+        .read(offlineInvoiceLayoutRepositoryProvider)
+        .load(_locationId, _documentType);
+    return (bundle?.manifest['layout'] as Map?)?['id']?.toString() ??
+        OfflineTemplateCatalog.presets.first.id;
+  }
+
+  Future<void> selectOfflineTemplate(String presetId) async {
+    await ref
+        .read(offlineInvoiceLayoutRepositoryProvider)
+        .save(
+          OfflineTemplateCatalog.bundle(
+            _locationId,
+            _documentType,
+            presetId: presetId,
+          ),
+        );
+    ref.invalidate(selectedOfflineInvoiceTemplateProvider);
+  }
+
+  Future<ErpInvoicePdf> previewOfflineTemplate(String presetId) async {
+    final preset = OfflineTemplateCatalog.presets.firstWhere(
+      (item) => item.id == presetId,
+      orElse: () => OfflineTemplateCatalog.presets.first,
+    );
+    return _renderOfflinePreview(
+      OfflineTemplateCatalog.bundle(
+        _locationId,
+        _documentType,
+        presetId: preset.id,
+      ),
+      fileName: '${preset.name} sample.pdf',
+    );
+  }
+
+  Future<ErpInvoicePdf?> previewOfflineLayout(ErpInvoiceLayout layout) async {
+    OfflineTemplatePreset? preset;
+    for (final candidate in OfflineTemplateCatalog.presets) {
+      if (candidate.id == layout.id ||
+          (layout.rendererProfile.isNotEmpty &&
+              candidate.profile == layout.rendererProfile)) {
+        preset = candidate;
+        break;
+      }
+    }
+    if (preset != null) {
+      return _renderOfflinePreview(
+        OfflineTemplateCatalog.bundle(
+          _locationId,
+          _documentType,
+          presetId: preset.id,
+        ),
+        fileName: '${layout.name} sample.pdf',
+      );
+    }
+    final cached = await ref
+        .read(offlineInvoiceLayoutRepositoryProvider)
+        .loadLayout(_locationId, _documentType, layout.id);
+    if (cached == null) return null;
+    return _renderOfflinePreview(
+      cached,
+      fileName: '${layout.name} sample.pdf',
+    );
+  }
+
+  Future<ErpInvoicePdf> _renderOfflinePreview(
+    OfflineInvoiceLayoutBundle bundle, {
+    required String fileName,
+  }) async {
+    final store = ref.read(appStoreProvider);
+    final now = DateTime.now();
+    final sale = Sale(
+      localId: 'offline-template-preview',
+      invoiceNo: 'SAMPLE-001',
+      createdAt: now,
+      updatedAt: now,
+      customer: const Customer(id: 'walk-in', name: 'Walk-in Customer'),
+      items: const [
+        CartLine(
+          product: Product(
+            id: 'sample-product',
+            name: 'Sample Product',
+            nameEn: 'Sample Product',
+            nameAr: 'منتج تجريبي',
+            sku: 'SKU-1000',
+            barcode: 'SKU-1000',
+            categoryId: 'sample',
+            purchasePrice: 3000,
+            sellingPrice: 5000,
+            stock: 10,
+            minimumStock: 0,
+            variationId: 'sample-variation',
+            taxPercent: 15,
+          ),
+        ),
+      ],
+      paymentMethod: 'cash',
+      total: 5750,
+      tax: 750,
+      discount: 0,
+      syncStatus: SyncStatus.pending,
+      paymentStatus: 'paid',
+      locationId: _locationId,
+      payments: const [PaymentAllocation(method: 'cash', amount: 5750)],
+    );
+    late final Uint8List bytes;
+    try {
+      bytes = await PrinterDocumentService.offlineLayoutReceipt(
+        sale,
+        bundle,
+        fallbackBusinessName: store.business?.name ?? 'Eazy POS',
+        fallbackVatNumber: store.business?.taxNumber ?? '',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Offline invoice preview generation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
+    return ErpInvoicePdf(bytes: bytes, fileName: fileName);
+  }
 
   Future<void> assign(String? layoutId, {String? design}) async {
     final previous = state.asData?.value;

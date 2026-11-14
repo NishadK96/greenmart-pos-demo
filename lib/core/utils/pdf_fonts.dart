@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -47,6 +48,7 @@ abstract final class PdfFonts {
     pw.TextAlign? textAlign,
     int? maxLines,
   }) {
+    value = _safePdfText(value);
     final arabic = containsArabic(value);
     final arabicFont = style?.fontWeight == pw.FontWeight.bold
         ? _arabicBold
@@ -67,6 +69,21 @@ abstract final class PdfFonts {
       textDirection: directionFor(value),
       maxLines: maxLines,
     );
+  }
+
+  /// The JavaScript build of package:bidi can overrun its composition-length
+  /// table for canonically decomposable Arabic glyphs. Native builds do not
+  /// exhibit the issue. Normalize those glyphs only for web PDF generation so
+  /// offline previews remain renderable instead of failing the whole receipt.
+  static String _safePdfText(String value) {
+    if (!kIsWeb || !containsArabic(value)) return value;
+    return value
+        .replaceAll(RegExp(r'[\u064B-\u065F\u0670]'), '')
+        .replaceAll('آ', 'ا')
+        .replaceAll('أ', 'ا')
+        .replaceAll('إ', 'ا')
+        .replaceAll('ؤ', 'و')
+        .replaceAll('ئ', 'ي');
   }
 
   static pw.Widget bilingual(

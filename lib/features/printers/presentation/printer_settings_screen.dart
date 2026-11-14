@@ -9,6 +9,7 @@ import '../../../core/utils/desktop_pdf_preview.dart';
 import '../../../shared/models/entities.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../invoice_layouts/domain/invoice_layout_entities.dart';
+import '../../invoice_layouts/application/offline_template_catalog.dart';
 import '../../invoice_layouts/presentation/invoice_layout_controller.dart';
 import '../../kitchen/presentation/kitchen_settings_panel.dart';
 import '../../store/app_store.dart';
@@ -43,11 +44,30 @@ class PrinterSettingsScreen extends ConsumerWidget {
                           if (settings.section == PrinterSection.billing) {
                             final selected =
                                 layoutState.asData?.value?.selectedLayout;
-                            if (selected == null ||
-                                previewTransactionId == null) {
+                            if (selected == null) {
                               throw const ApiException(
-                                'Select an ERP layout and synchronize at least one sale before previewing.',
+                                'Select an ERP layout before previewing.',
                               );
+                            }
+                            final offlineFile = await layoutController
+                                .previewOfflineLayout(selected);
+                            if (offlineFile != null) {
+                              await PrinterDocumentService.previewPdfBytes(
+                                offlineFile.bytes,
+                                name: offlineFile.fileName,
+                                format:
+                                    PrinterDocumentService.formatForPaperMetadata(
+                                      selected.paperFormat,
+                                      selected.paperWidthMm,
+                                    ),
+                              );
+                              return;
+                            }
+                            if (previewTransactionId == null) {
+                              await PrinterDocumentService.previewSample(
+                                settings,
+                              );
+                              return;
                             }
                             final file = await layoutController.preview(
                               selected.id,
@@ -79,9 +99,11 @@ class PrinterSettingsScreen extends ConsumerWidget {
                               );
                             }
                             if (previewTransactionId == null) {
-                              throw const ApiException(
-                                'Complete and synchronize at least one sale before testing an ERP invoice layout.',
+                              await PrinterDocumentService.printSampleTo(
+                                settings,
+                                printers: state.selectedPrinters,
                               );
+                              return;
                             }
                             final file = await layoutController.preview(
                               selected.id,
@@ -127,21 +149,26 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         onDocumentTypeChanged:
                             layoutController.selectDocumentType,
                         onRefresh: layoutController.refresh,
-                        onPreview: (layout) => _showErpInvoicePreview(
-                          context,
-                          layout: layout,
-                          load: () {
-                            if (previewTransactionId == null) {
-                              throw const ApiException(
-                                'Complete and synchronize at least one sale before previewing an ERP invoice layout.',
+                        onPreview: (layout) async {
+                          await _showErpInvoicePreview(
+                            context,
+                            layout: layout,
+                            load: () async {
+                              final offlineFile = await layoutController
+                                  .previewOfflineLayout(layout);
+                              if (offlineFile != null) return offlineFile;
+                              if (previewTransactionId == null) {
+                                throw const ApiException(
+                                  'This ERP layout has no offline preview. Synchronize a sale or choose a bundled offline template.',
+                                );
+                              }
+                              return layoutController.preview(
+                                layout.id,
+                                transactionId: previewTransactionId,
                               );
-                            }
-                            return layoutController.preview(
-                              layout.id,
-                              transactionId: previewTransactionId,
-                            );
-                          },
-                        ),
+                            },
+                          );
+                        },
                         onAssign: (layout) async {
                           try {
                             await layoutController.assign(layout.id);
@@ -166,6 +193,8 @@ class PrinterSettingsScreen extends ConsumerWidget {
                         },
                       ),
                       const SizedBox(height: 14),
+                      const _InvoiceDesignsPanel(),
+                      const SizedBox(height: 14),
                       _InvoicePrintRoutesPanel(
                         catalog: layoutState.asData?.value,
                         settings: settings,
@@ -179,9 +208,27 @@ class PrinterSettingsScreen extends ConsumerWidget {
                               );
                             }
                             if (previewTransactionId == null) {
-                              throw const ApiException(
-                                'Complete and synchronize at least one sale before testing this route.',
+                              final format =
+                                  PrinterDocumentService.formatForPaperMetadata(
+                                    route.paperFormat,
+                                    route.paperWidthMm,
+                                  );
+                              final bytes = await PrinterDocumentService.sample(
+                                settings,
+                                format,
                               );
+                              await PrinterDocumentService.printPdfBytes(
+                                bytes,
+                                name: 'Eazy POS offline test.pdf',
+                                printer: Printer(
+                                  url: route.printerUrl,
+                                  name: route.printerName,
+                                ),
+                                format: format,
+                                fitThermalPrintableWidth: route.paperFormat
+                                    .startsWith('thermal_'),
+                              );
+                              return;
                             }
                             final file = await layoutController.preview(
                               route.layoutId,
@@ -209,8 +256,6 @@ class PrinterSettingsScreen extends ConsumerWidget {
                           }
                         },
                       ),
-                      const SizedBox(height: 14),
-                      const _InvoiceDesignsPanel(),
                       const SizedBox(height: 14),
                       _DocumentSettings(
                         settings: settings,
@@ -782,14 +827,21 @@ class _InvoiceDesignsPanel extends ConsumerStatefulWidget {
 }
 
 class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
-  bool _expanded = false;
+  bool _expanded = true;
 
   @override
   Widget build(BuildContext context) {
-    final designs = ref.watch(invoiceDesignsProvider);
+    final selectedTemplate = ref.watch(selectedOfflineInvoiceTemplateProvider);
     final layouts = ref.watch(invoiceLayoutControllerProvider);
     final controller = ref.read(invoiceLayoutControllerProvider.notifier);
-    final selectedLayout = layouts.asData?.value?.selectedLayout;
+    final selectedTemplateId = selectedTemplate.asData?.value;
+    OfflineTemplatePreset? selectedPreset;
+    for (final preset in OfflineTemplateCatalog.presets) {
+      if (preset.id == selectedTemplateId) {
+        selectedPreset = preset;
+        break;
+      }
+    }
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Padding(
@@ -824,7 +876,7 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Built-in invoice designs',
+                            'Offline invoice templates',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
@@ -832,7 +884,7 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Preview samples or change the default design.',
+                            'All six bundled templates are available without an internet connection.',
                             style: TextStyle(
                               color: AppColors.muted,
                               fontSize: 13,
@@ -841,7 +893,7 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                         ],
                       ),
                     ),
-                    if (!_expanded && selectedLayout != null) ...[
+                    if (!_expanded && selectedPreset != null) ...[
                       const SizedBox(width: 8),
                       Container(
                         constraints: const BoxConstraints(maxWidth: 260),
@@ -854,7 +906,7 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
-                          '${context.tr('Default')}: ${context.tr(selectedLayout.name)}',
+                          '${context.tr('Default')}: ${context.tr(selectedPreset.name)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -882,19 +934,14 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Select a design below. Preview opens a watermarked sample.',
+                      'These templates are stored on this device. Preview and selection work without an internet connection.',
                       style: TextStyle(color: AppColors.muted),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => ref.invalidate(invoiceDesignsProvider),
-                    tooltip: context.tr('Reload ERP layouts'),
-                    icon: const Icon(Icons.refresh),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
-              designs.when(
+              selectedTemplate.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.symmetric(vertical: 28),
                   child: Center(child: CircularProgressIndicator()),
@@ -904,79 +951,81 @@ class _InvoiceDesignsPanelState extends ConsumerState<_InvoiceDesignsPanel> {
                   children: [
                     Text(error.toString()),
                     TextButton(
-                      onPressed: () => ref.invalidate(invoiceDesignsProvider),
+                      onPressed: () => ref.invalidate(
+                        selectedOfflineInvoiceTemplateProvider,
+                      ),
                       child: const Text('Retry'),
                     ),
                   ],
                 ),
-                data: (items) => items.isEmpty
-                    ? const Text('No built-in invoice designs are available.')
-                    : LayoutBuilder(
-                        builder: (_, constraints) {
-                          final columns = constraints.maxWidth >= 980
-                              ? 3
-                              : constraints.maxWidth >= 640
-                              ? 2
-                              : 1;
-                          final width =
-                              (constraints.maxWidth - (columns - 1) * 12) /
-                              columns;
-                          return Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: items.map((design) {
-                              final selected =
-                                  selectedLayout?.design == design.key;
-                              final layout = ErpInvoiceLayout(
-                                id: design.key,
-                                name: design.name,
-                                design: design.key,
-                                designName: '',
-                                isSelected: selected,
-                                previewUrl: '',
-                              );
-                              return SizedBox(
-                                width: width,
-                                child: AbsorbPointer(
-                                  absorbing: layouts.isLoading,
-                                  child: _ErpLayoutCard(
-                                    layout: layout,
-                                    selected: selected,
-                                    showOfflineStatus: false,
-                                    onPreview: () => _showErpInvoicePreview(
-                                      context,
-                                      layout: layout,
-                                      load: () =>
-                                          controller.previewDesign(design.key),
-                                    ),
-                                    onAssign: () async {
-                                      try {
-                                        await controller.assign(
-                                          null,
-                                          design: design.key,
-                                        );
-                                        if (context.mounted) {
-                                          PrinterSettingsScreen._message(
-                                            context,
-                                            '${design.name} is now the default ERP invoice layout.',
-                                          );
-                                        }
-                                      } catch (error) {
-                                        if (context.mounted) {
-                                          PrinterSettingsScreen._message(
-                                            context,
-                                            error.toString(),
-                                          );
-                                        }
-                                      }
-                                    },
-                                  ),
+                data: (selectedId) => LayoutBuilder(
+                  builder: (_, constraints) {
+                    final columns = constraints.maxWidth >= 980
+                        ? 3
+                        : constraints.maxWidth >= 640
+                        ? 2
+                        : 1;
+                    final width =
+                        (constraints.maxWidth - (columns - 1) * 12) / columns;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: OfflineTemplateCatalog.presets.map((design) {
+                        final selected = selectedId == design.id;
+                        final layout = ErpInvoiceLayout(
+                          id: design.id,
+                          name: design.name,
+                          design: design.profile,
+                          designName: design.name,
+                          isSelected: selected,
+                          previewUrl: '',
+                          offlineSupported: true,
+                          rendererProfile: design.profile,
+                          paperFormat: design.paperFormat,
+                          paperWidthMm: design.widthMm,
+                        );
+                        return SizedBox(
+                          width: width,
+                          child: AbsorbPointer(
+                            absorbing: layouts.isLoading,
+                            child: _ErpLayoutCard(
+                              layout: layout,
+                              selected: selected,
+                              showOfflineStatus: true,
+                              onPreview: () => _showErpInvoicePreview(
+                                context,
+                                layout: layout,
+                                load: () => controller.previewOfflineTemplate(
+                                  design.id,
                                 ),
-                              );
-                            }).toList(),
-                          );
-                        },
-                      ),
+                              ),
+                              onAssign: () async {
+                                try {
+                                  await controller.selectOfflineTemplate(
+                                    design.id,
+                                  );
+                                  if (context.mounted) {
+                                    PrinterSettingsScreen._message(
+                                      context,
+                                      '${design.name} is now the default offline invoice template.',
+                                    );
+                                  }
+                                } catch (error) {
+                                  if (context.mounted) {
+                                    PrinterSettingsScreen._message(
+                                      context,
+                                      error.toString(),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ),
             ],
           ],
@@ -1135,7 +1184,9 @@ class _ErpInvoicePreviewDialogState extends State<_ErpInvoicePreviewDialog> {
     _preview = widget.load();
   }
 
-  void _retry() => setState(() => _preview = widget.load());
+  void _retry() => setState(() {
+    _preview = widget.load();
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1315,14 +1366,20 @@ class _EmbeddedInvoicePreviewState extends State<_EmbeddedInvoicePreview> {
   }
 
   Future<List<Uint8List>> _renderPages() async {
-    final pages = <Uint8List>[];
-    await for (final page in Printing.raster(widget.bytes, dpi: 120)) {
-      pages.add(await page.toPng());
+    try {
+      final pages = <Uint8List>[];
+      await for (final page in Printing.raster(widget.bytes, dpi: 120)) {
+        pages.add(await page.toPng());
+      }
+      if (pages.isEmpty) {
+        throw StateError('The invoice PDF does not contain any pages.');
+      }
+      return pages;
+    } catch (error, stackTrace) {
+      debugPrint('Invoice preview rasterization failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
-    if (pages.isEmpty) {
-      throw StateError('The invoice PDF does not contain any pages.');
-    }
-    return pages;
   }
 
   @override

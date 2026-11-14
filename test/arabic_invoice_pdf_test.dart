@@ -9,6 +9,7 @@ import 'package:eazy_pos/features/purchases/presentation/purchase_document_expor
 import 'package:eazy_pos/shared/models/entities.dart';
 import 'package:eazy_pos/features/invoice_layouts/domain/invoice_layout_entities.dart';
 import 'package:eazy_pos/features/invoice_layouts/application/offline_ar_receipt.dart';
+import 'package:eazy_pos/features/invoice_layouts/application/offline_template_catalog.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -174,6 +175,50 @@ void main() {
       File(
         '${directory.path}/offline-ar-template-receipt.pdf',
       ).writeAsBytesSync(templatePdf);
+    }
+  });
+
+  test('every bundled offline invoice template renders a preview', () async {
+    final now = DateTime(2026, 11, 13, 12);
+    final sale = Sale(
+      localId: 'offline-preview',
+      invoiceNo: 'SAMPLE-001',
+      createdAt: now,
+      updatedAt: now,
+      customer: const Customer(id: 'walk-in', name: 'Walk-in Customer'),
+      items: const [
+        CartLine(
+          product: Product(
+            id: 'sample',
+            name: 'Sample Product',
+            nameEn: 'Sample Product',
+            nameAr: 'منتج تجريبي',
+            sku: 'SKU-1000',
+            barcode: 'SKU-1000',
+            categoryId: 'sample',
+            purchasePrice: 3000,
+            sellingPrice: 5000,
+            stock: 10,
+            minimumStock: 0,
+            variationId: 'sample',
+            taxPercent: 15,
+          ),
+        ),
+      ],
+      paymentMethod: 'cash',
+      total: 5750,
+      tax: 750,
+      discount: 0,
+      syncStatus: SyncStatus.pending,
+      payments: const [PaymentAllocation(method: 'cash', amount: 5750)],
+    );
+
+    for (final preset in OfflineTemplateCatalog.presets) {
+      final bytes = await PrinterDocumentService.offlineLayoutReceipt(
+        sale,
+        OfflineTemplateCatalog.bundle('1', 'pos', presetId: preset.id),
+      );
+      expect(bytes.length, greaterThan(10000), reason: preset.id);
     }
   });
 }
